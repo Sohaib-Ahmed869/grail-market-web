@@ -1215,6 +1215,17 @@ type Quota = {
   cachedCards: number;
   observedAt: string | null;
   configured: boolean;
+  /** What has actually happened, from the append-only ledger in the shared
+   *  store. Distinct from `budget`, which is what providers will still allow. */
+  scans?: {
+    shared: boolean;
+    today: number;
+    month: number;
+    total: number;
+    billableToday: number;
+    creditsToday: Record<string, number>;
+    lastScanAt: string | null;
+  };
   budget?: {
     scansLeft: number | null;
     scansPerDay: number | null;
@@ -1271,6 +1282,7 @@ function QuotaChip({ q }: { q: Quota | null }) {
   const b = q.budget;
   const left = b?.scansLeft ?? q.lookupsLeft;
   const total = b?.scansPerDay ?? null;
+  const done = q.scans?.today ?? 0;
   const out = q.lockedOut || left === 0;
   const low = left != null && left > 0 && left <= 3;
   const tone = out ? "is-out" : low ? "is-low" : "is-ok";
@@ -1285,16 +1297,47 @@ function QuotaChip({ q }: { q: Quota | null }) {
         title="Price-lookup budget"
       >
         <span className="quota-dot" aria-hidden="true" />
-        {left == null
-          ? "budget ?"
-          : total != null
-            ? `${left} / ${total} scans`
-            : `${left} scan${left === 1 ? "" : "s"}`}
+        {/* Scans DONE leads, because it is a fact. Scans left is an estimate
+            off provider quotas and moves for reasons nobody here caused — it
+            used to be the only number shown, which is why it read as wrong. */}
+        <span className="quota-done">{done} scanned</span>
+        <span className="quota-sep" aria-hidden="true">·</span>
+        <span className="quota-left">
+          {left == null ? "budget ?" : `${left} left`}
+        </span>
         <Chevron open={open} />
       </button>
 
       {open && (
         <div className="quota-pop" role="dialog" aria-label="Price lookup budget">
+          {q.scans && (
+            <div className="quota-ledger">
+              <div className="quota-ledger-row">
+                <span>Scans today</span>
+                <b className="mono">{q.scans.today}</b>
+              </div>
+              <div className="quota-ledger-row">
+                <span>This month</span>
+                <b className="mono">{q.scans.month}</b>
+              </div>
+              <div className="quota-ledger-row">
+                <span>All time</span>
+                <b className="mono">{q.scans.total}</b>
+              </div>
+              <div className="quota-ledger-row muted small">
+                <span>
+                  {q.scans.billableToday} of today&apos;s cost credits — the rest were
+                  already in the store
+                </span>
+              </div>
+              <p className="quota-ledger-note muted small">
+                Counted from a permanent record of every scan
+                {q.scans.shared ? " shared by every instance" : " on this machine only"}. It
+                does not reset when the server does.
+              </p>
+            </div>
+          )}
+
           <div className="quota-pop-head">
             <b>New-card scans left today</b>
             {total != null && (

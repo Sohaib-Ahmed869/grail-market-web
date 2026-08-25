@@ -1998,3 +1998,20 @@ button.primary:disabled {
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+
+/* Scans DONE is a fact from the ledger; scans LEFT is an estimate off provider
+   quotas. Showing only the estimate is what made this number look wrong. */
+.quota-done { font-weight: 600; }
+.quota-sep { opacity: .45; margin: 0 1px; }
+.quota-left { opacity: .8; }
+
+.quota-ledger {
+  padding: 9px 11px; margin-bottom: 10px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.quota-ledger-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; padding: 2px 0; font-size: 12.5px;
+}
+.quota-ledger-row .mono { font-variant-numeric: tabular-nums; }
+.quota-ledger-note { margin: 6px 0 0; font-size: 10.5px; line-height: 1.45; }
