@@ -132,6 +132,28 @@ type Scan = {
       >
     > | null;
     slabLabelVariant?: string | null;
+    identificationSuspect?: string | null;
+    marketNote?: string | null;
+    /** The figure for THIS holder, decided by the backend's ladder, carrying
+     *  how it was reached. Authoritative — the fallbacks below it exist for
+     *  older responses that do not include it. */
+    slabPrice?: {
+      price: number;
+      low?: number | null;
+      high?: number | null;
+      sampleSize?: number | null;
+      confidence: "high" | "medium" | "low";
+      basis:
+        | "observed"
+        | "same-grader-interpolated"
+        | "same-grader-nearest"
+        | "modelled-cross-grader"
+        | "ask-over-suspect-sale";
+      method: string;
+      explain: string;
+      suspect?: boolean | null;
+      suspectReason?: string | null;
+    } | null;
     slabGrader?: string | null;
     slabGrade?: number | null;
     variant?: string | null;
@@ -1487,6 +1509,11 @@ type PriceView = {
    *  Our comps are PSA sales; a BGS or CGC card is being read across. */
   crossGrader: boolean;
   blendedVariant: boolean;
+  slabPrice: Scan["valuation"] extends infer V
+    ? V extends { slabPrice?: infer P }
+      ? P | null
+      : null
+    : null;
   verified: boolean;            // real sold comps vs our own estimate
   source: string | null;
 };
@@ -1584,24 +1611,50 @@ function priceView(scan: Scan): PriceView {
   // A raw card's ask wins over the catalog's raw price when the ask is for a
   // DIFFERENT printing than the catalog quotes: TCGplayer's $1.90 is the base
   // SR of OP07-085, and this copy is the SP treatment at about $130.
+  // The backend decides what this holder is worth, and says how it got there.
+  //
+  // It walks a ladder — a sale at this exact grader and grade, then this
+  // company's neighbouring grades, then a measured cross-grader ratio — and it
+  // will hand back the ASKING market when the recorded sale contradicts its own
+  // grade ladder. That last case is why the Gold Star showed A$15,750 from a
+  // BGS 8.5 figure sitting below its own BGS 8, while three real BGS 8.5
+  // listings on the same page asked A$26,215, A$34,953 and A$45,000.
+  //
+  // None of that reasoning can be reproduced here — it needs the whole grade
+  // ladder and the ratio model — so this stops second-guessing it and renders
+  // what it was given. The older logic below remains for responses that predate
+  // slabPrice.
+  const slabPrice = v?.slabPrice ?? null;
   const headlineIsAsk =
-    ask != null && (ask.raw ? Boolean(ask.printing) : slabValue == null || crossGrader);
+    slabPrice != null
+      ? slabPrice.basis === "ask-over-suspect-sale"
+      : ask != null && (ask.raw ? Boolean(ask.printing) : slabValue == null || crossGrader);
 
   // A slabbed card is NEVER quoted at its raw price. That fallback is what put
   // A$2.78 above a One Piece BGS 9.5 whose own listings panel, on the same
   // screen, showed A$800-2,374. With no graded figure and no ask we say so and
   // show nothing — a blank is cheap, a wrong number is not.
-  const headline = slabGradeUnknown && !headlineIsAsk
-    ? null
-    : headlineIsAsk
-      ? ask!.median
-      : scan.slab
-        ? slabValue ?? null
-        : raw ?? null;
+  const headline = slabPrice
+    ? slabPrice.price
+    : slabGradeUnknown && !headlineIsAsk
+      ? null
+      : headlineIsAsk
+        ? ask!.median
+        : scan.slab
+          ? slabValue ?? null
+          : raw ?? null;
   // asks and graded comps are USD; only `raw` can be EUR
   const headlineUnit = headline === raw && !scan.slab ? rawUnit : "USD";
 
-  const headlineLabel = headlineIsAsk
+  const headlineLabel = slabPrice
+    ? slabPrice.basis === "ask-over-suspect-sale"
+      ? `median asking price · ${slabPrice.sampleSize} live ${scan.slab?.company ?? ""} ${slabGradeNum(scan)} listings — our recorded sales for this grade contradict the grade below it`
+      : slabPrice.basis === "observed"
+        ? blendedVariant
+          ? `${scan.slab!.company} ${scan.slab!.gradeText} — BLACK LABEL. Our ${scan.slab!.company} ${slabGradeNum(scan)} figure blends label variants and understates a Black Label. Check Black Label sold listings before pricing.`
+          : `in its ${scan.slab!.company} ${scan.slab!.gradeText} slab`
+        : slabPrice.explain
+    : headlineIsAsk
     ? `median asking price · ${ask!.count} live ${
         ask!.grader && ask!.grade != null ? `${ask!.grader} ${ask!.grade}` : "ungraded"
       } listings`
@@ -1641,7 +1694,15 @@ function priceView(scan: Scan): PriceView {
     headlineIsAsk,
     crossGrader,
     blendedVariant,
-    verified: Boolean(g && !g.estimated),
+    // "verified sales" means the headline IS a completed sale. When the ladder
+    // handed back an asking price — because the recorded sale contradicted its
+    // own grade ladder — that badge would be a straight untruth, and it sits
+    // directly beneath the number.
+    verified:
+      slabPrice != null
+        ? slabPrice.basis === "observed"
+        : Boolean(g && !g.estimated),
+    slabPrice,
     source: g?.source ?? (v?.tcgplayer ? "tcgplayer" : v?.cardmarket ? "cardmarket" : null),
   };
 }
@@ -2232,6 +2293,13 @@ function PriceHero({ scan }: { scan: Scan }) {
                         This is the <b>{pv.ask!.printing ?? "special"}</b> printing, which the
                         catalog price above does not cover — it quotes the base print of the
                         same card number.
+                      </>
+                    ) : pv.slabPrice?.basis === "ask-over-suspect-sale" ? (
+                      <>
+                        We <b>do</b> hold completed sales at this grade, and they price it
+                        below the grade beneath it — which cannot be right, and means those
+                        comps are too thin or not all this card. Using the live market for
+                        this exact grader and grade instead.
                       </>
                     ) : (
                       <>
