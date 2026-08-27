@@ -125,9 +125,13 @@ type Scan = {
           low?: number | null;
           high?: number | null;
           median?: number | null;
+          asOf?: string | null;
+          /** the source blends label variants, so this is not variant-specific */
+          blended?: boolean | null;
         }
       >
     > | null;
+    slabLabelVariant?: string | null;
     slabGrader?: string | null;
     slabGrade?: number | null;
     variant?: string | null;
@@ -1482,6 +1486,7 @@ type PriceView = {
   /** true when the sale comps are from a DIFFERENT grader than the slab.
    *  Our comps are PSA sales; a BGS or CGC card is being read across. */
   crossGrader: boolean;
+  blendedVariant: boolean;
   verified: boolean;            // real sold comps vs our own estimate
   source: string | null;
 };
@@ -1515,11 +1520,29 @@ function priceView(scan: Scan): PriceView {
   // raw quote understates it by an order of magnitude. Say we cannot read it
   // and point at the grade ladder instead.
   const slabGradeUnknown = Boolean(scan.slab) && !Number.isFinite(n);
-  // a slabbed card is worth its GRADED price — raw is the wrong number for it
-  const slabValue =
+  // A slabbed card is worth its GRADED price, at ITS OWN grader.
+  //
+  // This used to read g.psa10 / g.psa9 / g.psa8 — the legacy flat shape, which
+  // has no grader dimension at all — and so quoted a PSA figure for every
+  // slab, whatever was on the holder. The comment below it said "every graded
+  // comp we can buy is a PSA sale", and that stopped being true: the API sends
+  // pricesByGrader, and for a Beckett Destined Rivals Mewtwo it was sending
+  // BGS 10 at $1,364 from 23 sales, high confidence, while this line reported
+  // the PSA 10 figure of $1,150 and labelled it a cross-grader estimate. The
+  // right number was on screen in the Beckett tab the whole time.
+  const gradeKey = Number.isFinite(n) ? String(n).replace(/\.0$/, "") : null;
+  const ownGrader =
+    scan.slab && gradeKey
+      ? v?.pricesByGrader?.[scan.slab.company]?.[gradeKey] ?? null
+      : null;
+  // Fall back to the nearest PSA tier ONLY when we hold nothing for this
+  // grader at this grade. That is a genuine cross-grader estimate; the case
+  // above is not.
+  const psaTier =
     scan.slab && g && Number.isFinite(n)
       ? (n >= 9.5 ? g.psa10 : n >= 9 ? g.psa9 : g.psa8) ?? null
       : null;
+  const slabValue = ownGrader?.price ?? psaTier;
 
   const likely = scan.recommendation?.likelyGrade ?? null;
   const likelyValue = likely
@@ -1536,7 +1559,23 @@ function priceView(scan: Scan): PriceView {
   // this holder — and the two are not interchangeable. Say so rather than
   // printing "PSA 8" over a Beckett 8.5.
   const crossGrader = Boolean(
-    slabCompany && slabCompany !== "PSA" && slabCompany !== "UNKNOWN" && slabValue != null,
+    slabCompany &&
+      slabCompany !== "PSA" &&
+      slabCompany !== "UNKNOWN" &&
+      slabValue != null &&
+      ownGrader == null, // we quoted PSA because we hold nothing for this grader
+  );
+
+  // A figure that blends label variants is not a price for THIS holder.
+  //
+  // Beckett's 10 is two products. A Black Label 10 — all four subgrades
+  // exactly 10 — and a gold-label Pristine share the key `bgs10` at our
+  // source, so the median we hold blends them: $1,364 for a card whose Black
+  // Label copies sell between $12,700 and $14,300. Showing that under a Black
+  // Label badge is a confident wrong answer, so it is flagged rather than
+  // quoted as though it fits.
+  const blendedVariant = Boolean(
+    ownGrader?.blended && v?.slabLabelVariant === "black",
   );
 
   // An asking price for the RIGHT grader and grade beats a completed sale from
@@ -1567,7 +1606,9 @@ function priceView(scan: Scan): PriceView {
         ask!.grader && ask!.grade != null ? `${ask!.grader} ${ask!.grade}` : "ungraded"
       } listings`
     : slabValue
-      ? crossGrader
+      ? blendedVariant
+        ? `${scan.slab!.company} ${scan.slab!.gradeText} — BLACK LABEL. Our ${scan.slab!.company} ${slabGradeNum(scan)} figure blends label variants and understates a Black Label. Check Black Label sold listings before pricing.`
+        : crossGrader
         ? `${scan.slab!.company} ${scan.slab!.gradeText} — priced at the nearest PSA tier`
         : `in its ${scan.slab!.company} ${scan.slab!.gradeText} slab`
       : raw != null
@@ -1599,6 +1640,7 @@ function priceView(scan: Scan): PriceView {
     ask,
     headlineIsAsk,
     crossGrader,
+    blendedVariant,
     verified: Boolean(g && !g.estimated),
     source: g?.source ?? (v?.tcgplayer ? "tcgplayer" : v?.cardmarket ? "cardmarket" : null),
   };
