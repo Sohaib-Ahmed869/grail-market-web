@@ -1656,7 +1656,14 @@ function priceView(scan: Scan): PriceView {
         : slabPrice.explain
     : headlineIsAsk
     ? `median asking price · ${ask!.count} live ${
-        ask!.grader && ask!.grade != null ? `${ask!.grader} ${ask!.grade}` : "ungraded"
+        ask!.grader && ask!.grade != null
+          ? `${ask!.grader} ${ask!.grade}`
+          : ask!.grader
+            // A slab whose grade is not a number — PSA "AUTHENTIC" — is still a
+            // slab. Calling these "ungraded" listings would describe the one
+            // thing about the card that is certainly false.
+            ? `${ask!.grader}-graded (grades mixed)`
+            : "ungraded"
       } listings`
     : slabValue
       ? blendedVariant
