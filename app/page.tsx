@@ -2528,6 +2528,35 @@ function LiveListings({ scan }: { scan: Scan }) {
 
 function Result({ scan }: { scan: Scan }) {
   const m = scan.measurement;
+
+  // A rejected photo gets ONE answer: the rejection.
+  //
+  // It used to render the full result and put the rejection notice near the
+  // bottom, under a price. On a blurry PSA slab that produced "No grading
+  // label found — priced as a raw, ungraded copy" over a $94,000 Championship
+  // Finalist card, with the actual finding — "this looks like a graded card
+  // but the label couldn't be read" — a page-scroll below it.
+  //
+  // The system knew it had failed and said so. Printing a number anyway, from
+  // an identification it had already declined to trust, is the worst thing
+  // this page can do: it is wrong, confident, and buries its own retraction.
+  if (scan.status === "rejected" && scan.rejection) {
+    return (
+      <div className="panel" style={{ borderColor: "var(--warn)" }}>
+        <span className="badge warn">scan failed — no charge</span>
+        <h3 style={{ marginBottom: 4 }}>{scan.rejection.userMessage}</h3>
+        <p className="muted" style={{ margin: 0 }}>{scan.rejection.retryHint}</p>
+        {scan.identification?.name && (
+          <p className="muted small" style={{ marginTop: 12 }}>
+            We think this is <b>{scan.identification.name}</b>, but we are not pricing it
+            from a photo we could not read. A grade we cannot see is the difference
+            between a few dollars and a few thousand.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <PriceHero scan={scan} />
@@ -2562,17 +2591,7 @@ function Result({ scan }: { scan: Scan }) {
           label grade stands. */}
       {!scan.slab && <RecommendationPanel scan={scan} />}
 
-      {scan.status === "rejected" && scan.rejection ? (
-        <div className="result-grid">
-          <div>
-            <div className="panel">
-              <span className="badge warn">not graded — no charge</span>
-              <h3>{scan.rejection.userMessage}</h3>
-              <p className="muted">{scan.rejection.retryHint}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
+      {(
         m && (
           <div className="result-grid">
             <Viewer scan={scan} />
