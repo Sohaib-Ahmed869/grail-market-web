@@ -2220,6 +2220,27 @@ function PriceHero({ scan }: { scan: Scan }) {
               <Money v={pv.headline} unit={pv.headlineUnit} showSource={false} />
               <span className="ph-est-tag">{pv.headlineIsAsk ? "asking" : "est."}</span>
             </div>
+            {/* The backend works this out and until now nobody could see it.
+                A raw price of $1.70 under a graded market of $145 does not
+                mean a bargain — it means the raw figure belongs to a different
+                card that shares this collector number. Saying so beside the
+                number is the whole point of having noticed. */}
+            {scan.valuation?.identificationSuspect && (
+              <div className="panel" style={{ borderColor: "var(--warn)", margin: "10px 0" }}>
+                <span className="badge warn">check the printing</span>
+                <p className="muted small" style={{ margin: "6px 0 0" }}>
+                  {scan.valuation.identificationSuspect}
+                </p>
+              </div>
+            )}
+            {scan.valuation?.marketNote && (
+              <div className="panel" style={{ borderColor: "var(--warn)", margin: "10px 0" }}>
+                <span className="badge warn">asks and sales disagree</span>
+                <p className="muted small" style={{ margin: "6px 0 0" }}>
+                  {scan.valuation.marketNote}
+                </p>
+              </div>
+            )}
             <div className="muted small ph-sub">
               {pv.headlineLabel}
               {pv.headline != null && (
