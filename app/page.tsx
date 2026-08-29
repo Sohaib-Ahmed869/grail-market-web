@@ -1634,7 +1634,19 @@ function priceView(scan: Scan): PriceView {
   // A$2.78 above a One Piece BGS 9.5 whose own listings panel, on the same
   // screen, showed A$800-2,374. With no graded figure and no ask we say so and
   // show nothing — a blank is cheap, a wrong number is not.
-  const headline = slabPrice
+  // A suspect identification suppresses the price entirely.
+  //
+  // The backend works out that a $0.08 raw card in a PSA 10 holder is almost
+  // certainly a different printing sharing the collector number, and says so.
+  // Printing a number under that warning is the same mistake as pricing a
+  // photo we rejected: we have already concluded we do not know what this card
+  // is, and a figure derived from the wrong card does not become safe by
+  // having a caveat above it. The listings below are the honest answer.
+  const identSuspect = v?.identificationSuspect ?? null;
+
+  const headline = identSuspect
+    ? null
+    : slabPrice
     ? slabPrice.price
     : slabGradeUnknown && !headlineIsAsk
       ? null
@@ -1646,7 +1658,9 @@ function priceView(scan: Scan): PriceView {
   // asks and graded comps are USD; only `raw` can be EUR
   const headlineUnit = headline === raw && !scan.slab ? rawUnit : "USD";
 
-  const headlineLabel = slabPrice
+  const headlineLabel = identSuspect
+    ? "we can't price this one — see below"
+    : slabPrice
     ? slabPrice.basis === "ask-over-suspect-sale"
       ? `median asking price · ${slabPrice.sampleSize} live ${scan.slab?.company ?? ""} ${slabGradeNum(scan)} listings — our recorded sales for this grade contradict the grade below it`
       : slabPrice.basis === "observed"
