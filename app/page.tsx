@@ -1644,7 +1644,20 @@ function priceView(scan: Scan): PriceView {
   // having a caveat above it. The listings below are the honest answer.
   const identSuspect = v?.identificationSuspect ?? null;
 
-  const headline = identSuspect
+  // The warning is about the RAW price, so it only suppresses a raw headline.
+  //
+  // It fires when a trivial ungraded price sits under a substantial graded
+  // market — which usually means the raw figure belongs to the base print
+  // while the card in hand is a promo or parallel sharing its number. That is
+  // a true and useful thing to say about the raw number. It says nothing about
+  // a figure drawn from listings already filtered to this grader and grade: a
+  // Portgas.D.Ace BGS 9.5 with $1.60 raw and two BGS 9.5 asks at $1,600 had
+  // its perfectly good graded figure blanked because the raw price beneath it
+  // was for a different printing.
+  const headlineFromGraded = Boolean(slabPrice || (ask && !ask.raw));
+  const suppressForSuspect = Boolean(identSuspect) && !headlineFromGraded;
+
+  const headline = suppressForSuspect
     ? null
     : slabPrice
     ? slabPrice.price
@@ -1658,7 +1671,7 @@ function priceView(scan: Scan): PriceView {
   // asks and graded comps are USD; only `raw` can be EUR
   const headlineUnit = headline === raw && !scan.slab ? rawUnit : "USD";
 
-  const headlineLabel = identSuspect
+  const headlineLabel = suppressForSuspect
     ? "we can't price this one — see below"
     : slabPrice
     ? slabPrice.basis === "ask-over-suspect-sale"
