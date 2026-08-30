@@ -148,7 +148,8 @@ type Scan = {
         | "same-grader-interpolated"
         | "same-grader-nearest"
         | "modelled-cross-grader"
-        | "ask-over-suspect-sale";
+        | "ask-over-suspect-sale"
+        | "estimated-from-listings";
       method: string;
       explain: string;
       suspect?: boolean | null;
@@ -1737,7 +1738,20 @@ function priceView(scan: Scan): PriceView {
         ? slabPrice.basis === "observed"
         : Boolean(g && !g.estimated),
     slabPrice,
-    source: g?.source ?? (v?.tcgplayer ? "tcgplayer" : v?.cardmarket ? "cardmarket" : null),
+    // A figure built from live listings HAS a source; it just is not a
+    // sold-comp provider. Reporting "no pricing source" under a number we had
+    // just explained came from nine eBay listings read as a denial that the
+    // number came from anywhere.
+    source:
+      g?.source ??
+      (v?.slabPrice?.basis === "estimated-from-listings" ||
+      v?.slabPrice?.basis === "ask-over-suspect-sale"
+        ? "ebay-live"
+        : v?.tcgplayer
+          ? "tcgplayer"
+          : v?.cardmarket
+            ? "cardmarket"
+            : null),
   };
 }
 
@@ -1746,6 +1760,7 @@ const SOURCE_LABEL: Record<string, string> = {
   cardgrader: "CardGrader comps",
   "web-search": "read from public web pages, verified against source",
   estimate: "our own multiples off the raw price — not a pricing API",
+  "ebay-live": "eBay live listings — asking prices, not sales",
   tcgplayer: "TCGplayer market",
   cardmarket: "Cardmarket trend",
 };
@@ -1762,6 +1777,33 @@ const GRADER_LABEL: Record<string, string> = {
   BGS: "BECKETT", PSA: "PSA", CGC: "CGC", SGC: "SGC", TAG: "TAG", ACE: "ACE",
   Ungraded: "Ungraded",
 };
+
+/** Say where the headline figure actually came from.
+ *
+ *  This sentence was a constant. It claimed the number had been taken from
+ *  "the nearest PSA tier, which is a different grading scale" no matter what
+ *  had produced it — so on a sealed 1st Edition Jungle pack it sat directly
+ *  underneath "estimated from 9 live listings" and described a provenance that
+ *  had not been used, while calling PSA a different scale from PSA.
+ *
+ *  A figure and the sentence explaining it must not be able to disagree. */
+function headlineProvenance(pv: PriceView): string {
+  switch (pv.slabPrice?.basis) {
+    case "estimated-from-listings":
+      return "the figure above is estimated from what copies are listed at now, not from any recorded sale.";
+    case "ask-over-suspect-sale":
+      return "the figure above is the current asking market, used because our recorded sales at this grade sit below the grade beneath them.";
+    case "modelled-cross-grader":
+      return "the figure above is modelled from another company's sales, which use a different scale.";
+    case "same-grader-interpolated":
+    case "same-grader-nearest":
+      return "the figure above comes from the nearest grade we hold for this same company.";
+    case "observed":
+      return "the figure above is a recorded sale at this exact grade.";
+    default:
+      return "we have no sold-comp source for it, so nothing above is a sale.";
+  }
+}
 
 function GraderTabs({ scan, pv }: { scan: Scan; pv: PriceView }) {
   const v = scan.valuation;
@@ -1867,7 +1909,7 @@ function GraderTabs({ scan, pv }: { scan: Scan; pv: PriceView }) {
         <p className="grader-empty muted small">
           <b>No {GRADER_LABEL[active] ?? active} sales data available to us.</b>{" "}
           {active === slabGrader
-            ? `This card is a ${GRADER_LABEL[active]} ${slabGradeStr ?? ""} — the figure above is taken from the nearest PSA tier, which is a different grading scale.`
+            ? `This card is a ${GRADER_LABEL[active]} ${slabGradeStr ?? ""} — ${headlineProvenance(pv)}`
             : "Our sold-comp source publishes PSA sales only."}
         </p>
       )}
