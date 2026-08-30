@@ -2007,6 +2007,7 @@ function SearchPanel() {
     setPricing(true); setPrice(null);
     const p = new URLSearchParams({ name: picked.name });
     if (picked.setName) p.set("set", picked.setName);
+    if (picked.game) p.set("game", picked.game);
     if (picked.localId) p.set("number", picked.localId);
     if (grader !== "Ungraded") { p.set("grader", grader); p.set("grade", grade); }
     if (picked.nameLocal) p.set("lang", "ja");
@@ -2523,6 +2524,7 @@ function LiveListings({ scan }: { scan: Scan }) {
     if (!id?.name) { setState("done"); return; }
     const q = new URLSearchParams({ name: id.name });
     if (id.setName) q.set("set", id.setName);
+    if (id.game) q.set("game", id.game);
     if (id.localId) q.set("number", id.localId);
     if (v?.slabGrader) q.set("grader", v.slabGrader);
     if (v?.slabGrade != null) q.set("grade", String(v.slabGrade));
