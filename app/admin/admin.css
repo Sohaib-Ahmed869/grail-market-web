@@ -1,0 +1,2407 @@
+/* ==========================================================================
+   GrailMarket Admin CMS — design system
+   Brand: Navy #1A2632 · Gold #A88D60 · White #FFFFFF · Light grey #F2F4F7
+   Everything is scoped under .gm so the public site's dark theme in
+   globals.css cannot reach in here, and this cannot reach out there.
+   ========================================================================== */
+
+.gm {
+  /* -- brand -------------------------------------------------------- */
+  --navy: #1a2632;
+  --navy-700: #223244;
+  --navy-600: #2c4159;
+  --navy-500: #38536f;
+  --gold: #a88d60;
+  --gold-600: #96794c;
+  --gold-300: #cbb794;
+  --gold-100: #efe7d9;
+  --gold-050: #faf6ee;
+
+  /* -- surfaces ----------------------------------------------------- */
+  --paper: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --surface-3: #e9edf2;
+
+  /* -- ink ---------------------------------------------------------- */
+  --ink: #16202b;
+  --ink-2: #3d4d5e;
+  --ink-3: #6b7c8f;
+  --ink-4: #93a2b3;
+
+  /* -- lines -------------------------------------------------------- */
+  --line: #e2e8ef;
+  --line-2: #d3dbe4;
+
+  /* -- status ------------------------------------------------------- */
+  --ok: #1f8a5b;
+  --ok-bg: #e7f6ee;
+  --warn: #b0761d;
+  --warn-bg: #fdf3e0;
+  --bad: #c0392f;
+  --bad-bg: #fceceb;
+  --info: #2c6fb5;
+  --info-bg: #e8f1fb;
+  --idle-bg: #eef1f5;
+
+  /* -- gradients ---------------------------------------------------- */
+  --grad-navy: linear-gradient(135deg, #2c4159 0%, #1a2632 62%, #131c26 100%);
+  --grad-gold: linear-gradient(135deg, #cbb794 0%, #a88d60 55%, #8d7248 100%);
+  --grad-text: linear-gradient(100deg, #1a2632 0%, #38536f 40%, #a88d60 100%);
+
+  /* -- elevation ------------------------------------------------------
+     Every surface sits on a shadow beneath it plus `--edge`, a one-pixel
+     highlight along its top. The pair is what reads as raised: the shadow
+     puts the box above the page, the highlight catches the light on its
+     leading edge. Shadow alone just looks blurry. */
+  --sh-1: 0 1px 2px rgba(21, 33, 47, 0.07), 0 1px 3px rgba(21, 33, 47, 0.05);
+  --sh-2: 0 1px 3px rgba(21, 33, 47, 0.07), 0 5px 14px rgba(21, 33, 47, 0.09);
+  --sh-3: 0 3px 7px rgba(21, 33, 47, 0.09), 0 14px 32px rgba(21, 33, 47, 0.13);
+  --sh-4: 0 10px 20px rgba(21, 33, 47, 0.13), 0 30px 60px rgba(21, 33, 47, 0.2);
+  --sh-gold: 0 2px 10px rgba(168, 141, 96, 0.24);
+  --sh-navy: 0 2px 10px rgba(26, 38, 50, 0.26);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* focus: neutral, not gold — see the note by .gm-input */
+  --focus-ring: 0 0 0 3px rgba(26, 38, 50, 0.14);
+  --focus-line: var(--ink-3);
+
+  /* one height for every control, so a select never sits 2px off the button
+     beside it */
+  --control-h: 34px;
+
+  /* -- geometry ----------------------------------------------------- */
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --sidebar-w: 264px;
+  --topbar-h: 68px;
+
+  color: var(--ink);
+  font-family: var(--font-admin), Outfit, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: normal; /* body in globals.css sets 0.01em */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ==========================================================================
+   DARK THEME
+   The attribute sits on <html>, set by an inline script before first paint,
+   so switching never flashes. Only the tokens change — not one component
+   rule below is theme-aware, which is what keeps the two in step.
+   ========================================================================== */
+
+:root[data-gm-theme="dark"] .gm {
+  color-scheme: dark;
+
+  --gold: #bfa273;
+  --gold-600: #d4b989;
+  --gold-300: #8a7350;
+  --gold-100: #2e2a22;
+  --gold-050: #23211c;
+
+  --paper: #0e141b;
+  --surface: #161e27;
+  --surface-2: #1b2530;
+  --surface-3: #222e3b;
+
+  --ink: #e9eef4;
+  --ink-2: #bac6d3;
+  --ink-3: #8b9aaa;
+  --ink-4: #667586;
+
+  --line: #232f3c;
+  --line-2: #2f3d4c;
+
+  --ok: #4cb98a;
+  --ok-bg: #14291f;
+  --warn: #d9a352;
+  --warn-bg: #2b2115;
+  --bad: #e0776c;
+  --bad-bg: #2e1a18;
+  --info: #6aa5df;
+  --info-bg: #14212e;
+  --idle-bg: #1e2833;
+
+  --grad-navy: linear-gradient(135deg, #33485f 0%, #1e2b39 62%, #16202b 100%);
+  --grad-text: linear-gradient(100deg, #e9eef4 0%, #a9bccd 40%, #bfa273 100%);
+
+  /* shadow does almost no work on a dark ground — depth comes from the
+     surface stepping lighter, so these stay shallow and the borders carry it */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-2: 0 2px 4px rgba(0, 0, 0, 0.42), 0 6px 16px rgba(0, 0, 0, 0.36);
+  --sh-3: 0 4px 10px rgba(0, 0, 0, 0.48), 0 16px 34px rgba(0, 0, 0, 0.44);
+  --sh-4: 0 18px 44px rgba(0, 0, 0, 0.6);
+  --sh-gold: 0 2px 10px rgba(0, 0, 0, 0.44);
+  --sh-navy: 0 2px 10px rgba(0, 0, 0, 0.48);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --focus-ring: 0 0 0 3px rgba(233, 238, 244, 0.16);
+  --focus-line: var(--ink-2);
+}
+
+.gm *,
+.gm *::before,
+.gm *::after {
+  box-sizing: border-box;
+}
+
+/* Firefox and Chromium both default to a dark thumb, which reads as a black
+   bar on a light panel. Colour it from the tokens so it follows the theme. */
+.gm *,
+.gm *::-webkit-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.gm ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.gm ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gm ::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.gm ::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-4);
+  background-clip: content-box;
+}
+
+.gm ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Guard against globals.css.
+   The public site styles bare `h1` (a gradient with -webkit-text-fill-color:
+   transparent) and bare `main` (max-width 1000px, auto margins), and both
+   reach in here through the shared root layout. Neutralise them once, at the
+   top, rather than fighting them selector by selector further down.
+   -------------------------------------------------------------------------- */
+.gm h1,
+.gm h2,
+.gm h3,
+.gm h4 {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  letter-spacing: normal;
+}
+
+/* the gradient-text treatments below re-enable clipping deliberately; the
+   selected states put it back, because a selected tab is solid white on navy */
+.gm .gm-brand-name,
+.gm .gm-nav-item:hover .gm-nav-label,
+.gm .gm-tab:hover span.gm-tab-t {
+  -webkit-text-fill-color: transparent;
+}
+
+.gm .gm-nav-item.is-active .gm-nav-label,
+.gm .gm-nav-item.is-active:hover .gm-nav-label,
+.gm .gm-tab.is-active span.gm-tab-t,
+.gm .gm-tab.is-active:hover span.gm-tab-t {
+  -webkit-text-fill-color: currentColor;
+}
+
+/* ==========================================================================
+   OVERLAY HOST
+
+   Drawers, modals and toasts portal into this. It must never pick up a
+   transform, filter, backdrop-filter, perspective, will-change or `contain`:
+   any one of those makes it the containing block for its `position: fixed`
+   children, which is the exact bug that made a drawer open halfway down the
+   screen when the page was scrolled. `position: relative` is safe — it does
+   not create a containing block for fixed — and the z-index keeps overlays
+   above the shell regardless of what the shell does later.
+   ========================================================================== */
+
+#gm-overlays {
+  position: relative;
+  z-index: 100;
+}
+
+/* ==========================================================================
+   SHELL — the ambient light wash comes from the TOP RIGHT
+   ========================================================================== */
+
+.gm-shell {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  background: var(--paper);
+  isolation: isolate;
+}
+
+/* the gradient field: warm gold bloom from the top-right, cool navy haze
+   trailing off to the left, then a flat paper wash underneath it all */
+.gm-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.3), transparent 62%),
+    radial-gradient(760px 520px at 88% 6%, rgba(203, 183, 148, 0.28), transparent 58%),
+    radial-gradient(900px 700px at 4% 100%, rgba(44, 65, 89, 0.09), transparent 60%),
+    linear-gradient(158deg, #fbfaf7 0%, #f5f7fa 44%, #eef1f6 100%);
+}
+
+.gm-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* `main` is styled bare in globals.css (max-width 1000px, auto margins), so
+   every one of those properties is restated here rather than inherited */
+.gm-content {
+  padding: 26px 30px 60px;
+  max-width: 1560px;
+  margin: 0;
+  width: 100%;
+  animation: gm-rise 0.34s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+}
+
+@keyframes gm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   SIDEBAR — light, translucent, its own soft gradient from the top right
+   ========================================================================== */
+
+.gm-side {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 14px 14px;
+  background:
+    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.26), transparent 66%),
+    radial-gradient(360px 420px at -20% 108%, rgba(44, 65, 89, 0.08), transparent 62%),
+    linear-gradient(168deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 248, 251, 0.9) 52%, rgba(238, 242, 247, 0.94) 100%);
+  backdrop-filter: blur(14px);
+  border-right: 1px solid rgba(211, 219, 228, 0.75);
+  box-shadow: 14px 0 34px -22px rgba(21, 33, 47, 0.28);
+  z-index: 30;
+}
+
+.gm-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 10px 16px;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* the mark stands on the sidebar itself — a solid chip behind a logo is one
+   more filled block, and the brand pack already ships a variant per ground */
+.gm-brand-mark {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+/* mark.svg is navy + gold for the light theme; mark-onnavy.svg is the same
+   mark with its navy recoloured white, for the dark one. Both render, CSS
+   picks — no flash, and no JS needed to swap an image source. */
+.gm-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gm-brand-mark .gm-mark-dark {
+  display: none;
+}
+
+:root[data-gm-theme="dark"] .gm-brand-mark .gm-mark-light {
+  display: none;
+}
+
+:root[data-gm-theme="dark"] .gm-brand-mark .gm-mark-dark {
+  display: block;
+}
+
+.gm-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gm-brand-name {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gm-brand-sub {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-top: 2px;
+}
+
+.gm-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+  flex: 1 1 auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.gm-nav-group {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  padding: 16px 12px 7px;
+}
+
+.gm-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9.5px 12px;
+  border-radius: var(--r);
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 13.6px;
+  font-weight: 550;
+  border: 1px solid transparent;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.22s ease,
+    transform 0.18s ease, border-color 0.18s ease;
+}
+
+.gm-nav-item svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.7;
+  color: var(--ink-3);
+  transition: color 0.18s ease, transform 0.22s ease;
+}
+
+.gm-nav-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* HOVER — light tint, and the label itself picks up the brand gradient.
+   No transform: `.gm-nav` clips on the x-axis, so nudging the row sideways
+   sliced its right rounded corner off. No shadow either — the rail is flat. */
+.gm-nav-item:hover {
+  background: var(--surface-2);
+  border-color: rgba(203, 183, 148, 0.45);
+}
+
+.gm-nav-item:hover .gm-nav-label {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gm-nav-item:hover svg {
+  color: var(--gold-600);
+  transform: scale(1.06);
+}
+
+/* SELECTED — dark navy gradient, flat: no shadow and no left rail */
+.gm-nav-item.is-active,
+.gm-nav-item.is-active:hover {
+  background: var(--grad-navy);
+  border-color: rgba(26, 38, 50, 0.9);
+  color: #ffffff;
+}
+
+.gm-nav-item.is-active .gm-nav-label {
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.gm-nav-item.is-active svg {
+  color: var(--gold-300);
+  transform: none;
+}
+
+.gm-nav-item:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
+/* count pill riding on the right of a nav row */
+.gm-nav-count {
+  flex: none;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--gold-100);
+  color: var(--gold-600);
+  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.28);
+}
+
+.gm-nav-item.is-active .gm-nav-count {
+  background: rgba(255, 255, 255, 0.16);
+  color: #f0e7d8;
+  box-shadow: inset 0 0 0 1px rgba(203, 183, 148, 0.45);
+}
+
+.gm-nav-count.is-alert {
+  background: var(--bad-bg);
+  color: var(--bad);
+  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.24);
+}
+
+/* the operator card pinned at the bottom of the rail */
+.gm-side-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-op {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-1);
+}
+
+.gm-op-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-op-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-op-role {
+  font-size: 11px;
+  color: var(--ink-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   TOPBAR
+   ========================================================================== */
+
+.gm-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 30px;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.7));
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(226, 232, 239, 0.9);
+  box-shadow: 0 10px 26px -22px rgba(21, 33, 47, 0.5);
+}
+
+.gm-top-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.gm-top-title h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.gm-top-title p {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.gm-search {
+  position: relative;
+  width: min(320px, 30vw);
+}
+
+.gm-search svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--ink-4);
+  pointer-events: none;
+}
+
+.gm-search input {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 12px 0 32px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.gm-search input::placeholder {
+  color: var(--ink-4);
+}
+
+.gm-search input:focus {
+  outline: none;
+  border-color: var(--focus-line);
+  box-shadow: var(--sh-1), var(--focus-ring);
+}
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+
+.gm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: var(--control-h);
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: var(--sh-1);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.18s ease,
+    color 0.18s ease, border-color 0.18s ease;
+}
+
+.gm-btn svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.gm-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--gold-300);
+  color: var(--ink);
+  box-shadow: var(--sh-2);
+  transform: translateY(-1px);
+}
+
+.gm-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--sh-1);
+}
+
+.gm-btn:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
+.gm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.gm-btn--primary {
+  background: var(--grad-navy);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-navy);
+}
+
+.gm-btn--primary:hover {
+  background: linear-gradient(135deg, #35506e 0%, #223244 62%, #18222e 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(26, 38, 50, 0.26), 0 20px 36px rgba(26, 38, 50, 0.24);
+}
+
+.gm-btn--gold {
+  background: var(--grad-gold);
+  border-color: transparent;
+  color: #2a2013;
+  box-shadow: var(--sh-gold);
+}
+
+.gm-btn--gold:hover {
+  background: linear-gradient(135deg, #d6c4a5 0%, #b0946a 55%, #96794c 100%);
+  border-color: transparent;
+  color: #241b0f;
+  box-shadow: 0 6px 14px rgba(168, 141, 96, 0.3), 0 20px 36px rgba(168, 141, 96, 0.24);
+}
+
+.gm-btn--danger {
+  background: var(--surface);
+  color: var(--bad);
+  border-color: rgba(192, 57, 47, 0.3);
+}
+
+.gm-btn--danger:hover {
+  background: var(--bad-bg);
+  border-color: rgba(192, 57, 47, 0.5);
+  color: #a32e25;
+}
+
+.gm-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-3);
+}
+
+.gm-btn--ghost:hover {
+  background: var(--surface-2);
+  border-color: var(--line);
+  box-shadow: var(--sh-1);
+}
+
+.gm-btn--sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.2px;
+  border-radius: 8px;
+}
+
+.gm-btn--sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gm-btn--icon {
+  width: var(--control-h);
+  padding: 0;
+}
+
+.gm-btn--block {
+  width: 100%;
+}
+
+/* ==========================================================================
+   CARD / PANEL — the shadow lives underneath, per the brief
+   ========================================================================== */
+
+.gm-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2), var(--edge);
+  transition: box-shadow 0.26s ease, transform 0.26s ease, border-color 0.26s ease;
+}
+
+.gm-card--lift:hover {
+  box-shadow: var(--sh-3), var(--edge);
+  transform: translateY(-3px);
+}
+
+.gm-card--pad {
+  padding: 18px;
+}
+
+.gm-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.gm-card-head h2,
+.gm-card-head h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+}
+
+.gm-card-head p {
+  margin: 2px 0 0;
+  font-size: 12.2px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.gm-card-head .gm-spacer {
+  margin-left: auto;
+}
+
+.gm-card-body {
+  padding: 18px;
+}
+
+.gm-card-foot {
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-2);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+
+/* ==========================================================================
+   LAYOUT HELPERS
+   ========================================================================== */
+
+.gm-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.gm-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.gm-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gm-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gm-grid--2a {
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+}
+
+.gm-grid--2b {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
+}
+
+/* a fixed-width pick list beside a detail pane — conflicts and support both
+   use it. A class rather than an inline style, so the media query can undo it */
+.gm-grid--pane {
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+}
+
+.gm-grid--pane-wide {
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+}
+
+.gm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gm-spacer {
+  margin-left: auto;
+}
+
+.gm-muted {
+  color: var(--ink-3);
+}
+
+.gm-dim {
+  color: var(--ink-4);
+}
+
+.gm-mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.gm-nowrap {
+  white-space: nowrap;
+}
+
+.gm-tiny {
+  font-size: 11.5px;
+}
+
+.gm-sm {
+  font-size: 12.5px;
+}
+
+.gm-strong {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.gm-page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.gm-page-head h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.024em;
+  color: var(--ink);
+}
+
+.gm-page-head p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+/* ==========================================================================
+   STAT TILE
+   ========================================================================== */
+
+.gm-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 17px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-2), var(--edge);
+  transition: box-shadow 0.26s ease, transform 0.26s ease, border-color 0.26s ease;
+}
+
+.gm-stat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(220px 120px at 106% -30%, rgba(168, 141, 96, 0.16), transparent 70%);
+}
+
+.gm-stat:hover {
+  box-shadow: var(--sh-3), var(--edge);
+  transform: translateY(-3px);
+}
+
+.gm-stat-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.gm-stat-ico {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.gm-stat-ico svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* icon chips sit flat — the shadow belongs to the tile they live on, not to
+   the chip. Two stacked shadows at this size just reads as smudge. */
+.gm-stat-ico--navy {
+  background: transparent;
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.gm-stat-ico--gold {
+  background: transparent;
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-stat-label {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.gm-stat-value {
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-stat-foot {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.gm-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-delta svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-delta--up {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.gm-delta--down {
+  color: var(--bad);
+  background: var(--bad-bg);
+}
+
+.gm-delta--flat {
+  color: var(--ink-3);
+  background: var(--idle-bg);
+}
+
+/* ==========================================================================
+   BADGES / PILLS
+   ========================================================================== */
+
+.gm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background: var(--idle-bg);
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px rgba(21, 33, 47, 0.07);
+}
+
+.gm-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+  flex: none;
+}
+
+.gm-badge--nodot::before {
+  display: none;
+}
+
+.gm-badge--ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1px rgba(31, 138, 91, 0.2);
+}
+
+.gm-badge--warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px rgba(176, 118, 29, 0.22);
+}
+
+.gm-badge--bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.2);
+}
+
+.gm-badge--info {
+  background: var(--info-bg);
+  color: var(--info);
+  box-shadow: inset 0 0 0 1px rgba(44, 111, 181, 0.2);
+}
+
+.gm-badge--gold {
+  background: var(--gold-050);
+  color: var(--gold-600);
+  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.28);
+}
+
+.gm-badge--navy {
+  background: transparent;
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+/* a small square "grail tier" chip */
+.gm-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px currentColor;
+  white-space: nowrap;
+}
+
+.gm-tier--high {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+.gm-tier--std {
+  background: transparent;
+  color: var(--ink-4);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+/* ==========================================================================
+   TABLE
+   ========================================================================== */
+
+.gm-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.gm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.2px;
+  min-width: 720px;
+}
+
+.gm-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+.gm-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  color: var(--ink-2);
+}
+
+.gm-table tbody tr {
+  transition: background 0.16s ease, box-shadow 0.2s ease;
+}
+
+.gm-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.gm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.gm-table .gm-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gm-table .gm-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gm-table-title {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+/* a two-line cell: bold primary over a muted secondary */
+.gm-cell2 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gm-cell2 b {
+  font-weight: 650;
+  color: var(--ink);
+  font-size: 13.2px;
+}
+
+.gm-cell2 span {
+  font-size: 11.8px;
+  color: var(--ink-4);
+}
+
+.gm-cell-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   AVATAR
+   ========================================================================== */
+
+.gm-av {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  user-select: none;
+}
+
+.gm-av--gold {
+  background: var(--gold-050);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold-300);
+}
+
+.gm-av--sm {
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+}
+
+.gm-av--lg {
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
+}
+
+/* ==========================================================================
+   TABS / SEGMENTED FILTER
+   ========================================================================== */
+
+.gm-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.04);
+  flex-wrap: wrap;
+}
+
+.gm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12.6px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.2s ease;
+}
+
+.gm-tab:hover {
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+
+.gm-tab:hover span.gm-tab-t {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gm-tab.is-active {
+  background: var(--grad-navy);
+  color: #fff;
+  box-shadow: var(--sh-navy);
+}
+
+.gm-tab.is-active span.gm-tab-t {
+  color: #fff;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+}
+
+.gm-tab-n {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(21, 33, 47, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-tab.is-active .gm-tab-n {
+  background: rgba(255, 255, 255, 0.18);
+  color: #f0e7d8;
+}
+
+/* ==========================================================================
+   FORM CONTROLS
+   ========================================================================== */
+
+.gm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gm-label {
+  font-size: 12.2px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+.gm-hint {
+  font-size: 11.8px;
+  color: var(--ink-4);
+  line-height: 1.45;
+}
+
+.gm-input,
+.gm-select,
+.gm-textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  font: inherit;
+  font-size: 13.2px;
+  color: var(--ink);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.gm-input,
+.gm-select {
+  height: var(--control-h);
+  padding: 0 11px;
+}
+
+.gm-select {
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7c8f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  cursor: pointer;
+  /* inherited from .gm, so the native option list follows the theme too */
+  color-scheme: inherit;
+}
+
+.gm-textarea {
+  padding: 10px 12px;
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* A gold ring on focus reads as a warning, not as "this has keyboard focus".
+   The neutral ring says the same thing without competing with the accent. */
+.gm-input:focus,
+.gm-select:focus,
+.gm-textarea:focus {
+  outline: none;
+  border-color: var(--focus-line);
+  box-shadow: var(--sh-1), var(--focus-ring);
+}
+
+.gm-input::placeholder,
+.gm-textarea::placeholder {
+  color: var(--ink-4);
+}
+
+/* toggle */
+.gm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gm-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.gm-toggle-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--surface-3);
+  box-shadow: inset 0 1px 3px rgba(21, 33, 47, 0.14);
+  transition: background 0.22s ease, box-shadow 0.22s ease;
+}
+
+.gm-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(21, 33, 47, 0.28);
+  transition: transform 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.gm-toggle input:checked + .gm-toggle-track {
+  background: var(--grad-navy);
+  box-shadow: var(--sh-navy);
+}
+
+.gm-toggle input:checked + .gm-toggle-track::after {
+  transform: translateX(18px);
+}
+
+.gm-toggle input:focus-visible + .gm-toggle-track {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
+/* a settings row: label + hint on the left, control on the right */
+.gm-setrow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.gm-setrow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.gm-setrow:first-child {
+  padding-top: 0;
+}
+
+.gm-setrow-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-setrow-main b {
+  display: block;
+  font-size: 13.4px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.gm-setrow-main span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.2px;
+  color: var(--ink-3);
+  line-height: 1.5;
+  max-width: 64ch;
+}
+
+.gm-setrow-ctl {
+  flex: none;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   PROGRESS / METER
+   ========================================================================== */
+
+.gm-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.09);
+}
+
+.gm-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--grad-navy);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.gm-meter--gold > i {
+  background: var(--grad-gold);
+}
+
+.gm-meter--ok > i {
+  background: linear-gradient(90deg, #34b07c, #1f8a5b);
+}
+
+.gm-meter--warn > i {
+  background: linear-gradient(90deg, #dda23f, #b0761d);
+}
+
+.gm-meter--bad > i {
+  background: linear-gradient(90deg, #e0665c, #c0392f);
+}
+
+.gm-meter--lg {
+  height: 11px;
+}
+
+/* ==========================================================================
+   CHARTS (hand-rolled SVG, no dependency)
+   ========================================================================== */
+
+.gm-chart {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.gm-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+  font-size: 12.2px;
+  color: var(--ink-3);
+}
+
+.gm-legend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gm-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+  box-shadow: 0 1px 2px rgba(21, 33, 47, 0.2);
+}
+
+.gm-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.gm-bar-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.8px;
+}
+
+.gm-bar-row > span:first-child {
+  color: var(--ink-2);
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-bar-row > b {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+/* donut */
+.gm-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.gm-donut {
+  position: relative;
+  width: 156px;
+  height: 156px;
+  flex: none;
+  filter: drop-shadow(0 10px 18px rgba(21, 33, 47, 0.14));
+}
+
+.gm-donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.gm-donut-center b {
+  display: block;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-donut-center span {
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.gm-donut-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 150px;
+  flex: 1 1 auto;
+}
+
+.gm-donut-key {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.8px;
+}
+
+.gm-donut-key b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+/* ==========================================================================
+   TIMELINE / ACTIVITY
+   ========================================================================== */
+
+.gm-feed {
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-feed-item {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.gm-feed-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.gm-feed-item:first-child {
+  padding-top: 0;
+}
+
+.gm-feed-ico {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.gm-feed-ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.gm-feed-ico--ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1px rgba(31, 138, 91, 0.2);
+}
+
+.gm-feed-ico--warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px rgba(176, 118, 29, 0.22);
+}
+
+.gm-feed-ico--bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.2);
+}
+
+.gm-feed-ico--gold {
+  background: var(--gold-050);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.3);
+}
+
+.gm-feed-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-feed-body p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.gm-feed-body p b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.gm-feed-time {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+/* ==========================================================================
+   DRAWER / MODAL
+   ========================================================================== */
+
+.gm-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overscroll-behavior: contain;
+  background: rgba(15, 23, 32, 0.42);
+  backdrop-filter: blur(3px);
+  animation: gm-fade 0.2s ease both;
+}
+
+@keyframes gm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gm-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 91;
+  width: min(560px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(500px 300px at 110% -6%, rgba(168, 141, 96, 0.18), transparent 64%),
+    linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+  border-left: 1px solid var(--line-2);
+  box-shadow: -30px 0 70px rgba(15, 23, 32, 0.26);
+  animation: gm-slide 0.28s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+}
+
+@keyframes gm-slide {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.gm-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.gm-drawer-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+}
+
+.gm-drawer-head p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.gm-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gm-drawer-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.gm-modal {
+  position: fixed;
+  z-index: 91;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(420px 240px at 108% -12%, rgba(168, 141, 96, 0.2), transparent 66%),
+    linear-gradient(180deg, #ffffff, #fbfcfd);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--sh-4);
+  animation: gm-pop 0.24s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+  overflow: hidden;
+}
+
+@keyframes gm-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ==========================================================================
+   DEFINITION LIST — key/value pairs inside drawers
+   ========================================================================== */
+
+.gm-dl {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  gap: 9px 16px;
+  font-size: 13px;
+}
+
+.gm-dl dt {
+  color: var(--ink-4);
+  font-size: 12.2px;
+  font-weight: 600;
+}
+
+.gm-dl dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 550;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   NOTE / CALLOUT
+   ========================================================================== */
+
+.gm-note {
+  display: flex;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  font-size: 12.8px;
+  line-height: 1.55;
+  background: var(--info-bg);
+  color: #1f4f83;
+  box-shadow: inset 0 0 0 1px rgba(44, 111, 181, 0.18), var(--sh-1);
+}
+
+.gm-note svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 1px;
+}
+
+.gm-note b {
+  font-weight: 700;
+}
+
+.gm-note--warn {
+  background: var(--warn-bg);
+  color: #7d520f;
+  box-shadow: inset 0 0 0 1px rgba(176, 118, 29, 0.22), var(--sh-1);
+}
+
+.gm-note--bad {
+  background: var(--bad-bg);
+  color: #93261e;
+  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.2), var(--sh-1);
+}
+
+.gm-note--gold {
+  background: var(--gold-050);
+  color: #6d5732;
+  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.26), var(--sh-1);
+}
+
+/* ==========================================================================
+   EMPTY STATE
+   ========================================================================== */
+
+.gm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 48px 20px;
+}
+
+.gm-empty-ico {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, #fbfcfd, #eef1f6);
+  box-shadow: inset 0 0 0 1px var(--line), var(--sh-2);
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+
+.gm-empty-ico svg {
+  width: 24px;
+  height: 24px;
+}
+
+.gm-empty b {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gm-empty p {
+  margin: 0;
+  font-size: 12.8px;
+  color: var(--ink-3);
+  max-width: 46ch;
+}
+
+/* ==========================================================================
+   CARD THUMBNAIL — a stand-in for the real card image
+   ========================================================================== */
+
+.gm-thumb {
+  width: 42px;
+  height: 58px;
+  flex: none;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, #223244, #131c26);
+  box-shadow: var(--sh-2);
+  color: var(--gold-300);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 4px;
+  line-height: 1.2;
+  overflow: hidden;
+  position: relative;
+}
+
+.gm-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.2), transparent 46%);
+}
+
+.gm-thumb--sm {
+  width: 30px;
+  height: 42px;
+  font-size: 8px;
+  border-radius: 5px;
+}
+
+.gm-thumb--lg {
+  width: 108px;
+  height: 150px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
+/* ==========================================================================
+   SPLIT / COMPARE PANE — used by conflict resolution
+   ========================================================================== */
+
+.gm-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.gm-side-panel {
+  padding: 14px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-1);
+}
+
+.gm-side-panel h4 {
+  margin: 0 0 9px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gm-side-panel--buyer {
+  border-top: 3px solid var(--info);
+}
+
+.gm-side-panel--seller {
+  border-top: 3px solid var(--gold);
+}
+
+.gm-quote {
+  font-size: 12.8px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ==========================================================================
+   CHAT / SUPPORT THREAD
+   ========================================================================== */
+
+.gm-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px;
+}
+
+.gm-msg {
+  display: flex;
+  gap: 10px;
+  max-width: 82%;
+}
+
+.gm-msg-bubble {
+  padding: 10px 13px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-1);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.gm-msg-meta {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+
+.gm-msg--out {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+
+.gm-msg--out .gm-msg-bubble {
+  background: var(--grad-navy);
+  border-color: transparent;
+  color: #eef2f6;
+  border-radius: 14px 14px 4px 14px;
+  box-shadow: var(--sh-navy);
+}
+
+.gm-msg--out .gm-msg-meta {
+  text-align: right;
+}
+
+/* ==========================================================================
+   LIST OF SELECTABLE ROWS (support inbox, conflicts list)
+   ========================================================================== */
+
+.gm-picklist {
+  display: flex;
+  flex-direction: column;
+  max-height: 620px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gm-pick {
+  display: flex;
+  gap: 11px;
+  padding: 13px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.16s ease, border-color 0.18s ease, box-shadow 0.2s ease;
+}
+
+.gm-pick:hover {
+  background: var(--surface-2);
+  border-left-color: var(--gold-300);
+}
+
+.gm-pick.is-active {
+  background: var(--surface-3);
+  border-left-color: var(--navy);
+  box-shadow: inset 0 0 0 1px rgba(44, 65, 89, 0.09);
+}
+
+.gm-pick-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-pick-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.gm-pick-top b {
+  font-size: 13.2px;
+  font-weight: 650;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-pick-sub {
+  font-size: 12.2px;
+  color: var(--ink-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.45;
+}
+
+.gm-pick-time {
+  font-size: 11px;
+  color: var(--ink-4);
+  white-space: nowrap;
+  flex: none;
+  margin-left: auto;
+}
+
+/* ==========================================================================
+   MISC
+   ========================================================================== */
+
+.gm-sep {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+.gm-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-3);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 0 var(--line-2);
+}
+
+.gm-link {
+  color: var(--gold-600);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+}
+
+.gm-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.gm-scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 1240px) {
+  .gm-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gm-grid--2a,
+  .gm-grid--2b {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1000px) {
+  .gm {
+    --sidebar-w: 72px;
+  }
+
+  .gm-side {
+    padding: 16px 10px 12px;
+  }
+
+  .gm-brand-text,
+  .gm-nav-label,
+  .gm-nav-group,
+  .gm-op-meta {
+    display: none;
+  }
+
+  .gm-nav-item {
+    justify-content: center;
+    padding: 11px 0;
+  }
+
+  .gm-nav-count {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 17px;
+    height: 16px;
+    font-size: 9.5px;
+    padding: 0 4px;
+  }
+
+  .gm-brand {
+    justify-content: center;
+    padding: 4px 0 14px;
+  }
+
+  .gm-op {
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .gm-grid--3,
+  .gm-grid--2,
+  .gm-grid--pane,
+  .gm-grid--pane-wide,
+  .gm-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* stacked, the pick list must not run the full height of the page */
+  .gm-picklist {
+    max-height: 340px;
+  }
+}
+
+@media (max-width: 760px) {
+  .gm-content {
+    padding: 18px 16px 48px;
+  }
+
+  .gm-top {
+    padding: 0 16px;
+  }
+
+  .gm-grid--4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* only the topbar's global search folds away — the per-table search boxes
+     are the filter for that page and have to stay reachable */
+  .gm-top .gm-search {
+    display: none;
+  }
+
+  .gm-card-head .gm-search,
+  .gm-row .gm-search {
+    width: 100% !important;
+  }
+
+  .gm-card-head {
+    flex-wrap: wrap;
+  }
+
+  .gm-card-head .gm-spacer {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gm *,
+  .gm *::before,
+  .gm *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

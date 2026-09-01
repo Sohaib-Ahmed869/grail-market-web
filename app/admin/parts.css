@@ -1,0 +1,1275 @@
+/* ==========================================================================
+   GrailMarket Admin — theme-aware surfaces and the composed pieces.
+
+   Loaded after admin.css. Two jobs:
+   1. the few surfaces that paint a literal gradient rather than a token, and
+      so need a dark counterpart of their own;
+   2. the components the reference layouts are built from — the greeting band,
+      the pill filter row, the linked stat rail, the case card, the member
+      card, the plan card.
+
+   House rules these all follow: no solid-filled icon chips, one border
+   weight, one radius scale, and a shadow only where something genuinely sits
+   above the page.
+   ========================================================================== */
+
+/* ==========================================================================
+   1 · DARK COUNTERPARTS
+   ========================================================================== */
+
+:root[data-gm-theme="dark"] .gm-shell::before {
+  background:
+    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.16), transparent 62%),
+    radial-gradient(760px 520px at 88% 6%, rgba(120, 100, 70, 0.14), transparent 58%),
+    radial-gradient(900px 700px at 4% 100%, rgba(56, 83, 111, 0.14), transparent 60%),
+    linear-gradient(158deg, #121922 0%, #0e141b 44%, #0b1017 100%);
+}
+
+:root[data-gm-theme="dark"] .gm-side {
+  background:
+    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.12), transparent 66%),
+    radial-gradient(360px 420px at -20% 108%, rgba(56, 83, 111, 0.14), transparent 62%),
+    linear-gradient(168deg, #18212c 0%, #141c25 52%, #111820 100%);
+  border-right-color: var(--line);
+  box-shadow: none;
+}
+
+:root[data-gm-theme="dark"] .gm-top {
+  background: linear-gradient(120deg, rgba(22, 30, 39, 0.86), rgba(18, 25, 33, 0.78));
+  border-bottom-color: var(--line);
+  box-shadow: none;
+}
+
+:root[data-gm-theme="dark"] .gm-drawer,
+:root[data-gm-theme="dark"] .gm-modal {
+  background:
+    radial-gradient(500px 300px at 110% -6%, rgba(168, 141, 96, 0.1), transparent 64%),
+    linear-gradient(180deg, #18212c, #141c25);
+  border-color: var(--line-2);
+}
+
+/* the drifting card silhouettes need to read as lighter, not darker */
+:root[data-gm-theme="dark"] .gm-drift span {
+  background: linear-gradient(150deg, rgba(233, 238, 244, 0.035), rgba(191, 162, 115, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(233, 238, 244, 0.04);
+}
+
+/* the slab case is a physical object — it stays light, but its label sits on
+   a dimmer white so it does not glare out of a dark page */
+:root[data-gm-theme="dark"] .gm-slab-label {
+  background: linear-gradient(180deg, #e6eaef, #d3dae2);
+  color: #16202b;
+}
+
+:root[data-gm-theme="dark"] .gm-slab {
+  background: linear-gradient(158deg, #dfe4ea 0%, #c3ccd6 100%);
+}
+
+:root[data-gm-theme="dark"] .gm-ctile-media,
+:root[data-gm-theme="dark"] .gm-hero {
+  background:
+    radial-gradient(300px 160px at 84% -14%, rgba(168, 141, 96, 0.14), transparent 66%),
+    linear-gradient(168deg, #1a232e 0%, #151d26 100%);
+}
+
+/* ==========================================================================
+   2 · THEME TOGGLE
+   ========================================================================== */
+
+.gm-themetoggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.gm-themetoggle button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.gm-themetoggle button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.gm-themetoggle button:hover {
+  color: var(--gold);
+}
+
+.gm-themetoggle button.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--sh-1);
+}
+
+/* ==========================================================================
+   3 · GREETING BAND — the dashboard opener
+   ========================================================================== */
+
+.gm-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  padding: 22px 26px;
+  min-height: 138px;
+  display: flex;
+  align-items: center;
+  background:
+    radial-gradient(420px 220px at 88% -20%, rgba(168, 141, 96, 0.2), transparent 66%),
+    linear-gradient(120deg, #ffffff 0%, #f6f8fb 52%, #eef2f7 100%);
+}
+
+.gm-hero-copy {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  max-width: 32ch;
+}
+
+.gm-hero-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 9px;
+}
+
+.gm-hero h2 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.14;
+  color: var(--ink);
+}
+
+.gm-hero h2 em {
+  font-style: normal;
+  color: var(--gold);
+}
+
+.gm-hero p {
+  margin: 9px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.gm-hero-actions {
+  margin-top: 13px;
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+/* the trail of cards fanning off the right edge, in place of the stock
+   illustration the reference uses */
+/* a flex sibling of the copy rather than absolutely pinned right: it takes
+   the leftover width and centres the fan in it, which closes the gap after
+   the text instead of parking the cards on the far edge */
+.gm-hero-trail {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(0.78);
+  pointer-events: none;
+}
+
+.gm-hero-trail > span {
+  margin-left: -56px;
+  transform-origin: bottom center;
+  animation: gm-fan 7s ease-in-out infinite;
+}
+
+.gm-hero-trail > span:first-child {
+  margin-left: 0;
+}
+
+@keyframes gm-fan {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--fan, 0deg));
+  }
+  50% {
+    transform: translateY(-9px) rotate(calc(var(--fan, 0deg) + 1.5deg));
+  }
+}
+
+@media (max-width: 1320px) {
+  .gm-hero-trail {
+    transform: scale(0.64);
+  }
+}
+
+@media (max-width: 760px) {
+  .gm-hero-trail {
+    display: none;
+  }
+
+  .gm-hero h2 {
+    font-size: 22px;
+  }
+}
+
+/* ==========================================================================
+   4 · PILL FILTER ROW — the segmented row from the case-board reference
+   ========================================================================== */
+
+.gm-pillrow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  padding: 0 8px 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.gm-pill-ico {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--ink-4);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.gm-pill-ico svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gm-pill-n {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  margin-right: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-pill:hover {
+  border-color: var(--gold-300);
+  color: var(--ink);
+}
+
+.gm-pill:hover .gm-pill-ico {
+  border-color: var(--gold-300);
+  color: var(--gold);
+}
+
+.gm-pill.is-active {
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.gm-pill.is-active .gm-pill-ico {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.gm-pill.is-active .gm-pill-n {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ==========================================================================
+   5 · LINKED STAT RAIL — the right column of the dashboard reference
+   ========================================================================== */
+
+.gm-linkstat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-1), var(--edge);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gm-linkstat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-linkstat-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* both are spans — without display:block they run together on one line */
+.gm-linkstat-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.gm-linkstat-value {
+  display: block;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.gm-linkstat-go {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--ink-4);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.gm-linkstat-go svg {
+  width: 13px;
+  height: 13px;
+}
+
+.gm-linkstat:hover .gm-linkstat-go {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ==========================================================================
+   6 · META BOX — the small labelled pairs inside a case card
+   ========================================================================== */
+
+.gm-metagrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gm-metabox {
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.gm-metabox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+
+.gm-metabox-label svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-metabox-value {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   7 · CASE CARD — conflicts, laid out like the reference's offer board
+   ========================================================================== */
+
+.gm-caseboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.gm-case {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: border-color 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease;
+}
+
+.gm-case:hover {
+  transform: translateY(-3px);
+}
+
+.gm-case-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gm-case-who {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-case-who b {
+  font-size: 13.2px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-case-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.gm-case-body {
+  font-size: 12.6px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gm-case-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.gm-case-actions .gm-btn {
+  flex: 1 1 0;
+}
+
+/* severity, as an outline pill rather than a filled block */
+.gm-sev {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.gm-sev svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-sev--high {
+  color: var(--bad);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-sev--med {
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-sev--low {
+  color: var(--info);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* the resolved confirmation that slides in at the top right */
+.gm-toast {
+  position: fixed;
+  top: 84px;
+  right: 26px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-3);
+  animation: gm-toast-in 0.3s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+}
+
+.gm-toast-ico {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+}
+
+.gm-toast-ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.gm-toast b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.gm-toast span {
+  display: block;
+  font-size: 11.8px;
+  color: var(--ink-3);
+}
+
+@keyframes gm-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   8 · SECTION HEAD — "Best for you (24) … See all"
+   ========================================================================== */
+
+.gm-sectionhead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.gm-sectionhead h3 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+
+.gm-sectionhead-n {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   9 · FILTER BAR — the multi-field search block
+   ========================================================================== */
+
+.gm-filterbar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 5px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+/* each field is a labelled dropdown, and the chevron is what tells you so —
+   a bare value with a caption reads as static text, not a control */
+.gm-filterfield {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 12px;
+  border-radius: 9px;
+  transition: background 0.18s ease;
+}
+
+.gm-filterfield:hover {
+  background: var(--surface-2);
+}
+
+.gm-filterfield + .gm-filterfield::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 1px;
+  background: var(--line);
+}
+
+.gm-filterfield:hover::before,
+.gm-filterfield:hover + .gm-filterfield::before {
+  opacity: 0;
+}
+
+.gm-filterfield label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-4);
+  margin-bottom: 2px;
+  pointer-events: none;
+}
+
+.gm-filterfield select,
+.gm-filterfield input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 18px 0 0;
+  height: 19px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  appearance: none;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  color-scheme: inherit;
+}
+
+.gm-filterfield input {
+  cursor: text;
+  padding-right: 0;
+}
+
+.gm-filterfield select:focus,
+.gm-filterfield input:focus {
+  outline: none;
+}
+
+.gm-filterfield select:focus-visible,
+.gm-filterfield input:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* the chevron sits on the field, not on the select, so it inherits the
+   field's hover colour and never fights the native control */
+.gm-filterfield.is-select::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid var(--ink-4);
+  border-bottom: 1.6px solid var(--ink-4);
+  transform: rotate(45deg);
+  pointer-events: none;
+  transition: border-color 0.18s ease;
+}
+
+.gm-filterfield.is-select:hover::after {
+  border-color: var(--ink-2);
+}
+
+.gm-filterbar > .gm-btn {
+  flex: none;
+  width: 40px;
+  height: auto;
+  align-self: stretch;
+  padding: 0;
+  margin-left: 4px;
+}
+
+@media (max-width: 900px) {
+  .gm-filterbar {
+    flex-wrap: wrap;
+  }
+
+  .gm-filterfield {
+    flex: 1 1 160px;
+  }
+
+  .gm-filterfield + .gm-filterfield::before {
+    display: none;
+  }
+
+  .gm-filterbar > .gm-btn {
+    flex: 1 1 100%;
+    width: auto;
+    height: 38px;
+    margin: 4px 0 0;
+  }
+}
+
+/* ==========================================================================
+   10 · MEMBER CARD
+   ========================================================================== */
+
+.gm-people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.gm-person {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 17px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: border-color 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease;
+}
+
+.gm-person:hover {
+  transform: translateY(-3px);
+}
+
+.gm-person-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.gm-person-id {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-person-id b {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-person-id span {
+  display: block;
+  font-size: 12.2px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-person-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.2px;
+  color: var(--ink-3);
+}
+
+.gm-person-fact {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gm-person-fact svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ink-4);
+}
+
+.gm-person-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.gm-scope {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+.gm-person-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-top: auto;
+}
+
+/* the rating chip, outlined */
+.gm-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-rating svg {
+  width: 11px;
+  height: 11px;
+}
+
+.gm-rating--mid {
+  color: var(--warn);
+}
+
+.gm-rating--low {
+  color: var(--bad);
+}
+
+/* ==========================================================================
+   11 · PLAN CARD — the pricing page, editable in place
+   ========================================================================== */
+
+.gm-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.gm-plan {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.24s ease, box-shadow 0.24s ease, transform 0.24s ease;
+}
+
+.gm-plan:hover {
+  box-shadow: var(--sh-2);
+}
+
+
+
+/* a floor under the head keeps the price on the same line across the row
+   even when one tagline wraps to two and another does not */
+.gm-plan-head {
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+.gm-plan-name {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 14px;
+}
+
+
+
+.gm-plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.gm-plan-cur {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+/* the price is an input that does not look like one until you reach for it —
+   the admin edits the number in place rather than in a separate form */
+.gm-plan-amount {
+  width: 4.5ch;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.18s ease;
+}
+
+.gm-plan-amount:hover {
+  border-bottom-color: var(--line-2);
+}
+
+.gm-plan-amount:focus {
+  outline: none;
+  border-bottom-color: var(--focus-line);
+}
+
+.gm-plan-amount--wide {
+  width: 7ch;
+  font-size: 28px;
+}
+
+.gm-plan-per {
+  font-size: 13px;
+  color: var(--ink-4);
+  font-weight: 500;
+}
+
+.gm-plan-tag {
+  margin: 12px 0 0;
+  font-size: 12.6px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* the price band is a fixed height so "Custom" and "$39" sit on one line */
+.gm-plan-price {
+  min-height: 46px;
+  align-items: baseline;
+}
+
+.gm-plan-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1 1 auto;
+}
+
+.gm-plan-feat {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.8px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.gm-plan-feat svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--gold);
+}
+
+.gm-plan-feat input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  background: transparent;
+  padding: 0 0 1px;
+  font: inherit;
+  font-size: 12.8px;
+  color: var(--ink-2);
+  transition: border-color 0.18s ease;
+}
+
+.gm-plan-feat input:hover {
+  border-bottom-color: var(--line-2);
+}
+
+.gm-plan-feat input:focus {
+  outline: none;
+  border-bottom-color: var(--focus-line);
+}
+
+/* the CTA is pushed to the bottom of the card, so every button in the row
+   lands on the same line regardless of how many features sit above it */
+.gm-plan-foot {
+  padding: 0 20px 20px;
+  margin-top: auto;
+}
+
+/* the live/stripe state strip */
+.gm-plan-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 11px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+.gm-plan-state code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+   12 · SHARED — the tighter, quieter defaults the reference layouts imply
+   ========================================================================== */
+
+/* a bare heading used between blocks, no card chrome around it */
+.gm-blockhead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gm-blockhead h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.gm-blockhead p {
+  margin: 0;
+  font-size: 12.4px;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+   13 · DASHBOARD LAYOUT
+
+   The greeting, the chart and the overdue list stack in one column; the rail
+   runs the full height beside them rather than sitting under the chart. That
+   is what pulls "Where things stand", the review mix and the overdue table up
+   into the first screen instead of below the fold.
+   ========================================================================== */
+
+.gm-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  gap: 16px;
+  align-items: start;
+}
+
+.gm-dash-main,
+.gm-dash-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* the rail holds position while the column beside it scrolls */
+.gm-dash-rail {
+  position: sticky;
+  top: calc(var(--topbar-h) + 16px);
+}
+
+@media (max-width: 1180px) {
+  .gm-dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-dash-rail {
+    position: static;
+  }
+}
+
+
+/* ==========================================================================
+   14 · RAIL PANEL — groups the linked stats into one block
+
+   A tinted ground with raised rows on top, so the section reads as a unit
+   rather than four loose cards floating on the page.
+   ========================================================================== */
+
+.gm-railbox {
+  padding: 12px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  box-shadow: var(--sh-2), var(--edge);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* ==========================================================================
+   15 · RAISED SURFACES
+
+   Everything that is a box gets the shadow-plus-edge pair, so it separates
+   from the page rather than reading as a rectangle drawn on it.
+   ========================================================================== */
+
+.gm-well {
+  padding: 18px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-well--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.gm-hero,
+.gm-case,
+.gm-person,
+.gm-plan,
+.gm-filterbar,
+.gm-ctile,
+.gm-toast {
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-case:hover,
+.gm-person:hover,
+.gm-ctile:hover,
+.gm-plan:hover {
+  box-shadow: var(--sh-3), var(--edge);
+}
+
+.gm-pill,
+.gm-metabox,
+.gm-scope {
+  box-shadow: var(--sh-1), var(--edge);
+}
+
+.gm-toast {
+  box-shadow: var(--sh-4), var(--edge);
+}
+
+/* ==========================================================================
+   16 · DARK: the game chips
+
+   Their tints are literal light-theme values in cards.css, so on a dark page
+   they burn. Dark keeps the hue but drops the ground to a low-alpha wash and
+   lifts the ink.
+   ========================================================================== */
+
+:root[data-gm-theme="dark"] .gm-game--pokemon {
+  --game-ink: #e0b95c;
+  --game-bg: rgba(224, 185, 92, 0.12);
+}
+
+:root[data-gm-theme="dark"] .gm-game--magic {
+  --game-ink: #a58ae0;
+  --game-bg: rgba(165, 138, 224, 0.14);
+}
+
+:root[data-gm-theme="dark"] .gm-game--yugioh {
+  --game-ink: #dd9a52;
+  --game-bg: rgba(221, 154, 82, 0.13);
+}
+
+:root[data-gm-theme="dark"] .gm-game--onepiece {
+  --game-ink: #e07a72;
+  --game-bg: rgba(224, 122, 114, 0.13);
+}
+
+:root[data-gm-theme="dark"] .gm-game--sports {
+  --game-ink: #4fbdae;
+  --game-bg: rgba(79, 189, 174, 0.13);
+}
+
+
+/* ==========================================================================
+   17 · DARK: the select chevron
+
+   `.gm-select` draws its arrow as a data-URI SVG, so the stroke colour is
+   baked into the image and cannot follow a token. The dark theme swaps the
+   whole image for one drawn in a lighter ink.
+   ========================================================================== */
+
+:root[data-gm-theme="dark"] .gm-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b9aaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
