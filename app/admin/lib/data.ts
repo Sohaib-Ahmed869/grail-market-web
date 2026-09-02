@@ -23,14 +23,24 @@ export type Confidence = "high" | "medium" | "low";
 /** How a listing is routed. Anything above the review floor stops here first. */
 export type VerificationTier = "grail" | "high-value" | "standard";
 
-export type VerificationStatus =
+/**
+ * One listing's whole life, in one field.
+ *
+ * The first three are before it is on sale — waiting on us, open on a
+ * moderator's screen, or waiting on the seller to send what was asked for.
+ * There is deliberately no "approved but not yet published" state between
+ * them and `live`: approving a listing is what publishes it, and a step that
+ * only a human remembers to take is a step listings get stuck on.
+ */
+export type ListingStatus =
   | "awaiting"
   | "in-review"
   | "info-requested"
-  | "verified"
+  | "live"
+  | "sold"
+  | "paused"
+  | "withdrawn"
   | "rejected";
-
-export type ListingStatus = "queued" | "live" | "sold" | "paused" | "withdrawn";
 
 export type ConflictKind =
   | "not-as-described"
@@ -122,10 +132,116 @@ export const gmvSeries = [
   { label: "W12", gmv: 127, verified: 58 },
 ];
 
+/* Tokens, not literal hex: a slice painted #1a2632 disappeared against the
+   dark theme's surface, and so did its key in the legend. */
+/* Tier names only. The thresholds used to ride along in the label, which a
+   legend column 70px wide could only truncate — and the tier chips on every
+   other page already carry the same three names. */
 export const queueMix = [
-  { label: "Grail tier · >$5,000", value: 6, color: "#1a2632" },
-  { label: "High value · $1k–$5k", value: 12, color: "#a88d60" },
-  { label: "Standard · auto-listed", value: 143, color: "#cbb794" },
+  { label: "Grail tier", value: 6, color: "var(--navy-500)" },
+  { label: "High value", value: 12, color: "var(--gold)" },
+  { label: "Standard", value: 143, color: "var(--gold-300)" },
+];
+
+/* --------------------------------------------------------------------------
+   Subscriptions
+
+   The three plans as they are actually sold — A$5 Starter, A$10 Collector,
+   A$20 Dealer — carrying the same identities and listing quotas as
+   `grail-market-backend/src/billing/plans.ts`, which is the only place today
+   that gets them right. The pricing page still holds an older, different set;
+   correcting that is its own job, so this lives beside it rather than
+   rewriting it from underneath.
+   -------------------------------------------------------------------------- */
+
+export type SubscriptionTier = {
+  key: "starter" | "collector" | "dealer";
+  name: string;
+  /** Monthly, in AUD. Stripe holds the amount that is actually charged. */
+  price: number;
+  /** Live listings allowed at once. null = no ceiling. */
+  quota: number | null;
+  subscribers: number;
+  /** The same headcount a month ago, so movement can be stated, not implied. */
+  priorSubscribers: number;
+  /** A token, not a literal — see the note on `queueMix`. */
+  color: string;
+};
+
+export const subscriptionTiers: SubscriptionTier[] = [
+  {
+    key: "starter",
+    name: "Starter",
+    price: 5,
+    quota: 1,
+    subscribers: 2840,
+    priorSubscribers: 2612,
+    color: "var(--gold-300)",
+  },
+  {
+    key: "collector",
+    name: "Collector",
+    price: 10,
+    quota: 10,
+    subscribers: 1663,
+    priorSubscribers: 1498,
+    color: "var(--gold)",
+  },
+  {
+    key: "dealer",
+    name: "Dealer",
+    price: 20,
+    quota: null,
+    subscribers: 402,
+    priorSubscribers: 371,
+    color: "var(--navy-500)",
+  },
+];
+
+/** What a tier bills in a month at today's headcount. */
+export const mrrOf = (t: SubscriptionTier) => t.price * t.subscribers;
+
+export const totalMrr = subscriptionTiers.reduce((s, t) => s + mrrOf(t), 0);
+
+export const priorMrr = subscriptionTiers.reduce(
+  (s, t) => s + t.price * t.priorSubscribers,
+  0
+);
+
+export const totalSubscribers = subscriptionTiers.reduce((s, t) => s + t.subscribers, 0);
+
+/**
+ * Cash against the month's billing, which is not the same number as MRR.
+ *
+ * A card that fails, a plan an agent comped and a mid-month start all move
+ * what was collected and leave MRR untouched — that gap is the reason both
+ * figures are on the dashboard instead of one standing in for the other.
+ */
+export const subscriptionRevenue = {
+  /** Settled this month. `collected + failed` is the month's MRR. */
+  collected: 37_860,
+  failed: 1_010,
+  /** Accounts sitting in dunning behind that figure. */
+  failedAccounts: 92,
+};
+
+/* --------------------------------------------------------------------------
+   Verification funnel
+
+   Where a new account stops on its way to being able to trade. The last two
+   steps are the provider's decision rather than ours — we hold "verified or
+   not verified" and no documents — so these are counts of outcomes returned
+   to us, never of anything we store.
+   -------------------------------------------------------------------------- */
+
+export type FunnelStage = { key: string; label: string; value: number };
+
+/** Last 30 days, one cohort followed through. */
+export const verificationFunnel: FunnelStage[] = [
+  { key: "created", label: "Account created", value: 1284 },
+  { key: "mobile", label: "Mobile confirmed", value: 1102 },
+  { key: "submitted", label: "ID submitted", value: 806 },
+  { key: "approved", label: "ID approved", value: 731 },
 ];
 
 export const gameSplit = [
@@ -205,10 +321,21 @@ export const activity: ActivityItem[] = [
 ];
 
 /* ==========================================================================
-   Verification queue
+   Listing queue
+
+   One record for a listing's whole life, from the moment a seller submits it
+   to the day it leaves the market.
+
+   It used to be two: a `Submission` a moderator verified, and a `Listing`
+   that then had to be published. That split put half of one queue on one
+   page and half on another, and made "approved" and "on sale" two separate
+   acts a human had to remember to perform in order. The feature set asks for
+   one thing — every new listing is read by a human before it goes live — so
+   approving a listing publishes it, and one status field says where in that
+   life the record currently sits.
    ========================================================================== */
 
-export type Submission = {
+export type Listing = {
   id: string;
   card: string;
   /** Slug under `public/cards/`; absent means the drawn slab stands in. */
@@ -216,25 +343,57 @@ export type Submission = {
   setLine: string;
   game: Game;
   grader: Grader;
+  /** The grade as the seller stated it. */
   grade: string;
+  /**
+   * What the slab label actually reads, where our own read of the label
+   * macro disagrees with the seller. Absent means the two matched.
+   */
+  labelGrade?: string;
+  /** The grading company's certificate number; "—" for a raw card. */
   cert: string;
+  /** What the seller is asking. */
   askPrice: number;
+  /** What the price engine quotes. 0 = too few comparable sales to say. */
   marketPrice: number;
   confidence: Confidence;
   sampleSize: number;
   tier: VerificationTier;
-  status: VerificationStatus;
-  seller: { handle: string; name: string; initials: string; sales: number; rating: number };
+  status: ListingStatus;
+  seller: {
+    handle: string;
+    name: string;
+    initials: string;
+    sales: number;
+    rating: number;
+    /** Reviews left by counterparties — the count behind the rating. */
+    reviews: number;
+  };
   submitted: string;
+  /** Set when it was approved. Absent while it is still in the queue. */
+  releasedAt?: string;
+  /** Who approved it. Absent on a standard-tier listing that auto-cleared. */
+  reviewedBy?: string;
+  /** Hours left on the review target. Negative is over. */
   slaHours: number;
-  flags: string[];
+  /** Angles the seller supplied. Under `MIN_ANGLES` raises a flag. */
   photos: number;
+  views: number;
+  watchers: number;
+  /** Free text from a moderator. Rule-raised flags are derived, not stored. */
+  flags: string[];
   note?: string;
 };
 
-export const submissions: Submission[] = [
+/** Waiting on a decision from us, or on a reply from the seller. */
+export const IN_QUEUE: ListingStatus[] = ["awaiting", "in-review", "info-requested"];
+
+/** Waiting on us specifically — the ones a moderator can actually decide. */
+export const DECIDABLE: ListingStatus[] = ["awaiting", "in-review"];
+
+export const listings: Listing[] = [
   {
-    id: "VF-4821",
+    id: "LS-9051",
     card: "Charizard #4",
     art: "pokemon-charizard",
     setLine: "1999 Base Set · Unlimited · Holo",
@@ -248,14 +407,16 @@ export const submissions: Submission[] = [
     sampleSize: 34,
     tier: "grail",
     status: "awaiting",
-    seller: { handle: "@holo_vault", name: "Daniel Wu", initials: "DW", sales: 214, rating: 4.9 },
+    seller: { handle: "@holo_vault", name: "Daniel Wu", initials: "DW", sales: 214, rating: 4.9, reviews: 198 },
     submitted: "2026-08-31T09:12:00Z",
     slaHours: 3,
-    flags: ["Above grail floor", "First grail-tier listing from this seller"],
     photos: 6,
+    views: 0,
+    watchers: 0,
+    flags: ["First grail-tier listing from this seller"],
   },
   {
-    id: "VF-4820",
+    id: "LS-9050",
     card: "LeBron James #111",
     setLine: "2003 Topps Chrome · Rookie Refractor",
     game: "Sports",
@@ -268,15 +429,17 @@ export const submissions: Submission[] = [
     sampleSize: 21,
     tier: "grail",
     status: "in-review",
-    seller: { handle: "@courtsidecards", name: "Marcus Hale", initials: "MH", sales: 512, rating: 4.8 },
+    seller: { handle: "@courtsidecards", name: "Marcus Hale", initials: "MH", sales: 512, rating: 4.8, reviews: 471 },
     submitted: "2026-08-31T07:40:00Z",
     slaHours: 5,
-    flags: ["Subgrades not visible in submitted photos"],
     photos: 4,
-    note: "Asked seller for a straight-on shot of the subgrade block.",
+    views: 0,
+    watchers: 0,
+    flags: ["Subgrades not visible in the photos supplied"],
+    note: "Asked the seller for a straight-on shot of the subgrade block.",
   },
   {
-    id: "VF-4818",
+    id: "LS-9048",
     card: "Black Lotus",
     art: "magic-black-lotus",
     setLine: "1993 Alpha · Unlimited border check pending",
@@ -290,14 +453,16 @@ export const submissions: Submission[] = [
     sampleSize: 9,
     tier: "grail",
     status: "awaiting",
-    seller: { handle: "@alphaonly", name: "Rosa Iqbal", initials: "RI", sales: 76, rating: 5.0 },
+    seller: { handle: "@alphaonly", name: "Rosa Iqbal", initials: "RI", sales: 76, rating: 5.0, reviews: 71 },
     submitted: "2026-08-31T05:02:00Z",
     slaHours: 1,
-    flags: ["Alpha vs Beta border needs manual confirmation", "Ask 10% over last comparable"],
     photos: 8,
+    views: 0,
+    watchers: 0,
+    flags: ["Alpha vs Beta border needs manual confirmation"],
   },
   {
-    id: "VF-4815",
+    id: "LS-9045",
     card: "Pikachu Illustrator",
     art: "pokemon-pikachu",
     setLine: "1998 Promo · CoroCoro contest",
@@ -311,19 +476,17 @@ export const submissions: Submission[] = [
     sampleSize: 2,
     tier: "grail",
     status: "info-requested",
-    seller: { handle: "@kanto_archive", name: "Yuki Tanaka", initials: "YT", sales: 31, rating: 4.7 },
+    seller: { handle: "@kanto_archive", name: "Yuki Tanaka", initials: "YT", sales: 31, rating: 4.7, reviews: 28 },
     submitted: "2026-08-30T22:18:00Z",
     slaHours: -4,
-    flags: [
-      "Only 2 comparable sales on record — price cannot be confirmed",
-      "Provenance documents requested",
-      "SLA breached",
-    ],
     photos: 11,
+    views: 0,
+    watchers: 0,
+    flags: ["Provenance documents requested"],
     note: "Waiting on the 2021 auction house invoice before this can move.",
   },
   {
-    id: "VF-4812",
+    id: "LS-9042",
     card: "Monkey D. Luffy · Leader Parallel",
     setLine: "OP-01 Romance Dawn · Manga Rare",
     game: "One Piece",
@@ -336,20 +499,24 @@ export const submissions: Submission[] = [
     sampleSize: 47,
     tier: "high-value",
     status: "awaiting",
-    seller: { handle: "@grandline_gr", name: "Sofia Marchetti", initials: "SM", sales: 148, rating: 4.9 },
+    seller: { handle: "@grandline_gr", name: "Sofia Marchetti", initials: "SM", sales: 148, rating: 4.9, reviews: 133 },
     submitted: "2026-08-30T18:55:00Z",
     slaHours: 8,
+    photos: 12,
+    views: 0,
+    watchers: 0,
     flags: [],
-    photos: 5,
   },
   {
-    id: "VF-4809",
+    id: "LS-9039",
     card: "Blue-Eyes White Dragon",
     art: "yugioh-blue-eyes",
     setLine: "2002 LOB · 1st Edition · North America",
     game: "Yu-Gi-Oh!",
     grader: "BGS",
     grade: "9",
+    /* The seller stated 9; our read of the label macro says 8.5. */
+    labelGrade: "8.5",
     cert: "BGS 0014220875",
     askPrice: 3400,
     marketPrice: 2950,
@@ -357,14 +524,16 @@ export const submissions: Submission[] = [
     sampleSize: 14,
     tier: "high-value",
     status: "in-review",
-    seller: { handle: "@duelistdepot", name: "Amir Farooq", initials: "AF", sales: 89, rating: 4.6 },
+    seller: { handle: "@duelistdepot", name: "Amir Farooq", initials: "AF", sales: 89, rating: 4.6, reviews: 77 },
     submitted: "2026-08-30T14:30:00Z",
     slaHours: 12,
-    flags: ["Ask sits 15% over market"],
     photos: 4,
+    views: 0,
+    watchers: 0,
+    flags: [],
   },
   {
-    id: "VF-4806",
+    id: "LS-9036",
     card: "Umbreon VMAX #215",
     art: "pokemon-umbreon",
     setLine: "2021 Evolving Skies · Alt Art Secret",
@@ -377,16 +546,193 @@ export const submissions: Submission[] = [
     confidence: "high",
     sampleSize: 126,
     tier: "high-value",
-    status: "verified",
-    seller: { handle: "@moonbreon_co", name: "Elena Petrova", initials: "EP", sales: 366, rating: 5.0 },
+    status: "live",
+    seller: { handle: "@moonbreon_co", name: "Elena Petrova", initials: "EP", sales: 366, rating: 5.0, reviews: 341 },
     submitted: "2026-08-29T11:20:00Z",
+    releasedAt: "2026-08-29T12:02:00Z",
+    reviewedBy: "Ayna Sulaiman",
     slaHours: 0,
+    photos: 12,
+    views: 1840,
+    watchers: 96,
     flags: [],
-    photos: 6,
-    note: "Cleared. Cert matched PSA's register, photos consistent.",
+    note: "Cert matched PSA's register, photos consistent with the label.",
   },
   {
-    id: "VF-4802",
+    id: "LS-9034",
+    card: "Giannis Antetokounmpo #340",
+    setLine: "2013 Panini Prizm · Rookie",
+    game: "Sports",
+    grader: "PSA",
+    grade: "10",
+    cert: "PSA 74008812",
+    askPrice: 6900,
+    marketPrice: 6450,
+    confidence: "high",
+    sampleSize: 58,
+    tier: "grail",
+    status: "live",
+    seller: { handle: "@courtsidecards", name: "Marcus Hale", initials: "MH", sales: 512, rating: 4.8, reviews: 471 },
+    submitted: "2026-08-28T20:15:00Z",
+    releasedAt: "2026-08-29T09:41:00Z",
+    reviewedBy: "Marco Reyes",
+    slaHours: 0,
+    photos: 11,
+    views: 2210,
+    watchers: 141,
+    flags: [],
+  },
+  {
+    id: "LS-9032",
+    card: "Mox Sapphire",
+    art: "magic-mox-sapphire",
+    setLine: "1993 Beta · Border verified",
+    game: "Magic",
+    grader: "BGS",
+    grade: "8",
+    cert: "BGS 0011903447",
+    askPrice: 9750,
+    marketPrice: 9900,
+    confidence: "high",
+    sampleSize: 17,
+    tier: "grail",
+    status: "live",
+    seller: { handle: "@alphaonly", name: "Rosa Iqbal", initials: "RI", sales: 76, rating: 5.0, reviews: 71 },
+    submitted: "2026-08-30T18:40:00Z",
+    releasedAt: "2026-08-31T08:10:00Z",
+    reviewedBy: "Ayna Sulaiman",
+    slaHours: 0,
+    photos: 10,
+    views: 340,
+    watchers: 22,
+    flags: [],
+  },
+  {
+    id: "LS-9028",
+    card: "Lugia #9",
+    art: "pokemon-lugia",
+    setLine: "2000 Neo Genesis · 1st Edition Holo",
+    game: "Pokémon",
+    grader: "CGC",
+    grade: "9.5",
+    cert: "CGC 4009122188",
+    askPrice: 3120,
+    marketPrice: 3050,
+    confidence: "high",
+    sampleSize: 31,
+    tier: "high-value",
+    status: "live",
+    seller: { handle: "@johto_grails", name: "Takumi Kondo", initials: "TK", sales: 143, rating: 4.8, reviews: 126 },
+    submitted: "2026-08-28T09:05:00Z",
+    releasedAt: "2026-08-28T16:20:00Z",
+    reviewedBy: "Priya Nandakumar",
+    slaHours: 0,
+    photos: 10,
+    views: 980,
+    watchers: 54,
+    flags: [],
+  },
+  {
+    id: "LS-9024",
+    card: "Shohei Ohtani #660",
+    setLine: "2018 Topps Update · Rookie Debut",
+    game: "Sports",
+    grader: "PSA",
+    grade: "10",
+    cert: "PSA 68221904",
+    askPrice: 1420,
+    marketPrice: 1390,
+    confidence: "high",
+    sampleSize: 92,
+    tier: "high-value",
+    status: "sold",
+    seller: { handle: "@pacificrim_pc", name: "Hana Nakamura", initials: "HN", sales: 208, rating: 4.9, reviews: 190 },
+    submitted: "2026-08-23T18:30:00Z",
+    releasedAt: "2026-08-24T10:00:00Z",
+    reviewedBy: "Marco Reyes",
+    slaHours: 0,
+    photos: 10,
+    views: 3410,
+    watchers: 202,
+    flags: [],
+  },
+  {
+    id: "LS-9019",
+    card: "Roronoa Zoro · Parallel",
+    setLine: "OP-02 Paramount War",
+    game: "One Piece",
+    grader: "PSA",
+    grade: "9",
+    cert: "PSA 90118840",
+    askPrice: 640,
+    marketPrice: 610,
+    confidence: "high",
+    sampleSize: 64,
+    tier: "standard",
+    status: "live",
+    seller: { handle: "@grandline_gr", name: "Sofia Marchetti", initials: "SM", sales: 148, rating: 4.9, reviews: 133 },
+    submitted: "2026-08-27T11:10:00Z",
+    releasedAt: "2026-08-27T13:55:00Z",
+    slaHours: 0,
+    photos: 10,
+    views: 512,
+    watchers: 18,
+    flags: [],
+  },
+  {
+    id: "LS-9014",
+    card: "Dark Magician Girl",
+    art: "yugioh-dark-magician-girl",
+    setLine: "2003 MFC · 1st Edition Secret Rare",
+    game: "Yu-Gi-Oh!",
+    grader: "BGS",
+    grade: "9",
+    cert: "BGS 0013774209",
+    askPrice: 2050,
+    marketPrice: 1980,
+    confidence: "high",
+    sampleSize: 44,
+    tier: "high-value",
+    status: "paused",
+    seller: { handle: "@duelistdepot", name: "Amir Farooq", initials: "AF", sales: 89, rating: 4.6, reviews: 77 },
+    submitted: "2026-08-21T15:40:00Z",
+    releasedAt: "2026-08-22T08:30:00Z",
+    reviewedBy: "Ayna Sulaiman",
+    slaHours: 0,
+    photos: 10,
+    views: 1105,
+    watchers: 63,
+    flags: [],
+    note: "Paused by the seller while they are away.",
+  },
+  {
+    id: "LS-9008",
+    card: "Blastoise #2",
+    art: "pokemon-blastoise",
+    setLine: "1999 Base Set · Shadowless Holo",
+    game: "Pokémon",
+    grader: "PSA",
+    grade: "9",
+    cert: "PSA 55401277",
+    askPrice: 5400,
+    marketPrice: 5250,
+    confidence: "high",
+    sampleSize: 27,
+    tier: "grail",
+    status: "withdrawn",
+    seller: { handle: "@vault_flipper", name: "Chris Doyle", initials: "CD", sales: 12, rating: 3.4, reviews: 9 },
+    submitted: "2026-08-18T12:00:00Z",
+    releasedAt: "2026-08-18T19:12:00Z",
+    reviewedBy: "Priya Nandakumar",
+    slaHours: 0,
+    photos: 10,
+    views: 760,
+    watchers: 27,
+    flags: [],
+    note: "Pulled when the seller's account was restricted.",
+  },
+  {
+    id: "LS-9002",
     card: "Mickey Mantle #311",
     setLine: "1952 Topps · Reprint suspected",
     game: "Sports",
@@ -399,198 +745,256 @@ export const submissions: Submission[] = [
     sampleSize: 0,
     tier: "grail",
     status: "rejected",
-    seller: { handle: "@vault_flipper", name: "Chris Doyle", initials: "CD", sales: 12, rating: 3.4 },
+    seller: { handle: "@vault_flipper", name: "Chris Doyle", initials: "CD", sales: 12, rating: 3.4, reviews: 9 },
     submitted: "2026-08-28T16:05:00Z",
+    reviewedBy: "Ayna Sulaiman",
     slaHours: 0,
-    flags: ["Print dot pattern inconsistent with 1952 stock", "Third authenticity strike"],
     photos: 9,
+    views: 0,
+    watchers: 0,
+    flags: ["Print dot pattern inconsistent with 1952 stock", "Third authenticity strike"],
     note: "Rejected. Escalated to member review — access revoked.",
   },
 ];
 
-export const verificationRules = [
-  {
-    key: "grail",
-    title: "Grail tier",
-    rule: "Ask price ≥ $5,000",
-    detail:
-      "Held for manual verification. Cert number checked against the grading company's register, every photo reviewed, provenance requested where the price has thin comparable data.",
-    count: 6,
-  },
-  {
-    key: "high-value",
-    title: "High value",
-    rule: "Ask price $1,000 – $4,999",
-    detail:
-      "Held for a lighter review: cert lookup and a photo pass. Clears automatically after 24h if no moderator touches it and the price sits inside the market band.",
-    count: 12,
-  },
-  {
-    key: "standard",
-    title: "Standard",
-    rule: "Ask price < $1,000",
-    detail:
-      "Goes straight to the listing queue. Sampled at 5% for spot checks, and pulled back if a member reports it.",
-    count: 143,
-  },
-];
+/* --------------------------------------------------------------------------
+   The automatic checks
 
-/* ==========================================================================
-   Listing queue
-   ========================================================================== */
+   Every flag on a listing is worked out here rather than stored on the
+   record. A stored flag goes stale the moment the seller adds the angle you
+   asked for, and the two the feature set names — the angle count, and the
+   slab label against the stated grade — are both things the row already
+   knows.
 
-export type Listing = {
-  id: string;
-  card: string;
-  art?: string;
-  setLine: string;
-  game: Game;
-  grader: Grader;
-  grade: string;
-  price: number;
-  status: ListingStatus;
-  seller: { handle: string; initials: string };
-  releasedAt: string;
-  views: number;
-  watchers: number;
-  verifiedBy?: string;
-  tier: VerificationTier;
+   `checksFor` returns the whole set, passes included: a reviewer needs to
+   see that a check ran and cleared, not infer it from an absent warning.
+   `flagsFor` is the failing subset, which is what a table cell, a tile and a
+   queue count want.
+   -------------------------------------------------------------------------- */
+
+/**
+ * Ten angles: front, back, all four slab edges, all four corners. Under that
+ * a crack or a re-seal can sit outside every frame, which is the one thing a
+ * photo set exists to rule out.
+ */
+export const MIN_ANGLES = 10;
+
+/** An ask this far over the quoted market figure is worth pointing at. */
+export const OVER_MARKET_PCT = 10;
+
+export type ListingCheck = {
+  key: string;
+  /** What the check tests, phrased so it reads the same either way. */
+  rule: string;
+  passed: boolean;
+  /** The finding, when it failed. */
+  label: string;
+  detail: string;
+  tone: "bad" | "warn";
+  /** Raised by a rule, as against typed by a moderator. */
+  automatic: boolean;
 };
 
-export const listings: Listing[] = [
+/** How far the ask sits above the market figure, or null if there isn't one. */
+export const overMarket = (l: Listing) =>
+  l.marketPrice > 0 ? (l.askPrice / l.marketPrice - 1) * 100 : null;
+
+export function checksFor(l: Listing): ListingCheck[] {
+  const over = overMarket(l);
+
+  const out: ListingCheck[] = [
+    {
+      key: "angles",
+      rule: `${MIN_ANGLES} angles supplied`,
+      passed: l.photos >= MIN_ANGLES,
+      label: `${l.photos} of ${MIN_ANGLES} angles`,
+      detail: `Front, back, four slab edges and four corners are required. ${Math.max(
+        0,
+        MIN_ANGLES - l.photos
+      )} still missing.`,
+      tone: "bad",
+      automatic: true,
+    },
+    {
+      key: "label",
+      rule: "Slab label matches the stated grade",
+      passed: !l.labelGrade || l.labelGrade === l.grade,
+      label: `Label reads ${l.grader} ${l.labelGrade ?? l.grade}`,
+      detail: `The label macro reads ${l.grader} ${
+        l.labelGrade ?? l.grade
+      } against a stated grade of ${l.grader} ${
+        l.grade
+      }. Check the cert against the register before this goes anywhere.`,
+      tone: "bad",
+      automatic: true,
+    },
+    {
+      key: "price",
+      rule: `Ask within ${OVER_MARKET_PCT}% of market`,
+      passed: over === null || over < OVER_MARKET_PCT,
+      label: over === null ? "No market figure to check against" : `Ask sits ${Math.round(over)}% over market`,
+      detail:
+        over === null
+          ? "Too few comparable sales to quote a figure at all."
+          : `Measured against the price engine's figure, from ${l.sampleSize} comparable ${l.grader} ${l.grade} sales.`,
+      tone: "warn",
+      automatic: true,
+    },
+    {
+      key: "confidence",
+      rule: "Price confidence above low",
+      passed: l.confidence !== "low",
+      label: "The quoted price cannot be confirmed",
+      detail: `${l.sampleSize} comparable sale${
+        l.sampleSize === 1 ? "" : "s"
+      } on record. A figure is withheld rather than guessed.`,
+      tone: "warn",
+      automatic: true,
+    },
+  ];
+
+  /* A moderator's own note is a finding, not a rule — it has no passing
+     state, so it only ever appears as something that failed. */
+  for (const f of l.flags) {
+    out.push({
+      key: f,
+      rule: f,
+      passed: false,
+      label: f,
+      detail: "Raised by a moderator on review.",
+      tone: "warn",
+      automatic: false,
+    });
+  }
+
+  return out;
+}
+
+/** Only the checks that failed — what a row, a tile and a count want. */
+export const flagsFor = (l: Listing) => checksFor(l).filter((c) => !c.passed);
+
+/* --------------------------------------------------------------------------
+   The member record
+
+   Where a decision lands. A rejection reason that only raises a toast has
+   not been written anywhere, which was the whole complaint: the seller is
+   told a reason, and nothing keeps it. Until the admin API exists this is
+   that store — seeded history plus an append-only list of what this session
+   decided, read back by handle.
+   -------------------------------------------------------------------------- */
+
+export type MemberEventKind =
+  | "listing-approved"
+  | "listing-rejected"
+  | "info-requested"
+  | "conduct"
+  | "note";
+
+export type MemberEvent = {
+  id: string;
+  at: string;
+  /** Whose record this is written to. */
+  handle: string;
+  kind: MemberEventKind;
+  title: string;
+  /** The reason, word for word, where the decision carried one. */
+  detail?: string;
+  by: string;
+  /** The listing it came from. */
+  ref?: string;
+};
+
+const seededEvents: MemberEvent[] = [
   {
-    id: "LS-9042",
-    card: "Umbreon VMAX #215",
-    art: "pokemon-umbreon",
-    setLine: "2021 Evolving Skies · Alt Art",
-    game: "Pokémon",
-    grader: "PSA",
-    grade: "10",
-    price: 2280,
-    status: "live",
-    seller: { handle: "@moonbreon_co", initials: "EP" },
-    releasedAt: "2026-08-29T12:02:00Z",
-    views: 1840,
-    watchers: 96,
-    verifiedBy: "Ayna Sulaiman",
-    tier: "high-value",
+    id: "EV-2041",
+    at: "2026-08-29T12:02:00Z",
+    handle: "@moonbreon_co",
+    kind: "listing-approved",
+    title: "Listing approved — Umbreon VMAX #215",
+    by: "Ayna Sulaiman",
+    ref: "LS-9036",
   },
   {
-    id: "LS-9041",
-    card: "Giannis Antetokounmpo #340",
-    setLine: "2013 Panini Prizm · Rookie",
-    game: "Sports",
-    grader: "PSA",
-    grade: "10",
-    price: 6900,
-    status: "live",
-    seller: { handle: "@courtsidecards", initials: "MH" },
-    releasedAt: "2026-08-29T09:41:00Z",
-    views: 2210,
-    watchers: 141,
-    verifiedBy: "Marco Reyes",
-    tier: "grail",
+    id: "EV-2038",
+    at: "2026-08-28T17:41:00Z",
+    handle: "@vault_flipper",
+    kind: "conduct",
+    title: "Access revoked",
+    detail: "Third authenticity strike inside 30 days. Escalated to member review.",
+    by: "Ayna Sulaiman",
   },
   {
-    id: "LS-9038",
-    card: "Mox Sapphire",
-    art: "magic-mox-sapphire",
-    setLine: "1993 Beta · Border verified",
-    game: "Magic",
-    grader: "BGS",
-    grade: "8",
-    price: 9750,
-    status: "queued",
-    seller: { handle: "@alphaonly", initials: "RI" },
-    releasedAt: "2026-08-31T08:10:00Z",
-    views: 0,
-    watchers: 0,
-    verifiedBy: "Ayna Sulaiman",
-    tier: "grail",
+    id: "EV-2037",
+    at: "2026-08-28T16:44:00Z",
+    handle: "@vault_flipper",
+    kind: "listing-rejected",
+    title: "Listing rejected — Mickey Mantle #311",
+    detail:
+      "The print dot pattern is inconsistent with 1952 Topps stock. Do not relist this card without a grading company's opinion.",
+    by: "Ayna Sulaiman",
+    ref: "LS-9002",
   },
   {
-    id: "LS-9036",
-    card: "Lugia #9",
-    art: "pokemon-lugia",
-    setLine: "2000 Neo Genesis · 1st Edition Holo",
-    game: "Pokémon",
-    grader: "CGC",
-    grade: "9.5",
-    price: 3120,
-    status: "live",
-    seller: { handle: "@johto_grails", initials: "TK" },
-    releasedAt: "2026-08-28T16:20:00Z",
-    views: 980,
-    watchers: 54,
-    verifiedBy: "Priya Nandakumar",
-    tier: "high-value",
+    id: "EV-2033",
+    at: "2026-08-27T09:18:00Z",
+    handle: "@duelistdepot",
+    kind: "listing-rejected",
+    title: "Listing rejected — Dark Magician Girl (first submission)",
+    detail: "Only four angles supplied. Ten are required, including all four corners.",
+    by: "Marco Reyes",
   },
   {
-    id: "LS-9031",
-    card: "Shohei Ohtani #660",
-    setLine: "2018 Topps Update · Rookie Debut",
-    game: "Sports",
-    grader: "PSA",
-    grade: "10",
-    price: 1420,
-    status: "sold",
-    seller: { handle: "@pacificrim_pc", initials: "HN" },
-    releasedAt: "2026-08-24T10:00:00Z",
-    views: 3410,
-    watchers: 202,
-    verifiedBy: "Marco Reyes",
-    tier: "high-value",
+    id: "EV-2029",
+    at: "2026-08-24T10:00:00Z",
+    handle: "@pacificrim_pc",
+    kind: "listing-approved",
+    title: "Listing approved — Shohei Ohtani #660",
+    by: "Marco Reyes",
+    ref: "LS-9024",
   },
   {
-    id: "LS-9027",
-    card: "Roronoa Zoro · Parallel",
-    setLine: "OP-02 Paramount War",
-    game: "One Piece",
-    grader: "PSA",
-    grade: "9",
-    price: 640,
-    status: "live",
-    seller: { handle: "@grandline_gr", initials: "SM" },
-    releasedAt: "2026-08-27T13:55:00Z",
-    views: 512,
-    watchers: 18,
-    tier: "standard",
+    id: "EV-2024",
+    at: "2026-08-22T08:30:00Z",
+    handle: "@duelistdepot",
+    kind: "listing-approved",
+    title: "Listing approved — Dark Magician Girl",
+    by: "Ayna Sulaiman",
+    ref: "LS-9014",
   },
   {
-    id: "LS-9019",
-    card: "Dark Magician Girl",
-    art: "yugioh-dark-magician-girl",
-    setLine: "2003 MFC · 1st Edition Secret Rare",
-    game: "Yu-Gi-Oh!",
-    grader: "BGS",
-    grade: "9",
-    price: 2050,
-    status: "paused",
-    seller: { handle: "@duelistdepot", initials: "AF" },
-    releasedAt: "2026-08-22T08:30:00Z",
-    views: 1105,
-    watchers: 63,
-    verifiedBy: "Ayna Sulaiman",
-    tier: "high-value",
-  },
-  {
-    id: "LS-9008",
-    card: "Blastoise #2",
-    art: "pokemon-blastoise",
-    setLine: "1999 Base Set · Shadowless Holo",
-    game: "Pokémon",
-    grader: "PSA",
-    grade: "9",
-    price: 5400,
-    status: "withdrawn",
-    seller: { handle: "@vault_flipper", initials: "CD" },
-    releasedAt: "2026-08-18T19:12:00Z",
-    views: 760,
-    watchers: 27,
-    verifiedBy: "Priya Nandakumar",
-    tier: "grail",
+    id: "EV-2019",
+    at: "2026-08-20T14:12:00Z",
+    handle: "@kanto_archive",
+    kind: "note",
+    title: "Staff note",
+    detail:
+      "High-value consignor, slow to answer. Give provenance requests the full seven days before expiring them.",
+    by: "Priya Nandakumar",
   },
 ];
+
+/** Written during this session. Newest first, ahead of the seeded history. */
+const sessionEvents: MemberEvent[] = [];
+
+/**
+ * Append to a member's record.
+ *
+ * Returns the entry so the caller can show exactly what was filed, rather
+ * than a paraphrase of it in a toast.
+ */
+export function writeToRecord(e: Omit<MemberEvent, "id" | "at">): MemberEvent {
+  const entry: MemberEvent = {
+    ...e,
+    id: `EV-${9000 + sessionEvents.length}`,
+    at: new Date().toISOString(),
+  };
+  sessionEvents.unshift(entry);
+  return entry;
+}
+
+/** One member's record, newest first. */
+export const recordFor = (handle: string) =>
+  [...sessionEvents, ...seededEvents].filter((e) => e.handle === handle);
 
 /* ==========================================================================
    Conflict resolution
@@ -1148,6 +1552,16 @@ export type Report = {
   updated: string;
   format: string;
   category: "Marketplace" | "Moderation" | "Finance" | "Members";
+  /** How the report draws itself — the caption under its name in the
+      catalogue, and what the panel actually renders when it is selected. */
+  chart: "Area chart" | "Line chart" | "Column chart" | "Table";
+  /** What `trend` counts, so its axis can be labelled: thousands, a plain
+      count, or a percentage. */
+  unit: "k" | "n" | "%";
+  /** Headline figure and its movement, shown when the report is selected. */
+  headline: string;
+  headlineLabel: string;
+  trend: number[];
 };
 
 export const reports: Report[] = [
@@ -1159,6 +1573,11 @@ export const reports: Report[] = [
     updated: "2 hours ago",
     format: "CSV · XLSX",
     category: "Marketplace",
+    chart: "Area chart",
+    unit: "k",
+    headline: "$412,880",
+    headlineLabel: "GMV, last 30 days",
+    trend: [61, 68, 59, 74, 81, 77, 92, 88, 103, 114, 108, 127],
   },
   {
     id: "RP-02",
@@ -1168,6 +1587,11 @@ export const reports: Report[] = [
     updated: "2 hours ago",
     format: "CSV",
     category: "Moderation",
+    chart: "Line chart",
+    unit: "n",
+    headline: "284",
+    headlineLabel: "Cleared in the period",
+    trend: [24, 31, 27, 35, 33, 39, 44, 41, 48, 52, 47, 58],
   },
   {
     id: "RP-03",
@@ -1177,6 +1601,11 @@ export const reports: Report[] = [
     updated: "3 days ago",
     format: "CSV · PDF",
     category: "Moderation",
+    chart: "Column chart",
+    unit: "n",
+    headline: "134",
+    headlineLabel: "Conflicts closed",
+    trend: [18, 14, 16, 11, 13, 9, 12, 10, 8, 11, 7, 9],
   },
   {
     id: "RP-04",
@@ -1186,6 +1615,11 @@ export const reports: Report[] = [
     updated: "9 hours ago",
     format: "CSV · XLSX",
     category: "Finance",
+    chart: "Column chart",
+    unit: "k",
+    headline: "$286,410",
+    headlineLabel: "Released to sellers",
+    trend: [42, 48, 44, 51, 55, 52, 61, 58, 66, 71, 68, 79],
   },
   {
     id: "RP-05",
@@ -1195,6 +1629,11 @@ export const reports: Report[] = [
     updated: "3 days ago",
     format: "CSV",
     category: "Members",
+    chart: "Line chart",
+    unit: "n",
+    headline: "6,412",
+    headlineLabel: "Active members",
+    trend: [5210, 5388, 5501, 5677, 5790, 5904, 6011, 6098, 6180, 6255, 6340, 6412],
   },
   {
     id: "RP-06",
@@ -1205,6 +1644,11 @@ export const reports: Report[] = [
     updated: "4 days ago",
     format: "CSV",
     category: "Marketplace",
+    chart: "Line chart",
+    unit: "n",
+    headline: "41",
+    headlineLabel: "Low-confidence listings",
+    trend: [58, 55, 61, 49, 52, 47, 44, 48, 43, 45, 40, 41],
   },
   {
     id: "RP-07",
@@ -1214,6 +1658,11 @@ export const reports: Report[] = [
     updated: "12 days ago",
     format: "XLSX",
     category: "Marketplace",
+    chart: "Column chart",
+    unit: "%",
+    headline: "11.2%",
+    headlineLabel: "Largest seller share",
+    trend: [7.1, 7.6, 8.2, 8.0, 8.9, 9.4, 9.1, 10.0, 10.4, 10.8, 11.0, 11.2],
   },
   {
     id: "RP-08",
@@ -1223,6 +1672,11 @@ export const reports: Report[] = [
     updated: "Live",
     format: "CSV · JSON",
     category: "Moderation",
+    chart: "Table",
+    unit: "n",
+    headline: "1,908",
+    headlineLabel: "Actions logged",
+    trend: [132, 148, 141, 160, 155, 171, 168, 179, 183, 190, 186, 195],
   },
 ];
 
@@ -1234,18 +1688,18 @@ export const reportKpis: Stat[] = [
 ];
 
 export const decisionSplit = [
-  { label: "Verified", value: 284, color: "#1f8a5b" },
-  { label: "Rejected", value: 28, color: "#c0392f" },
-  { label: "Info requested", value: 41, color: "#b0761d" },
-  { label: "Auto-cleared", value: 619, color: "#a88d60" },
+  { label: "Verified", value: 284, color: "var(--ok)" },
+  { label: "Rejected", value: 28, color: "var(--bad)" },
+  { label: "Info requested", value: 41, color: "var(--warn)" },
+  { label: "Auto-cleared", value: 619, color: "var(--gold-300)" },
 ];
 
 export const conflictOutcomes = [
-  { label: "Resolved for buyer", value: 38 },
-  { label: "Resolved for seller", value: 51 },
+  { label: "For the buyer", value: 38 },
+  { label: "For the seller", value: 51 },
   { label: "Partial refund", value: 22 },
-  { label: "Return and relist", value: 14 },
-  { label: "Withdrawn by buyer", value: 9 },
+  { label: "Return, relist", value: 14 },
+  { label: "Withdrawn", value: 9 },
 ];
 
 /* ==========================================================================
@@ -1698,6 +2152,15 @@ export function severityScore(amount: number, ageHours: number) {
 export const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
+/**
+ * Subscriptions are billed in Australian dollars and have to say so.
+ *
+ * `money` above is the marketplace's own formatter and is left alone here:
+ * changing its currency would silently restate every price on every other
+ * page, which is a decision about the whole console, not about this figure.
+ */
+export const aud = (n: number) => `A$${Math.round(n).toLocaleString("en-AU")}`;
+
 export const compactMoney = (n: number) =>
   n >= 1000 ? `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `$${n}`;
 
@@ -1731,10 +2194,13 @@ export const tierLabel: Record<VerificationTier, string> = {
   standard: "Standard",
 };
 
-export const statusLabel: Record<VerificationStatus, string> = {
+export const statusLabel: Record<ListingStatus, string> = {
   awaiting: "Awaiting review",
   "in-review": "In review",
   "info-requested": "Info requested",
-  verified: "Verified",
+  live: "Live",
+  sold: "Sold",
+  paused: "Paused",
+  withdrawn: "Withdrawn",
   rejected: "Rejected",
 };

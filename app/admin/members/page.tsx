@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   dateOnly,
   members,
@@ -13,7 +14,6 @@ import {
 import {
   Avatar,
   Badge,
-  BlockHead,
   Card,
   CardBody,
   CardHead,
@@ -24,9 +24,9 @@ import {
   Modal,
   Note,
   PageHead,
-  PillTabs,
   Rating,
-  SectionHead,
+  Select,
+  FilterField,
   Toast,
   Toggle,
 } from "../components/ui";
@@ -40,7 +40,6 @@ import {
   IconMail,
   IconPin,
   IconScale,
-  IconSearch,
   IconShield,
   IconUsers,
 } from "../components/icons";
@@ -82,11 +81,30 @@ const ROLE_LABEL: Record<string, string> = {
   consignor: "Consignor",
 };
 
-export default function MembersPage() {
-  const [scope, setScope] = useState<Scope>("team");
+/** The two directories this page holds, and how each one introduces itself. */
+const DIRECTORY: Record<Scope, { title: string; sub: string }> = {
+  team: {
+    title: "Admin team",
+    sub: "The accounts that run this console, what each one can reach, and what it has decided.",
+  },
+  market: {
+    title: "Members",
+    sub: "Everyone trading on the marketplace — their standing, their history, and the levers that change it.",
+  },
+};
+
+function MembersPage() {
+  /* Which directory you are in is the sidebar's business, not a control on
+     the page: the two rows in the nav are the switch, and a second switch
+     here only asked the same question twice. `?scope=market` from the nav;
+     anything else, including a bare link, is the team. */
+  const params = useSearchParams();
+  const scope: Scope = params.get("scope") === "market" ? "market" : "team";
 
   /* team filters */
   const [teamRole, setTeamRole] = useState("all");
+  const [teamScope, setTeamScope] = useState("all");
+  const [teamStatus, setTeamStatus] = useState("all");
 
   /* marketplace filters */
   const [status, setStatus] = useState("all");
@@ -104,8 +122,14 @@ export default function MembersPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const teamRows = useMemo(
-    () => staff.filter((p) => teamRole === "all" || p.title === teamRole),
-    [teamRole]
+    () =>
+      staff.filter((p) => {
+        if (teamRole !== "all" && p.title !== teamRole) return false;
+        if (teamScope !== "all" && !p.scopes.includes(teamScope)) return false;
+        if (teamStatus !== "all" && p.status !== teamStatus) return false;
+        return true;
+      }),
+    [teamRole, teamScope, teamStatus]
   );
 
   const marketRows = useMemo(() => {
@@ -140,76 +164,104 @@ export default function MembersPage() {
   return (
     <>
       <PageHead
-        title="Members"
-        sub="The people who run the marketplace, and the people who trade on it."
+        title={DIRECTORY[scope].title}
+        sub={DIRECTORY[scope].sub}
         right={
-          <button type="button" className="gm-btn">
-            <IconMail />
-            Message selected
-          </button>
+          scope === "market" ? (
+            <button type="button" className="gm-btn">
+              <IconMail />
+              Message selected
+            </button>
+          ) : (
+            /* Staff accounts are provisioned in the backend, not invited from
+               here — the settings page says so, and a button that cannot do
+               it would say otherwise. */
+            <span className="gm-badge gm-badge--gold gm-badge--nodot">
+              <IconLock style={{ width: 12, height: 12 }} />
+              Backend-provisioned
+            </span>
+          )
         }
       />
 
       <div className="gm-stack">
-        <PillTabs
-          value={scope}
-          onChange={setScope}
-          options={[
-            { key: "team" as Scope, label: "Admin team", count: staff.length, icon: <IconShield /> },
-            {
-              key: "market" as Scope,
-              label: "Marketplace members",
-              count: members.length,
-              icon: <IconUsers />,
-            },
-          ]}
-        />
+        {/* The count and the shape of the list, in one line — the same
+            summary the listing queue opens with. */}
+        <p className="gm-row gm-sm gm-muted" style={{ gap: 14, margin: 0 }}>
+          {scope === "team" ? (
+            <>
+              <span>
+                <b className="gm-strong">{teamRows.length}</b> of {staff.length} accounts
+              </span>
+              <span>{staff.filter((p) => p.status === "active").length} active</span>
+              <span className="gm-dim">{staff.filter((p) => p.lead).length} lead</span>
+            </>
+          ) : (
+            <>
+              <span>
+                <b className="gm-strong">{marketRows.length}</b> of {members.length} records
+              </span>
+              <span>{members.filter((m) => m.status === "restricted").length} restricted</span>
+              <span className="gm-dim">
+                {members.filter((m) => m.status === "revoked").length} revoked
+              </span>
+            </>
+          )}
+        </p>
 
         {/* ================================================== admin team */}
         {scope === "team" ? (
           <>
             <div className="gm-filterbar">
-              <div className="gm-filterfield is-select">
-                <label htmlFor="gm-teamrole">Role</label>
-                <select
+              <FilterField label="Role" htmlFor="gm-teamrole">
+                <Select
                   id="gm-teamrole"
+                  variant="bare"
                   value={teamRole}
-                  onChange={(e) => setTeamRole(e.target.value)}
-                >
-                  <option value="all">All roles</option>
-                  {titles.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="gm-filterfield is-select">
-                <label>Scope</label>
-                <select defaultValue="all">
-                  <option value="all">Any scope</option>
-                  <option>Verification</option>
-                  <option>Conflicts</option>
-                  <option>Members</option>
-                  <option>Pricing</option>
-                  <option>Support</option>
-                </select>
-              </div>
-              <div className="gm-filterfield is-select">
-                <label>Status</label>
-                <select defaultValue="all">
-                  <option value="all">Any status</option>
-                  <option>Active</option>
-                  <option>Restricted</option>
-                </select>
-              </div>
-              <button type="button" className="gm-btn gm-btn--primary" aria-label="Search">
-                <IconSearch />
-              </button>
+                  onChange={setTeamRole}
+                  ariaLabel="Filter the team by role"
+                  options={[
+                    { value: "all", label: "All roles" },
+                    ...titles.map((t) => ({ value: t, label: t })),
+                  ]}
+                />
+              </FilterField>
+              <FilterField label="Scope" htmlFor="gm-teamscope">
+                <Select
+                  id="gm-teamscope"
+                  variant="bare"
+                  value={teamScope}
+                  onChange={setTeamScope}
+                  ariaLabel="Filter the team by scope"
+                  options={[
+                    { value: "all", label: "Any scope" },
+                    "Verification",
+                    "Conflicts",
+                    "Members",
+                    "Pricing",
+                    "Support",
+                    "Settings",
+                  ]}
+                />
+              </FilterField>
+              <FilterField label="Status" htmlFor="gm-teamstatus">
+                <Select
+                  id="gm-teamstatus"
+                  variant="bare"
+                  value={teamStatus}
+                  onChange={setTeamStatus}
+                  ariaLabel="Filter the team by status"
+                  options={[
+                    { value: "all", label: "Any status" },
+                    { value: "active", label: "Active" },
+                    { value: "restricted", label: "Restricted" },
+                    { value: "revoked", label: "Revoked" },
+                  ]}
+                />
+              </FilterField>
             </div>
 
             <div>
-              <SectionHead title="On the team" count={teamRows.length} />
               {teamRows.length === 0 ? (
                 <Card>
                   <Empty icon={<IconShield />} title="No accounts match that role" />
@@ -277,66 +329,59 @@ export default function MembersPage() {
           /* =========================================== marketplace members */
           <>
             <div className="gm-filterbar">
-              <div className="gm-filterfield is-select">
-                <label htmlFor="gm-mstatus">Status</label>
-                <select id="gm-mstatus" value={status} onChange={(e) => setStatus(e.target.value)}>
-                  <option value="all">Any status</option>
-                  <option value="active">Active</option>
-                  <option value="restricted">Restricted</option>
-                  <option value="revoked">Revoked</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
-              <div className="gm-filterfield is-select">
-                <label htmlFor="gm-mrole">Role</label>
-                <select id="gm-mrole" value={role} onChange={(e) => setRole(e.target.value)}>
-                  <option value="all">Any role</option>
-                  <option value="buyer">Buyer</option>
-                  <option value="seller">Seller</option>
-                  <option value="buyer-seller">Buyer &amp; seller</option>
-                  <option value="consignor">Consignor</option>
-                </select>
-              </div>
-              <div className="gm-filterfield is-select">
-                <label htmlFor="gm-mcountry">Country</label>
-                <select
+              <FilterField label="Status" htmlFor="gm-mstatus">
+                <Select
+                  id="gm-mstatus"
+                  variant="bare"
+                  value={status}
+                  onChange={setStatus}
+                  ariaLabel="Filter members by status"
+                  options={[
+                    { value: "all", label: "Any status" },
+                    { value: "active", label: "Active" },
+                    { value: "restricted", label: "Restricted" },
+                    { value: "revoked", label: "Revoked" },
+                    { value: "pending", label: "Pending" },
+                  ]}
+                />
+              </FilterField>
+              <FilterField label="Role" htmlFor="gm-mrole">
+                <Select
+                  id="gm-mrole"
+                  variant="bare"
+                  value={role}
+                  onChange={setRole}
+                  ariaLabel="Filter members by role"
+                  options={[
+                    { value: "all", label: "Any role" },
+                    { value: "buyer", label: "Buyer" },
+                    { value: "seller", label: "Seller" },
+                    { value: "buyer-seller", label: "Buyer & seller" },
+                    { value: "consignor", label: "Consignor" },
+                  ]}
+                />
+              </FilterField>
+              <FilterField label="Country" htmlFor="gm-mcountry">
+                <Select
                   id="gm-mcountry"
+                  variant="bare"
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                >
-                  <option value="all">Anywhere</option>
-                  {countries.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="gm-filterfield">
-                <label htmlFor="gm-mq">Search</label>
+                  onChange={setCountry}
+                  ariaLabel="Filter members by country"
+                  options={[{ value: "all", label: "Anywhere" }, ...countries]}
+                />
+              </FilterField>
+              <FilterField label="Search" htmlFor="gm-mq">
                 <input
                   id="gm-mq"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Name or handle"
                 />
-              </div>
-              <button type="button" className="gm-btn gm-btn--primary" aria-label="Search">
-                <IconSearch />
-              </button>
+              </FilterField>
             </div>
 
             <div>
-              <SectionHead
-                title="Trading on the marketplace"
-                count={marketRows.length}
-                right={
-                  <span className="gm-tiny gm-dim">
-                    {members.filter((m) => m.status === "revoked").length} revoked ·{" "}
-                    {members.filter((m) => m.status === "restricted").length} restricted
-                  </span>
-                }
-              />
               {marketRows.length === 0 ? (
                 <Card>
                   <Empty
@@ -670,18 +715,13 @@ export default function MembersPage() {
                 <label className="gm-label" htmlFor="gm-reason-key">
                   Reason
                 </label>
-                <select
+                <Select
                   id="gm-reason-key"
-                  className="gm-select"
                   value={reasonKey}
-                  onChange={(e) => setReasonKey(e.target.value)}
-                >
-                  {revokeReasons.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setReasonKey}
+                  options={[...revokeReasons]}
+                  style={{ width: "100%" }}
+                />
               </div>
             ) : null}
 
@@ -729,5 +769,15 @@ export default function MembersPage() {
         <Toast title="Access updated" body={`${toast} · written to the audit log`} onDone={() => setToast(null)} />
       ) : null}
     </>
+  );
+}
+
+/* `useSearchParams` opts its subtree out of the static shell, so it gets a
+   boundary of its own rather than the whole route being client-rendered. */
+export default function MembersRoute() {
+  return (
+    <Suspense fallback={null}>
+      <MembersPage />
+    </Suspense>
   );
 }

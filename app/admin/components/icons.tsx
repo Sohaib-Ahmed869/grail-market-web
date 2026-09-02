@@ -338,6 +338,16 @@ export const IconRows = (p: P) => (
   </Ico>
 );
 
+/* the sidebar's own collapse control: a frame with its leading column filled,
+   which is the panel it hides and brings back */
+export const IconPanel = (p: P) => (
+  <Ico {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.6" />
+    <path d="M9.5 4v16" />
+    <path d="M6.2 8.6h0.6M6.2 12h0.6M6.2 15.4h0.6" />
+  </Ico>
+);
+
 export const IconGrid = (p: P) => (
   <Ico {...p}>
     <rect x="3.5" y="3.5" width="7" height="8.5" rx="1.5" />

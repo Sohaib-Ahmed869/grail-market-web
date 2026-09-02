@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   cannedReplies,
   tickets,
@@ -44,8 +45,16 @@ const FILTERS: { key: Filter; label: string; icon: React.ReactNode }[] = [
   { key: "resolved", label: "Resolved", icon: <IconCheck /> },
 ];
 
-export default function SupportPage() {
-  const [filter, setFilter] = useState<Filter>("all");
+/* Linked from the sidebar as `?status=new` and friends. */
+const STATUSES = FILTERS.map((f) => f.key as string);
+
+function SupportPage() {
+  const params = useSearchParams();
+  const wanted = params.get("status");
+  const fromUrl = (STATUSES.includes(wanted ?? "") ? wanted : "all") as Filter;
+
+  const [filter, setFilter] = useState<Filter>(fromUrl);
+  useEffect(() => setFilter(fromUrl), [fromUrl]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(tickets[0].id);
   const [reply, setReply] = useState("");
@@ -178,7 +187,7 @@ export default function SupportPage() {
                         {active.member.handle} · {active.member.role.replace("-", " & ")}
                       </span>
                     </div>
-                    <a className="gm-btn gm-btn--sm" href="/admin/members">
+                    <a className="gm-btn gm-btn--sm" href="/admin/members?scope=market">
                       <IconUsers />
                       Member record
                     </a>
@@ -314,5 +323,15 @@ export default function SupportPage() {
         </div>
       </div>
     </>
+  );
+}
+
+/* `useSearchParams` opts its subtree out of the static shell, so it gets a
+   boundary of its own rather than the whole route being client-rendered. */
+export default function SupportRoute() {
+  return (
+    <Suspense fallback={null}>
+      <SupportPage />
+    </Suspense>
   );
 }

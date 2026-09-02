@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   conflictKindLabel,
   conflicts,
@@ -58,8 +59,16 @@ const FILTERS: { key: Filter; label: string; icon: React.ReactNode }[] = [
   { key: "resolved", label: "Resolved", icon: <IconCheck /> },
 ];
 
-export default function ConflictsPage() {
-  const [filter, setFilter] = useState<Filter>("all");
+/* The sidebar links straight to a view — `?status=escalated` and the like. */
+const STATUSES = FILTERS.map((f) => f.key as string);
+
+function ConflictsPage() {
+  const params = useSearchParams();
+  const wanted = params.get("status");
+  const fromUrl = (STATUSES.includes(wanted ?? "") ? wanted : "all") as Filter;
+
+  const [filter, setFilter] = useState<Filter>(fromUrl);
+  useEffect(() => setFilter(fromUrl), [fromUrl]);
   const [open, setOpen] = useState<Conflict | null>(null);
   const [resolution, setResolution] = useState<string | null>(null);
   const [splitPct, setSplitPct] = useState(50);
@@ -498,5 +507,15 @@ export default function ConflictsPage() {
         />
       ) : null}
     </>
+  );
+}
+
+/* `useSearchParams` opts its subtree out of the static shell, so it gets a
+   boundary of its own rather than the whole route being client-rendered. */
+export default function ConflictsRoute() {
+  return (
+    <Suspense fallback={null}>
+      <ConflictsPage />
+    </Suspense>
   );
 }

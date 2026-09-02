@@ -75,7 +75,11 @@
   --r: 12px;
   --r-lg: 16px;
   --r-xl: 22px;
-  --sidebar-w: 264px;
+  /* Two states, never both: the sidebar is either the rail or the panel, so
+     its width is one or the other rather than the sum. */
+  --rail-w: 76px;
+  --panel-w: 264px;
+  --sidebar-w: var(--panel-w);
   --topbar-h: 68px;
 
   color: var(--ink);
@@ -86,6 +90,25 @@
   letter-spacing: normal; /* body in globals.css sets 0.01em */
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Which half is on screen. Stamped on <html> by the boot script before first
+   paint, the same way the theme is, so the page never renders one state and
+   then snaps to the other. */
+:root[data-gm-rail="1"] .gm {
+  --sidebar-w: var(--rail-w);
+}
+
+.gm-rail {
+  display: none;
+}
+
+:root[data-gm-rail="1"] .gm-rail {
+  display: block;
+}
+
+:root[data-gm-rail="1"] .gm-panel {
+  display: none;
 }
 
 /* ==========================================================================
@@ -200,7 +223,7 @@
 
 /* the gradient-text treatments below re-enable clipping deliberately; the
    selected states put it back, because a selected tab is solid white on navy */
-.gm .gm-brand-name,
+.gm .gm-panel-brand b,
 .gm .gm-nav-item:hover .gm-nav-label,
 .gm .gm-tab:hover span.gm-tab-t {
   -webkit-text-fill-color: transparent;
@@ -286,7 +309,12 @@
 }
 
 /* ==========================================================================
-   SIDEBAR — light, translucent, its own soft gradient from the top right
+   SIDEBAR — a floating icon rail, and a single-column panel beside it
+
+   The rail is the permanent part: every destination is on it, which is what
+   lets the panel go without stranding anything. It reads as a card standing
+   off the page rather than as a strip glued to the edge, so the folded state
+   is a deliberate shape rather than a leftover.
    ========================================================================== */
 
 .gm-side {
@@ -294,129 +322,321 @@
   top: 0;
   height: 100vh;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 18px 14px 14px;
+  align-items: stretch;
+  /* its own ground: without one the drifting card silhouettes in the page
+     background showed straight through the nav */
   background:
-    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.26), transparent 66%),
-    radial-gradient(360px 420px at -20% 108%, rgba(44, 65, 89, 0.08), transparent 62%),
-    linear-gradient(168deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 248, 251, 0.9) 52%, rgba(238, 242, 247, 0.94) 100%);
+    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.22), transparent 66%),
+    radial-gradient(360px 420px at -20% 108%, rgba(44, 65, 89, 0.07), transparent 62%),
+    linear-gradient(168deg, rgba(255, 255, 255, 0.9) 0%, rgba(246, 248, 251, 0.86) 52%, rgba(238, 242, 247, 0.9) 100%);
   backdrop-filter: blur(14px);
   border-right: 1px solid rgba(211, 219, 228, 0.75);
   box-shadow: 14px 0 34px -22px rgba(21, 33, 47, 0.28);
   z-index: 30;
 }
 
-.gm-brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 6px 10px 16px;
-  text-decoration: none;
-  color: inherit;
+/* ------------------------------------------------------------------ rail */
+
+.gm-rail {
+  flex: none;
+  width: var(--rail-w);
+  padding: 12px 0 12px 12px;
 }
 
-/* the mark stands on the sidebar itself — a solid chip behind a logo is one
-   more filled block, and the brand pack already ships a variant per ground */
-.gm-brand-mark {
-  width: 34px;
-  height: 34px;
+.gm-rail-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 14px;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  background: linear-gradient(
+    172deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(247, 249, 252, 0.94) 60%,
+    rgba(240, 244, 249, 0.96) 100%
+  );
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-rail-mark {
+  width: 30px;
+  height: 30px;
   flex: none;
   display: grid;
   place-items: center;
 }
 
-/* mark.svg is navy + gold for the light theme; mark-onnavy.svg is the same
-   mark with its navy recoloured white, for the dark one. Both render, CSS
-   picks — no flash, and no JS needed to swap an image source. */
-.gm-brand-mark img {
+.gm-rail-mark img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.gm-brand-mark .gm-mark-dark {
+.gm-rail-mark .gm-mark-dark {
   display: none;
 }
 
-:root[data-gm-theme="dark"] .gm-brand-mark .gm-mark-light {
+:root[data-gm-theme="dark"] .gm-rail-mark .gm-mark-light {
   display: none;
 }
 
-:root[data-gm-theme="dark"] .gm-brand-mark .gm-mark-dark {
+:root[data-gm-theme="dark"] .gm-rail-mark .gm-mark-dark {
   display: block;
 }
 
-.gm-brand-text {
+.gm-rail-fold {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 0.18s ease, box-shadow 0.18s ease, transform 0.2s ease;
+}
+
+.gm-rail-fold svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gm-rail-fold:hover {
+  color: var(--ink);
+  box-shadow: var(--sh-1);
+}
+
+.gm-rail-fold:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* the icon points at what the button does: fold the panel away, or bring it
+   back out */
+:root[data-gm-rail="1"] .gm-rail-fold svg {
+  transform: scaleX(-1);
+}
+
+.gm-rail-div {
+  flex: none;
+  width: 30px;
+  height: 1px;
+  margin: 8px 0 4px;
+  background: var(--line-2);
+}
+
+.gm-rail-items {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.gm-rail-items::-webkit-scrollbar {
+  display: none;
+}
+
+.gm-rail-item {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--ink-3);
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.2s ease;
+}
+
+.gm-rail-item svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.7;
+}
+
+.gm-rail-item:hover {
+  background: var(--surface-2);
+  color: var(--gold-600);
+}
+
+/* the current section, as a filled disc — the one loud mark in a quiet strip */
+.gm-rail-item.is-active,
+.gm-rail-item.is-active:hover {
+  background: var(--grad-navy);
+  color: var(--gold-300);
+  box-shadow: var(--sh-navy);
+}
+
+.gm-rail-item:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
+/* a queue with work in it gets a dot; the number itself is on the panel */
+.gm-rail-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.gm-rail-dot.is-alert {
+  background: var(--bad);
+}
+
+.gm-rail-item.is-active .gm-rail-dot {
+  box-shadow: 0 0 0 2px var(--navy);
+}
+
+.gm-rail-theme {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* the long rule above the footer icons, as in the reference */
+.gm-rail-rule {
+  flex: none;
+  width: 1px;
+  height: 54px;
+  margin: 10px 0;
+  background: linear-gradient(180deg, transparent, var(--line-2) 30%, var(--line-2) 70%, transparent);
+}
+
+/* ----------------------------------------------------------------- panel
+
+   One column. Sections are grouped under a caption rather than split across
+   two columns: a second column halved the width available to a label and
+   bought nothing but truncation. */
+
+.gm-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 14px 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.gm-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 2px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* the theme switch, on the floor of the panel */
+.gm-panel-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 4px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-panel-foot > span {
+  flex: 1 1 auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-4);
+}
+
+.gm-panel-brand {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.gm-brand-name {
-  font-size: 15.5px;
+.gm-panel-brand b {
+  display: block;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.015em;
-  line-height: 1.1;
+  line-height: 1.15;
   background: var(--grad-text);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.gm-brand-sub {
+.gm-panel-brand span {
+  display: block;
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--ink-4);
-  margin-top: 2px;
 }
 
-.gm-nav {
+.gm-panel-nav {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-bottom: 8px;
-  flex: 1 1 auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
+  gap: 2px;
 }
 
-.gm-nav-group {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+.gm-nav-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* the first caption sits under the header rule, so it needs no lead-in */
+.gm-nav-block:first-child .gm-nav-grouphead {
+  padding-top: 4px;
+}
+
+
+.gm-nav-grouphead {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
   color: var(--ink-4);
-  padding: 16px 12px 7px;
+  padding: 14px 11px 6px;
 }
 
 .gm-nav-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 9.5px 12px;
-  border-radius: var(--r);
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 13px;
   text-decoration: none;
   color: var(--ink-2);
-  font-size: 13.6px;
+  font-size: 13.2px;
   font-weight: 550;
   border: 1px solid transparent;
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.22s ease,
-    transform 0.18s ease, border-color 0.18s ease;
+    border-color 0.18s ease;
 }
 
 .gm-nav-item svg {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   stroke-width: 1.7;
   color: var(--ink-3);
-  transition: color 0.18s ease, transform 0.22s ease;
+  transition: color 0.18s ease;
 }
 
 .gm-nav-label {
@@ -427,9 +647,7 @@
   white-space: nowrap;
 }
 
-/* HOVER — light tint, and the label itself picks up the brand gradient.
-   No transform: `.gm-nav` clips on the x-axis, so nudging the row sideways
-   sliced its right rounded corner off. No shadow either — the rail is flat. */
+/* HOVER — light tint, and the label itself picks up the brand gradient */
 .gm-nav-item:hover {
   background: var(--surface-2);
   border-color: rgba(203, 183, 148, 0.45);
@@ -444,15 +662,15 @@
 
 .gm-nav-item:hover svg {
   color: var(--gold-600);
-  transform: scale(1.06);
 }
 
-/* SELECTED — dark navy gradient, flat: no shadow and no left rail */
+/* SELECTED — a solid rounded pill, the one filled shape in the panel */
 .gm-nav-item.is-active,
 .gm-nav-item.is-active:hover {
   background: var(--grad-navy);
   border-color: rgba(26, 38, 50, 0.9);
   color: #ffffff;
+  box-shadow: var(--sh-navy);
 }
 
 .gm-nav-item.is-active .gm-nav-label {
@@ -465,7 +683,6 @@
 
 .gm-nav-item.is-active svg {
   color: var(--gold-300);
-  transform: none;
 }
 
 .gm-nav-item:focus-visible {
@@ -473,12 +690,136 @@
   outline-offset: 2px;
 }
 
+/* A heading is a disclosure, not a link: it takes you nowhere, it only shows
+   the pages underneath it. Button defaults have to be undone for it to sit
+   flush with the rows above and below. */
+.gm-nav-item--group {
+  width: 100%;
+  font: inherit;
+  font-size: 12.8px;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+}
+
+/* open but not the page you are on: a quiet outline rather than a solid fill,
+   which is reserved for the row that is actually current */
+.gm-nav-item--group.is-open:not(.is-active) {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+.gm-nav-caret {
+  flex: none;
+  width: 15px !important;
+  height: 15px !important;
+  opacity: 0.75;
+  transition: transform 0.2s ease;
+}
+
+.gm-nav-item--group.is-open .gm-nav-caret {
+  transform: rotate(180deg);
+}
+
+/* ------------------------------------------------- the views inside a page
+
+   Hung off a guide line, the way a file tree is: the indent alone is easy to
+   miss, and the line says these belong to the pill above. The current one is
+   a raised white box, so it reads as the thing you are looking at without
+   competing with the solid pill of its parent. */
+.gm-nav-kids {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 5px 0 7px;
+  padding-left: 22px;
+}
+
+.gm-nav-kids::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 3px;
+  bottom: 3px;
+  width: 1.5px;
+  border-radius: 2px;
+  background: var(--line-2);
+}
+
+.gm-nav-kid {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  border-radius: 11px;
+  font-size: 12.4px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+/* the view's own icon, the same one its tab uses on the page it opens */
+.gm-nav-kid svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+  color: var(--ink-4);
+  transition: color 0.16s ease;
+}
+
+.gm-nav-kid > span:not(.gm-nav-count) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the count pill rides a nested row the same way it rides a top-level one */
+.gm-nav-kid .gm-nav-count {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  font-size: 10.5px;
+}
+
+.gm-nav-kid:hover svg {
+  color: var(--gold-600);
+}
+
+.gm-nav-kid.is-active svg {
+  color: var(--gold);
+}
+
+.gm-nav-kid:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-nav-kid.is-active {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow: var(--sh-2);
+}
+
+.gm-nav-kid:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
 /* count pill riding on the right of a nav row */
 .gm-nav-count {
   flex: none;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 7px;
+  min-width: 20px;
+  height: 19px;
+  padding: 0 6px;
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -502,48 +843,12 @@
   box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.24);
 }
 
-/* the operator card pinned at the bottom of the rail */
-.gm-side-foot {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.gm-op {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-radius: var(--r);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: var(--sh-1);
-}
-
-.gm-op-meta {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.gm-op-name {
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gm-op-role {
-  font-size: 11px;
-  color: var(--ink-4);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* ==========================================================================
    TOPBAR
+
+   Flush against the top when the sidebar is a full-height panel, and a card
+   of its own when the sidebar folds down to the floating rail — otherwise a
+   bar running edge to edge sits awkwardly beside a rail that does not.
    ========================================================================== */
 
 .gm-top {
@@ -553,7 +858,7 @@
   height: var(--topbar-h);
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 0 30px;
   background: linear-gradient(120deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.7));
   backdrop-filter: blur(16px);
@@ -561,30 +866,34 @@
   box-shadow: 0 10px 26px -22px rgba(21, 33, 47, 0.5);
 }
 
-.gm-top-title {
+/* the operator's controls, pushed to the trailing edge */
+.gm-top-actions {
+  margin-left: auto;
   display: flex;
-  flex-direction: column;
-  min-width: 0;
-  margin-right: auto;
+  align-items: center;
+  gap: 9px;
 }
 
-.gm-top-title h1 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-}
-
-.gm-top-title p {
-  margin: 1px 0 0;
-  font-size: 12.5px;
-  color: var(--ink-3);
+:root[data-gm-rail="1"] .gm-top {
+  top: 12px;
+  height: calc(var(--topbar-h) - 12px);
+  /* inset to the same 12px the rail card uses, and padded so its content
+     lines up with the page heading underneath it */
+  margin: 12px 16px 0 12px;
+  padding: 0 18px;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.9),
+    rgba(248, 250, 252, 0.82)
+  );
+  box-shadow: var(--sh-2), var(--edge);
 }
 
 .gm-search {
   position: relative;
-  width: min(320px, 30vw);
+  width: min(340px, 32vw);
 }
 
 .gm-search svg {
@@ -994,10 +1303,9 @@
 }
 
 .gm-stat-label {
-  font-size: 11.5px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 12.2px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
   color: var(--ink-3);
 }
 
@@ -1133,10 +1441,9 @@
   height: 22px;
   padding: 0 8px;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.005em;
   background: transparent;
   color: var(--gold);
   box-shadow: inset 0 0 0 1px currentColor;
@@ -1173,16 +1480,40 @@
   min-width: 720px;
 }
 
+/* A table inside a panel, not across a page. The 720px floor above is there
+   so a wide record table scrolls rather than crushing its columns; a
+   three-column summary in a half-width card has no such problem, and the
+   floor was pushing its last column out of sight. */
+.gm-table--compact {
+  min-width: 0;
+  font-size: 12.6px;
+}
+
+.gm-table--compact thead th {
+  padding: 8px 10px;
+}
+
+.gm-table--compact tbody td {
+  padding: 9px 10px;
+}
+
+/* the panel table scrolls in its own right, so every report kind occupies
+   the same block of the card */
+.gm-tablewrap--panel {
+  overflow-y: auto;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+}
+
 .gm-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
   text-align: left;
   padding: 10px 14px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 11.8px;
+  font-weight: 650;
+  letter-spacing: 0.005em;
   color: var(--ink-3);
   background: var(--surface-2);
   border-bottom: 1px solid var(--line-2);
@@ -1384,7 +1715,6 @@
 }
 
 .gm-input,
-.gm-select,
 .gm-textarea {
   width: 100%;
   border-radius: 10px;
@@ -1397,21 +1727,9 @@
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.gm-input,
-.gm-select {
+.gm-input {
   height: var(--control-h);
   padding: 0 11px;
-}
-
-.gm-select {
-  appearance: none;
-  padding-right: 32px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7c8f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-  cursor: pointer;
-  /* inherited from .gm, so the native option list follows the theme too */
-  color-scheme: inherit;
 }
 
 .gm-textarea {
@@ -1424,7 +1742,6 @@
 /* A gold ring on focus reads as a warning, not as "this has keyboard focus".
    The neutral ring says the same thing without competing with the accent. */
 .gm-input:focus,
-.gm-select:focus,
 .gm-textarea:focus {
   outline: none;
   border-color: var(--focus-line);
@@ -1579,9 +1896,19 @@
    ========================================================================== */
 
 .gm-chart {
-  width: 100%;
   display: block;
   overflow: visible;
+}
+
+/* the plot reads a value under the pointer, so say so */
+.gm-chart:hover {
+  cursor: crosshair;
+}
+
+/* No `overflow: visible` here: the geometry keeps itself inside the box, and
+   letting it paint outside is what put a sparkline through a card border. */
+.gm-spark {
+  display: block;
 }
 
 .gm-chart-legend {
@@ -1599,6 +1926,28 @@
   gap: 6px;
 }
 
+/* the legend doubles as the readout: the key names the series, this says
+   what it is worth at whichever point the chart is currently showing */
+.gm-legend-val {
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* a dot rather than a swatch, for the paired-column chart — it matches the
+   rounded cap of the bars it stands for */
+.gm-chart-legend--dots {
+  justify-content: center;
+  gap: 20px;
+}
+
+.gm-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+
 .gm-legend-swatch {
   width: 10px;
   height: 10px;
@@ -1610,15 +1959,27 @@
 .gm-bars {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: 12px;
 }
 
+.gm-bars--fill {
+  height: 100%;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* label and figure on one line, the bar under them across the full width —
+   the three-column version collapsed the bar to nothing inside a narrow card */
 .gm-bar-row {
   display: grid;
-  grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) 64px;
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 5px 10px;
   font-size: 12.8px;
+}
+
+.gm-bar-row > .gm-meter {
+  grid-column: 1 / -1;
 }
 
 .gm-bar-row > span:first-child {
@@ -1636,23 +1997,79 @@
   color: var(--ink);
 }
 
-/* donut */
-.gm-donut-wrap {
+/* concentric rings ---------------------------------------------------------
+   One ring per slice, all starting at twelve o'clock, so two shares compare by
+   length instead of by walking the circle. */
+.gm-rings {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 22px;
-  flex-wrap: wrap;
+  gap: 14px;
 }
 
-.gm-donut {
-  position: relative;
-  width: 156px;
-  height: 156px;
+.gm-rings-svg {
+  display: block;
+  overflow: visible;
+}
+
+.gm-rings-keys {
+  width: 100%;
+  display: grid;
+  /* two columns wherever the panel can seat them — stacked, four keys made
+     the card half again as tall as anything beside it */
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 9px 10px;
+}
+
+.gm-rings-key {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gm-rings-key > i {
   flex: none;
-  filter: drop-shadow(0 10px 18px rgba(21, 33, 47, 0.14));
+  width: 8px;
+  height: 8px;
+  margin-top: 4.5px;
+  border-radius: 999px;
 }
 
-.gm-donut-center {
+.gm-rings-key > div {
+  min-width: 0;
+}
+
+.gm-rings-key b {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+/* the key wraps rather than truncating — but at this size the longest label
+   in the console still lands on one line inside a two-column legend */
+.gm-rings-key span {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--ink-4);
+}
+
+/* a single arc — "x% of the way there", with the figure in the middle */
+.gm-gauge {
+  position: relative;
+  flex: none;
+  filter: drop-shadow(0 8px 16px rgba(21, 33, 47, 0.12));
+}
+
+.gm-gauge svg {
+  display: block;
+}
+
+.gm-gauge-center {
   position: absolute;
   inset: 0;
   display: grid;
@@ -1660,44 +2077,99 @@
   text-align: center;
 }
 
-.gm-donut-center b {
+.gm-gauge-center b {
   display: block;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 750;
   letter-spacing: -0.03em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.gm-donut-center span {
+.gm-gauge-center span {
   display: block;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--ink-4);
 }
 
-.gm-donut-keys {
+/* columns ------------------------------------------------------------------
+   The scale sits behind the bars as dashed rules with the value on the left,
+   the same treatment the line chart uses, so the two read as one family. */
+.gm-cols {
+  display: block;
+}
+
+.gm-cols-plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-left: 42px;
+}
+
+.gm-cols-grid {
+  position: absolute;
+  left: 42px;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed var(--line);
+  pointer-events: none;
+}
+
+.gm-cols-grid i {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: -7px;
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gm-col-group {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  min-width: 150px;
-  flex: 1 1 auto;
-}
-
-.gm-donut-key {
-  display: flex;
   align-items: center;
-  gap: 9px;
-  font-size: 12.8px;
+  gap: 7px;
 }
 
-.gm-donut-key b {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  color: var(--ink);
+.gm-col-bars {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+}
+
+.gm-col {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 22px;
+  border-radius: 6px 6px 3px 3px;
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+
+.gm-col-group:hover .gm-col {
+  filter: brightness(1.06);
+  transform: scaleY(1.015);
+  transform-origin: bottom;
+}
+
+/* clipped rather than overlapping: five game names in a quarter-width card
+   ran into each other, which is worse than one of them ending in an ellipsis */
+.gm-col-label {
+  max-width: 100%;
+  font-size: 10px;
+  color: var(--ink-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ==========================================================================
@@ -2090,10 +2562,9 @@
 
 .gm-side-panel h4 {
   margin: 0 0 9px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.005em;
   color: var(--ink-3);
   display: flex;
   align-items: center;
@@ -2308,47 +2779,36 @@
   }
 }
 
-@media (max-width: 1000px) {
-  .gm {
-    --sidebar-w: 72px;
+/* Below this the panel costs more width than it earns, so the sidebar drops to
+   the rail whatever the stored preference says. Everything is still reachable
+   — that is the whole point of the rail carrying every destination. */
+@media (max-width: 1180px) {
+  .gm,
+  :root[data-gm-rail="1"] .gm {
+    --sidebar-w: var(--rail-w);
   }
 
-  .gm-side {
-    padding: 16px 10px 12px;
+  /* the rail whatever the stored preference says: the panel costs more width
+     than it earns here, and every destination is on the rail anyway */
+  .gm-rail,
+  :root[data-gm-rail="1"] .gm-rail {
+    display: block;
   }
 
-  .gm-brand-text,
-  .gm-nav-label,
-  .gm-nav-group,
-  .gm-op-meta {
+  .gm-panel,
+  :root[data-gm-rail="1"] .gm-panel {
     display: none;
   }
 
-  .gm-nav-item {
-    justify-content: center;
-    padding: 11px 0;
+  /* nothing left for it to fold, so it goes too rather than sitting there
+     as a control that does nothing */
+  .gm-rail-fold,
+  .gm-rail-div {
+    display: none;
   }
+}
 
-  .gm-nav-count {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    min-width: 17px;
-    height: 16px;
-    font-size: 9.5px;
-    padding: 0 4px;
-  }
-
-  .gm-brand {
-    justify-content: center;
-    padding: 4px 0 14px;
-  }
-
-  .gm-op {
-    justify-content: center;
-    padding: 8px;
-  }
-
+@media (max-width: 1000px) {
   .gm-grid--3,
   .gm-grid--2,
   .gm-grid--pane,
@@ -2376,9 +2836,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* only the topbar's global search folds away — the per-table search boxes
-     are the filter for that page and have to stay reachable */
+  /* the topbar is search plus the account cluster now, so the search stays —
+     it just gives up the fixed width and takes what is left */
   .gm-top .gm-search {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* the public-site link has a home on the site itself; the bell and the
+     avatar do not */
+  .gm-top .gm-iconbtn:not(.gm-iconbtn--dot) {
     display: none;
   }
 

@@ -10,10 +10,14 @@ type Theme = "light" | "dark";
  * boot script in the admin layout sets before first paint, so the toggle and
  * the no-flash path agree on one source of truth.
  *
+ * Two shapes for the two states of the sidebar: a switch at the foot of the
+ * open panel, where there is room for it to read as a setting, and a single
+ * round button on the closed rail, where there is not.
+ *
  * Mounts unset and syncs in an effect: the server has no way to know which
  * theme is stored, so rendering a guess here would mismatch on hydration.
  */
-export default function ThemeToggle() {
+export default function ThemeToggle({ compact }: { compact?: boolean }) {
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
@@ -21,7 +25,10 @@ export default function ThemeToggle() {
     setTheme(current === "dark" ? "dark" : "light");
   }, []);
 
-  function apply(next: Theme) {
+  const dark = theme === "dark";
+
+  function toggle() {
+    const next: Theme = dark ? "light" : "dark";
     setTheme(next);
     document.documentElement.dataset.gmTheme = next;
     try {
@@ -31,28 +38,37 @@ export default function ThemeToggle() {
     }
   }
 
+  const label = theme === null ? "Colour theme" : dark ? "Switch to light" : "Switch to dark";
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        className="gm-rail-item gm-rail-theme"
+        onClick={toggle}
+        aria-label={label}
+        title={label}
+      >
+        {dark ? <IconMoon /> : <IconSun />}
+      </button>
+    );
+  }
+
   return (
-    <div className="gm-themetoggle" role="group" aria-label="Colour theme">
-      <button
-        type="button"
-        className={theme === "light" ? "is-active" : ""}
-        onClick={() => apply("light")}
-        aria-pressed={theme === "light"}
-        aria-label="Light theme"
-        title="Light theme"
-      >
+    <button
+      type="button"
+      className={`gm-themeswitch${dark ? " is-dark" : ""}`}
+      onClick={toggle}
+      role="switch"
+      aria-checked={dark}
+      aria-label="Dark theme"
+      title={label}
+    >
+      <span className="gm-themeswitch-track">
         <IconSun />
-      </button>
-      <button
-        type="button"
-        className={theme === "dark" ? "is-active" : ""}
-        onClick={() => apply("dark")}
-        aria-pressed={theme === "dark"}
-        aria-label="Dark theme"
-        title="Dark theme"
-      >
         <IconMoon />
-      </button>
-    </div>
+        <span className="gm-themeswitch-knob" />
+      </span>
+    </button>
   );
 }

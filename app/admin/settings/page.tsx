@@ -10,6 +10,7 @@ import {
   CardHead,
   Note,
   PageHead,
+  Select,
   SettingRow,
   PillTabs,
   Toggle,
@@ -45,6 +46,7 @@ export default function SettingsPage() {
   const [requireCert, setRequireCert] = useState(true);
   const [blockLowConfidence, setBlockLowConfidence] = useState(true);
   const [minPhotos, setMinPhotos] = useState("4");
+  const [sessionLength, setSessionLength] = useState("8 hours");
 
   const [holdOnDispute, setHoldOnDispute] = useState(true);
   const [disputeWindow, setDisputeWindow] = useState("14");
@@ -389,11 +391,13 @@ export default function SettingsPage() {
                   title="Session length"
                   hint="An idle admin session ends and has to sign in again."
                   control={
-                    <select className="gm-select" style={{ width: 150 }} defaultValue="8 hours">
-                      <option>2 hours</option>
-                      <option>8 hours</option>
-                      <option>24 hours</option>
-                    </select>
+                    <Select
+                      width={150}
+                      value={sessionLength}
+                      onChange={setSessionLength}
+                      ariaLabel="Session length"
+                      options={["2 hours", "8 hours", "24 hours"]}
+                    />
                   }
                 />
                 <SettingRow
