@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Outfit } from "next/font/google";
-import Sidebar from "./components/Sidebar";
-import Topbar from "./components/Topbar";
-import { DriftLayer } from "./components/ui";
+import Shell from "./components/Shell";
+import { RoleProvider } from "./components/RoleContext";
 import "./admin.css";
 import "./cards.css";
 import "./parts.css";
@@ -34,26 +32,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: boot }} />
+      <RoleProvider>
       <div className={`gm ${outfit.variable}`}>
-        <div className="gm-shell">
-          <DriftLayer />
-          {/* the sidebar reads the query string to light up the current view,
-              so it needs a boundary of its own rather than opting the whole
-              console out of the static shell */}
-          <Suspense fallback={<div className="gm-side" aria-hidden="true" />}>
-            <Sidebar />
-          </Suspense>
-          <div className="gm-main">
-            <Topbar />
-            <main className="gm-content">{children}</main>
-          </div>
-        </div>
+        {/* The chrome, and the sign-in gate around it. Both need the pathname
+            and the session, so both live in a client component rather than
+            dragging this layout — and the metadata and font with it — out of
+            the server. */}
+        <Shell>{children}</Shell>
 
-        {/* Drawers, modals and toasts mount here. Inside `.gm` so they inherit
-            the tokens and the font, outside `.gm-shell` so no transformed
-            ancestor can capture their `position: fixed`. */}
+        {/* Modals and toasts mount here. Inside `.gm` so they inherit the
+            tokens and the font, outside the shell so no transformed ancestor
+            can capture their `position: fixed`. */}
         <div id="gm-overlays" />
       </div>
+      </RoleProvider>
     </>
   );
 }

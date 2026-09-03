@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { operator } from "../lib/data";
+import { roleLabel, ROLES } from "../lib/data";
+import { useRole } from "./RoleContext";
 import { IconLogout, IconSettings } from "./icons";
 
 /**
@@ -16,6 +17,15 @@ import { IconLogout, IconSettings } from "./icons";
 export default function AccountMenu() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
+  const { role, me, previewing, setPreview, signOut } = useRole();
+
+  /* Until the sign-in screen lands, the API answers with its development
+     operator; `me` is that operator either way, so the topbar shows whoever
+     the server says is acting rather than a name compiled into the bundle. */
+  const name = me?.name ?? "Signed out";
+  const email = me?.email || (me?.devAuth ? "development operator" : "not signed in");
+  const initials = (name.trim().split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase();
+  const ownRole = me?.role ?? null;
 
   /* close on a click outside, and on Escape — a menu that only closes by
      re-clicking the button strands anyone who opened it by accident */
@@ -45,21 +55,78 @@ export default function AccountMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Account — ${operator.name}`}
-        title={operator.name}
+        aria-label={`Account: ${name}`}
+        title={name}
       >
-        <span className="gm-account-av">{operator.initials}</span>
+        <span className="gm-account-av">{initials}</span>
       </button>
 
       {open ? (
         <div className="gm-menu gm-account-menu" role="menu">
           <div className="gm-menu-head">
-            <span className="gm-account-av gm-account-av--lg">{operator.initials}</span>
+            <span className="gm-account-av gm-account-av--lg">{initials}</span>
             <div className="gm-menu-head-meta">
-              <b>{operator.name}</b>
-              <span>{operator.email}</span>
+              <b>{name}</b>
+              <span>
+                {ownRole ? roleLabel(ownRole) : "No console role"} · {email}
+              </span>
             </div>
           </div>
+
+          <div className="gm-menu-sep" />
+
+          {/* Preview another role.
+
+              Not a permission, and not a way to gain one: the API answers
+              every request from the role on the operator's own user row, so
+              this only ever changes what the console draws. Offered to owners
+              alone, because for anyone else "view as" can only mean seeing
+              less than they already see. */}
+          {ownRole === "owner" ? (
+          <div style={{ padding: "8px 12px 4px" }}>
+            <div className="gm-label" style={{ marginBottom: 6 }}>
+              View the console as
+            </div>
+            <div style={{ display: "grid", gap: 3 }}>
+              {ROLES.map((r) => {
+                const on = role === r.key;
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={on}
+                    onClick={() => setPreview(r.key === ownRole ? null : r.key)}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 8px",
+                      borderRadius: "var(--r-sm)",
+                      cursor: "pointer",
+                      font: "inherit",
+                      fontSize: 12.5,
+                      background: on ? "var(--surface-2)" : "transparent",
+                      color: on ? "var(--ink)" : "var(--ink-3)",
+                      border: `1px solid ${on ? "var(--line)" : "transparent"}`,
+                    }}
+                  >
+                    <b style={{ fontWeight: on ? 600 : 500 }}>{r.label}</b>
+                    <div className="gm-tiny gm-dim">{r.who}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {previewing ? (
+              <button
+                type="button"
+                className="gm-btn gm-btn--sm gm-btn--ghost"
+                style={{ marginTop: 7, width: "100%" }}
+                onClick={() => setPreview(null)}
+              >
+                Back to {roleLabel(ownRole)}
+              </button>
+            ) : null}
+          </div>
+          ) : null}
 
           <div className="gm-menu-sep" />
 
@@ -77,7 +144,7 @@ export default function AccountMenu() {
             type="button"
             className="gm-menu-item gm-menu-item--danger"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={signOut}
           >
             <IconLogout />
             Sign out

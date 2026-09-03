@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
  * `backdrop-filter` on any ancestor is enough to become one. `.gm-content`
  * animates `transform` with `animation-fill-mode: both`, so it stays a
  * containing block permanently even though the computed value ends at `none`.
- * A drawer mounted inside it therefore anchored to the scrolled <main>: open
+ * A dialog mounted inside it therefore anchored to the scrolled <main>: open
  * one halfway down the page and it started halfway down the screen.
  *
  * The host is `#gm-overlays`, rendered by the admin layout as a child of `.gm`
@@ -84,6 +84,7 @@ import {
   IconCheck,
   IconCheckCircle,
   IconChevronDown,
+  IconFilter,
   IconFlag,
   IconGrid,
   IconInfo,
@@ -229,14 +230,12 @@ type BadgeTone = "ok" | "warn" | "bad" | "info" | "gold" | "navy" | "idle";
 export function Badge({
   tone = "idle",
   children,
-  noDot,
 }: {
   tone?: BadgeTone;
   children: ReactNode;
-  noDot?: boolean;
 }) {
   const cls = tone === "idle" ? "" : ` gm-badge--${tone}`;
-  return <span className={`gm-badge${cls}${noDot ? " gm-badge--nodot" : ""}`}>{children}</span>;
+  return <span className={`gm-badge${cls}`}>{children}</span>;
 }
 
 export function Tier({ tier }: { tier: "grail" | "high-value" | "standard" }) {
@@ -266,50 +265,36 @@ export function Avatar({
    The card
    ========================================================================== */
 
-/** Game → the CSS modifier that carries its colour and its slab art. */
-const GAME_KEY: Record<string, string> = {
-  "Pokémon": "pokemon",
-  Magic: "magic",
-  "Yu-Gi-Oh!": "yugioh",
-  "One Piece": "onepiece",
-  Sports: "sports",
-};
-
-export function gameKey(game?: string) {
-  return (game && GAME_KEY[game]) || "pokemon";
-}
-
 /**
  * A graded slab: the grading company's label across the top, the card behind
  * a window below it. Raw cards drop the label and get a corner tag instead.
  *
- * `holo` puts a slow sheen across the window — reserved for the chase cards
- * (a 10, or anything at grail tier), so it means something rather than being
- * sprinkled everywhere. Stands in for the real photo until image storage
- * exists; the shape and proportions are already right for it.
+ * It used to tint itself per game and lay a foil sheen over the chase grades.
+ * Both are gone. A moderator is deciding whether a listing is honest, and no
+ * part of that decision reads a colour off the thumbnail — the game is in the
+ * set line, the grade is on the label, and the photograph is the evidence.
  */
 export function Slab({
   grader,
   grade,
-  game,
   size = "md",
-  holo,
   art,
 }: {
   grader: string;
   grade?: string;
-  game?: string;
   size?: "sm" | "md" | "lg";
-  holo?: boolean;
-  /** Slug under `public/cards/`, from `scripts/fetch-card-art.mjs`. */
+  /**
+   * The card's photograph. Either a slug under `public/cards/` (the seeded
+   * fixtures) or a URL from the catalogue (what a real listing carries).
+   * Both arrive now that the console reads the database, so both are read.
+   */
   art?: string;
 }) {
-  const raw = grader === "Raw" || !grade || grade === "—";
-  const shine = holo ?? (grade === "10" || grade === "9.5");
+  const raw = grader === "Raw" || !grade || grade === "None";
 
   return (
     <span
-      className={`gm-slab gm-slab--${size} gm-slab--${gameKey(game)}${raw ? " gm-slab--raw" : ""}${
+      className={`gm-slab gm-slab--${size}${raw ? " gm-slab--raw" : ""}${
         art ? " gm-slab--art" : ""
       }`}
       aria-hidden="true"
@@ -324,16 +309,22 @@ export function Slab({
       )}
       <span className="gm-slab-window">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {art ? <img className="gm-slab-art" src={`/cards/${art}.png`} alt="" loading="lazy" /> : null}
-        {shine ? <span className="gm-slab-holo" /> : null}
+        {art ? (
+          <img
+            className="gm-slab-art"
+            src={/^(https?:)?\/\//.test(art) || art.startsWith("/") ? art : `/cards/${art}.png`}
+            alt=""
+            loading="lazy"
+          />
+        ) : null}
       </span>
     </span>
   );
 }
 
-/** Which game a card belongs to, at a glance. */
+/** Which game a card belongs to. A label, in the same chip as everything else. */
 export function GameChip({ game }: { game: string }) {
-  return <span className={`gm-game gm-game--${gameKey(game)}`}>{game}</span>;
+  return <span className="gm-game">{game}</span>;
 }
 
 /**
@@ -419,43 +410,6 @@ export function ViewToggle({
   );
 }
 
-/**
- * The drifting card silhouettes behind the console. Positions are fixed
- * rather than random so the layer is identical on server and client — a
- * random one would hydrate mismatched.
- */
-const DRIFT = [
-  { top: "6%", left: "12%", w: 132, h: 184, rot: "-14deg", dur: "19s", delay: "0s" },
-  { top: "58%", left: "4%", w: 96, h: 134, rot: "9deg", dur: "24s", delay: "-6s" },
-  { top: "14%", left: "68%", w: 168, h: 234, rot: "11deg", dur: "27s", delay: "-3s" },
-  { top: "70%", left: "78%", w: 120, h: 168, rot: "-7deg", dur: "22s", delay: "-11s" },
-  { top: "38%", left: "44%", w: 88, h: 122, rot: "17deg", dur: "30s", delay: "-8s" },
-  { top: "84%", left: "36%", w: 104, h: 146, rot: "-5deg", dur: "25s", delay: "-15s" },
-];
-
-export function DriftLayer() {
-  return (
-    <div className="gm-drift" aria-hidden="true">
-      {DRIFT.map((d, i) => (
-        <span
-          key={i}
-          style={
-            {
-              top: d.top,
-              left: d.left,
-              width: d.w,
-              height: d.h,
-              "--rot": d.rot,
-              animationDuration: d.dur,
-              animationDelay: d.delay,
-            } as React.CSSProperties
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
 /* ==========================================================================
    Tabs / segmented filter
    ========================================================================== */
@@ -496,16 +450,23 @@ export function Toggle({
   checked,
   onChange,
   label,
+  /** A switch the caller has ruled out — greyed, and not reachable by tab. */
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
+  disabled?: boolean;
 }) {
   return (
-    <label className="gm-toggle">
+    <label
+      className="gm-toggle"
+      style={disabled ? { opacity: 0.45, cursor: "not-allowed" } : undefined}
+    >
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         aria-label={label}
       />
@@ -600,16 +561,28 @@ export function Empty({
 }
 
 /* ==========================================================================
-   Drawer — the detail surface behind every row
+   Dialog — the detail surface behind every row
+
+   This was a right-hand drawer. A drawer is the wrong shape for what these
+   actually hold: a member record, a case with both sides of it, a listing
+   with its photo set and its checks. All of that is wide, and a 560px column
+   sliding in from the edge made every one of them a long scroll while two
+   thirds of the screen sat behind a scrim doing nothing.
+
+   So there is one dialog, centred, in two widths. `Modal` is the narrow one
+   for a decision that needs a reason typed. `RecordModal` is the wide one for
+   a whole record. Everything else about them — the scrim, Escape, the scroll
+   lock, the header, the footer — is the same, because it always was.
    ========================================================================== */
 
-export function Drawer({
+function Dialog({
   open,
   onClose,
   title,
   sub,
   children,
   footer,
+  wide,
 }: {
   open: boolean;
   onClose: () => void;
@@ -617,6 +590,7 @@ export function Drawer({
   sub?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  wide?: boolean;
 }) {
   const body = useRef<HTMLDivElement>(null);
 
@@ -631,8 +605,8 @@ export function Drawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  /* Opening a second record while the drawer is already open reuses the same
-     scroll container, so without this it would keep the previous position. */
+  /* Opening a second record while one is already open reuses the same scroll
+     container, so without this it would keep the previous position. */
   useEffect(() => {
     if (open) body.current?.scrollTo({ top: 0 });
   }, [open, title]);
@@ -642,13 +616,13 @@ export function Drawer({
   return (
     <OverlayPortal>
       <div className="gm-scrim" onClick={onClose} />
-      <aside
-        className="gm-drawer"
+      <div
+        className={`gm-dialog${wide ? " gm-dialog--wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Details"}
       >
-        <header className="gm-drawer-head">
+        <header className="gm-dialog-head">
           <div style={{ minWidth: 0, flex: "1 1 auto" }}>
             <h3>{title}</h3>
             {sub ? <p>{sub}</p> : null}
@@ -662,70 +636,32 @@ export function Drawer({
             <IconX />
           </button>
         </header>
-        <div className="gm-drawer-body" ref={body}>
+        <div className="gm-dialog-body" ref={body}>
           {children}
         </div>
-        {footer ? <footer className="gm-drawer-foot">{footer}</footer> : null}
-      </aside>
+        {footer ? <footer className="gm-dialog-foot">{footer}</footer> : null}
+      </div>
     </OverlayPortal>
   );
 }
 
-/* ==========================================================================
-   Modal — for a decision that needs a reason typed before it commits
-   ========================================================================== */
-
-export function Modal({
-  open,
-  onClose,
-  title,
-  sub,
-  children,
-  footer,
-}: {
+type DialogProps = {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
   sub?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-}) {
-  useScrollLock(open);
+};
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+/** The wide window: a whole record, opened from a row. */
+export function RecordModal(props: DialogProps) {
+  return <Dialog {...props} wide />;
+}
 
-  if (!open) return null;
-
-  return (
-    <OverlayPortal>
-      <div className="gm-scrim" onClick={onClose} />
-      <div className="gm-modal" role="dialog" aria-modal="true">
-        <header className="gm-drawer-head">
-          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-            <h3>{title}</h3>
-            {sub ? <p>{sub}</p> : null}
-          </div>
-          <button
-            type="button"
-            className="gm-btn gm-btn--ghost gm-btn--icon gm-btn--sm"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <IconX />
-          </button>
-        </header>
-        <div className="gm-drawer-body">{children}</div>
-        {footer ? <footer className="gm-drawer-foot">{footer}</footer> : null}
-      </div>
-    </OverlayPortal>
-  );
+/** The narrow window: one decision, and the reason it needs typed first. */
+export function Modal(props: DialogProps) {
+  return <Dialog {...props} />;
 }
 
 /* ==========================================================================
@@ -775,7 +711,7 @@ function normalise(options: (string | SelectOption)[]): SelectOption[] {
  *
  * The list renders into the overlay host with fixed coordinates rather than
  * inside the field, so a card with `overflow: hidden`, a table wrapper that
- * scrolls, or a drawer cannot clip it.
+ * scrolls, or a dialog cannot clip it.
  */
 export function Select({
   value,
@@ -1519,7 +1455,7 @@ export function StackBar({
         <i
           key={p.label}
           style={{ width: `${(p.value / total) * 100}%`, background: p.color }}
-          title={`${p.label} — ${Math.round((p.value / total) * 100)}%`}
+          title={`${p.label}: ${Math.round((p.value / total) * 100)}%`}
         />
       ))}
     </div>
@@ -2085,7 +2021,7 @@ export function ListingBadge({ status }: { status: string }) {
     awaiting: { tone: "warn", label: "Awaiting review" },
     "in-review": { tone: "info", label: "In review" },
     "info-requested": { tone: "gold", label: "Info requested" },
-    live: { tone: "ok", label: "Live" },
+    live: { tone: "idle", label: "Live" },
     sold: { tone: "navy", label: "Sold" },
     paused: { tone: "warn", label: "Paused" },
     withdrawn: { tone: "bad", label: "Withdrawn" },
@@ -2097,7 +2033,7 @@ export function ListingBadge({ status }: { status: string }) {
 
 export function MemberBadge({ status }: { status: string }) {
   const map: Record<string, { tone: BadgeTone; label: string }> = {
-    active: { tone: "ok", label: "Active" },
+    active: { tone: "idle", label: "Active" },
     restricted: { tone: "warn", label: "Restricted" },
     revoked: { tone: "bad", label: "Revoked" },
     pending: { tone: "info", label: "Pending" },
@@ -2111,7 +2047,7 @@ export function ConflictBadge({ status }: { status: string }) {
     open: { tone: "info", label: "Open" },
     "awaiting-evidence": { tone: "warn", label: "Awaiting evidence" },
     escalated: { tone: "bad", label: "Escalated" },
-    resolved: { tone: "ok", label: "Resolved" },
+    resolved: { tone: "idle", label: "Resolved" },
   };
   const m = map[status] ?? { tone: "idle" as BadgeTone, label: status };
   return <Badge tone={m.tone}>{m.label}</Badge>;
@@ -2122,7 +2058,7 @@ export function TicketBadge({ status }: { status: string }) {
     new: { tone: "bad", label: "New" },
     open: { tone: "info", label: "Open" },
     waiting: { tone: "warn", label: "Waiting" },
-    resolved: { tone: "ok", label: "Resolved" },
+    resolved: { tone: "idle", label: "Resolved" },
   };
   const m = map[status] ?? { tone: "idle" as BadgeTone, label: status };
   return <Badge tone={m.tone}>{m.label}</Badge>;
@@ -2182,7 +2118,161 @@ export function LinkStat({
   );
 }
 
-/** The rounded filter row: an outlined icon, a label, and a count. */
+/**
+ * Every filter over a list, behind one button.
+ *
+ * This replaced a row of five outlined pills. The row worked, but it was the
+ * widest thing on the page and it put the console's least-used control at the
+ * top of its most-used screen — and it grew every time a filter was added.
+ *
+ * What it must not do is hide what is applied. The button carries a count of
+ * anything set away from its default, and the card's own subtitle says which
+ * view is showing, so a filtered list never looks like an empty one.
+ */
+export function FilterMenu({
+  groups,
+  applied,
+  onClear,
+}: {
+  groups: {
+    key: string;
+    label: string;
+    value: string;
+    options: { value: string; label: string; count?: number }[];
+    onChange: (v: string) => void;
+  }[];
+  /** How many groups sit away from their default. Drawn on the button. */
+  applied: number;
+  onClear?: () => void;
+}) {
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [box, setBox] = useState<{ left: number; top: number } | null>(null);
+
+  const place = useCallback(() => {
+    const el = btn.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const w = 268;
+    /* right-aligned to the trigger, then pulled back inside the viewport —
+       this button lives at the end of a toolbar, so opening leftward is the
+       only way it stays on screen */
+    setBox({
+      left: Math.max(8, Math.min(r.right - w, window.innerWidth - w - 10)),
+      top: r.bottom + 6,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (!btn.current?.contains(t) && !panel.current?.contains(t)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        btn.current?.focus();
+      }
+    }
+    /* reposition rather than follow: a panel pinned to a stale rect after the
+       page scrolls is worse than one that closes */
+    const onScroll = () => setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={btn}
+        className={`gm-btn gm-filterbtn${open ? " is-open" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <IconFilter />
+        Filter
+        {/* A dot, not a number. The count was of filters applied, and sitting
+            next to the word "Filter" above a table of nine rows it read as
+            the number of rows — which is the one thing it never was. What is
+            applied is spelled out in the card's own subtitle. */}
+        {applied > 0 ? <span className="gm-filterbtn-dot" aria-hidden="true" /> : null}
+      </button>
+
+      {open && box ? (
+        <OverlayPortal>
+          <div
+            ref={panel}
+            className="gm-menu gm-filterpanel"
+            role="dialog"
+            aria-label="Filters"
+            style={{ position: "fixed", left: box.left, top: box.top }}
+          >
+            {groups.map((g) => (
+              <div key={g.key} className="gm-filtergroup">
+                <div className="gm-label">{g.label}</div>
+                <div className="gm-filteropts" role="radiogroup" aria-label={g.label}>
+                  {g.options.map((o) => {
+                    const on = o.value === g.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        className={`gm-filteropt${on ? " is-active" : ""}`}
+                        onClick={() => g.onChange(o.value)}
+                      >
+                        <span>{o.label}</span>
+                        {typeof o.count === "number" ? (
+                          <span className="gm-filteropt-n">{o.count}</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {onClear ? (
+              <div className="gm-filterfoot">
+                <button
+                  type="button"
+                  className="gm-btn gm-btn--sm gm-btn--ghost"
+                  disabled={applied === 0}
+                  onClick={onClear}
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </OverlayPortal>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The filter row: a label and a count.
+ *
+ * Each of these used to carry an outlined icon as well. Five filters meant
+ * five glyphs a moderator had to learn in order to read words that were
+ * already there — a shield for "needs a decision", an eye for "on the market".
+ * The word is the control; the icon was decoration with a border around it.
+ */
 export function PillTabs<T extends string>({
   value,
   onChange,
@@ -2190,7 +2280,7 @@ export function PillTabs<T extends string>({
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { key: T; label: string; count?: number; icon?: ReactNode }[];
+  options: { key: T; label: string; count?: number }[];
 }) {
   return (
     <div className="gm-pillrow" role="tablist">
@@ -2203,7 +2293,6 @@ export function PillTabs<T extends string>({
           className={`gm-pill${value === o.key ? " is-active" : ""}`}
           onClick={() => onChange(o.key)}
         >
-          {o.icon ? <span className="gm-pill-ico">{o.icon}</span> : null}
           <span>{o.label}</span>
           {typeof o.count === "number" ? <span className="gm-pill-n">{o.count}</span> : null}
         </button>
@@ -2285,7 +2374,9 @@ export function BlockHead({
 /** A rating chip that colours by value rather than always reading green. */
 export function Rating({ value }: { value: number }) {
   if (!value) return <span className="gm-scope">No score yet</span>;
-  const tone = value >= 4.7 ? "" : value >= 4 ? " gm-rating--mid" : " gm-rating--low";
+  /* Most sellers here sit above 4.5, so a green chip on almost every row said
+     nothing. Colour starts where a score is worth looking at. */
+  const tone = value >= 4.2 ? "" : value >= 3.8 ? " gm-rating--mid" : " gm-rating--low";
   return (
     <span className={`gm-rating${tone}`}>
       <IconStar />

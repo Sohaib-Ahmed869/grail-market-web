@@ -19,9 +19,9 @@
 
 :root[data-gm-theme="dark"] .gm-shell::before {
   background:
-    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.16), transparent 62%),
-    radial-gradient(760px 520px at 88% 6%, rgba(120, 100, 70, 0.14), transparent 58%),
-    radial-gradient(900px 700px at 4% 100%, rgba(56, 83, 111, 0.14), transparent 60%),
+    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.05), transparent 66%),
+    radial-gradient(760px 520px at 88% 6%, rgba(120, 100, 70, 0.04), transparent 62%),
+    radial-gradient(900px 700px at 4% 100%, rgba(56, 83, 111, 0.05), transparent 64%),
     linear-gradient(158deg, #121922 0%, #0e141b 44%, #0b1017 100%);
 }
 
@@ -69,18 +69,9 @@
   box-shadow: var(--sh-2);
 }
 
-:root[data-gm-theme="dark"] .gm-drawer,
-:root[data-gm-theme="dark"] .gm-modal {
-  background:
-    radial-gradient(500px 300px at 110% -6%, rgba(168, 141, 96, 0.1), transparent 64%),
-    linear-gradient(180deg, #18212c, #141c25);
+:root[data-gm-theme="dark"] .gm-dialog {
+  background: var(--surface);
   border-color: var(--line-2);
-}
-
-/* the drifting card silhouettes need to read as lighter, not darker */
-:root[data-gm-theme="dark"] .gm-drift span {
-  background: linear-gradient(150deg, rgba(233, 238, 244, 0.035), rgba(191, 162, 115, 0.05));
-  box-shadow: inset 0 0 0 1px rgba(233, 238, 244, 0.04);
 }
 
 /* the slab case is a physical object — it stays light, but its label sits on
@@ -94,11 +85,12 @@
   background: linear-gradient(158deg, #dfe4ea 0%, #c3ccd6 100%);
 }
 
-:root[data-gm-theme="dark"] .gm-ctile-media,
+:root[data-gm-theme="dark"] .gm-ctile-media {
+  background: var(--surface-2);
+}
+
 :root[data-gm-theme="dark"] .gm-hero {
-  background:
-    radial-gradient(300px 160px at 84% -14%, rgba(168, 141, 96, 0.14), transparent 66%),
-    linear-gradient(168deg, #1a232e 0%, #151d26 100%);
+  background: var(--surface);
 }
 
 /* ==========================================================================
@@ -111,7 +103,7 @@
   border: 0;
   background: none;
   cursor: pointer;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 
 .gm-themeswitch-track {
@@ -123,7 +115,7 @@
   width: 46px;
   height: 26px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-2);
   background: var(--surface-2);
   transition: background 0.2s ease, border-color 0.2s ease;
@@ -145,7 +137,7 @@
   left: 2px;
   width: 20px;
   height: 20px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface);
   box-shadow: var(--sh-1);
   transition: transform 0.22s cubic-bezier(0.22, 0.9, 0.34, 1);
@@ -191,7 +183,7 @@
   height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-1);
@@ -226,7 +218,7 @@
   right: 8px;
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--gold);
   box-shadow: 0 0 0 2px var(--surface);
 }
@@ -241,7 +233,7 @@
   padding: 0;
   border: 0;
   background: none;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -261,7 +253,7 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--grad-navy);
   color: #f0e7d8;
   font-size: 12.5px;
@@ -286,7 +278,7 @@
   z-index: 60;
   min-width: 210px;
   padding: 6px;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line-2);
   background: var(--surface);
   box-shadow: var(--sh-3);
@@ -352,7 +344,7 @@
   gap: 10px;
   padding: 9px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: none;
   font: inherit;
   font-size: 13px;
@@ -402,15 +394,13 @@
 .gm-hero {
   position: relative;
   overflow: hidden;
-  border-radius: var(--r-xl);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   padding: 22px 26px;
   min-height: 138px;
   display: flex;
   align-items: center;
-  background:
-    radial-gradient(420px 220px at 88% -20%, rgba(168, 141, 96, 0.2), transparent 66%),
-    linear-gradient(120deg, #ffffff 0%, #f6f8fb 52%, #eef2f7 100%);
+  background: var(--surface);
 }
 
 .gm-hero-copy {
@@ -456,11 +446,11 @@
   flex-wrap: wrap;
 }
 
-/* the trail of cards fanning off the right edge, in place of the stock
-   illustration the reference uses */
-/* a flex sibling of the copy rather than absolutely pinned right: it takes
-   the leftover width and centres the fan in it, which closes the gap after
-   the text instead of parking the cards on the far edge */
+/* The trail of cards fanning off the right edge of the greeting. A flex
+   sibling of the copy rather than absolutely pinned right: it takes the
+   leftover width and centres the fan in it, which closes the gap after the
+   text instead of parking the cards on the far edge. Fixed in place — the
+   cards are the subject of the greeting, not an animation. */
 .gm-hero-trail {
   position: relative;
   z-index: 1;
@@ -473,8 +463,6 @@
   pointer-events: none;
 }
 
-/* the fan is fixed in place — the cards are the subject of the greeting,
-   not an animation, and a bobbing stack drags the eye off the copy beside it */
 .gm-hero-trail > span {
   margin-left: -56px;
   transform-origin: bottom center;
@@ -516,9 +504,9 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  height: 42px;
-  padding: 0 8px 0 8px;
-  border-radius: 999px;
+  height: 36px;
+  padding: 0 6px 0 14px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink-3);
@@ -529,31 +517,15 @@
   transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
 }
 
-.gm-pill-ico {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  border: 1px solid var(--line-2);
-  color: var(--ink-4);
-  transition: border-color 0.2s ease, color 0.2s ease;
-}
-
-.gm-pill-ico svg {
-  width: 14px;
-  height: 14px;
-}
 
 .gm-pill-n {
-  min-width: 26px;
-  height: 26px;
+  min-width: 24px;
+  height: 24px;
   padding: 0 8px;
   margin-right: 4px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   background: var(--surface-2);
   color: var(--ink-3);
   font-size: 12px;
@@ -562,14 +534,10 @@
 }
 
 .gm-pill:hover {
-  border-color: var(--gold-300);
+  border-color: var(--line-2);
   color: var(--ink);
 }
 
-.gm-pill:hover .gm-pill-ico {
-  border-color: var(--gold-300);
-  color: var(--gold);
-}
 
 .gm-pill.is-active {
   border-color: var(--ink);
@@ -577,10 +545,6 @@
   font-weight: 600;
 }
 
-.gm-pill.is-active .gm-pill-ico {
-  border-color: var(--ink);
-  color: var(--ink);
-}
 
 .gm-pill.is-active .gm-pill-n {
   background: var(--ink);
@@ -597,7 +561,7 @@
   gap: 12px;
   width: 100%;
   padding: 12px 14px;
-  border-radius: var(--r);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-1), var(--edge);
@@ -606,13 +570,9 @@
   cursor: pointer;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gm-linkstat:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--sh-2), var(--edge);
-}
 
 .gm-linkstat-main {
   display: flex;
@@ -647,7 +607,7 @@
   height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-2);
   color: var(--ink-4);
   transition: border-color 0.2s ease, color 0.2s ease;
@@ -675,7 +635,7 @@
 
 .gm-metabox {
   padding: 9px 11px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: var(--surface-2);
   min-width: 0;
 }
@@ -719,15 +679,12 @@
   flex-direction: column;
   gap: 13px;
   padding: 16px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
-  transition: border-color 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gm-case:hover {
-  transform: translateY(-3px);
-}
 
 .gm-case-top {
   display: flex;
@@ -783,11 +740,12 @@
 /* severity, as an outline pill rather than a filled block */
 .gm-sev {
   display: inline-flex;
+  width: fit-content;
   align-items: center;
   gap: 5px;
   height: 24px;
   padding: 0 9px;
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -826,7 +784,7 @@
   align-items: center;
   gap: 11px;
   padding: 12px 16px;
-  border-radius: var(--r);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-3);
@@ -839,7 +797,7 @@
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--ok);
   color: var(--ok);
 }
@@ -898,7 +856,7 @@
   padding: 0 8px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   font-size: 11.5px;
   font-weight: 600;
@@ -952,7 +910,7 @@
 .gm-sel--field {
   height: var(--control-h);
   padding: 0 11px 0 12px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   background: var(--surface);
   box-shadow: var(--sh-1);
@@ -982,7 +940,7 @@
 .gm-sel--bare:focus-visible {
   outline: 2px solid var(--focus-line);
   outline-offset: 3px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
 }
 
 /* The list portals into the overlay host, so it shares a stacking context
@@ -1029,7 +987,7 @@
   align-items: center;
   gap: 0;
   padding: 4px 6px;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
 }
@@ -1045,7 +1003,7 @@
   align-items: baseline;
   gap: 9px;
   padding: 9px 12px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   transition: background 0.18s ease;
 }
 
@@ -1099,12 +1057,103 @@
 .gm-filterfield input:focus-visible {
   outline: 2px solid var(--focus-line);
   outline-offset: 3px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
 }
 
 .gm-filterfield input::placeholder {
   color: var(--ink-4);
   font-weight: 400;
+}
+
+/* The control that unfolds the segment row. Reads as part of the bar rather
+   than as a button parked next to it, so the default state is one clean row. */
+.gm-filtermore {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  margin-left: 4px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.gm-filtermore:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-filtermore.is-open {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-filtermore svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gm-filtermore-caret {
+  transition: transform 0.18s ease;
+}
+
+.gm-filtermore-caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* How many of the folded filters are on. */
+.gm-filtermore-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--gold);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* An applied filter, shown under the bar so folding the row away never hides
+   what is actually cutting the list. Click to remove. */
+.gm-filterchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.gm-filterchip:hover {
+  border-color: var(--ink-4);
+  color: var(--ink);
+}
+
+.gm-filterchip svg {
+  width: 11px;
+  height: 11px;
+  opacity: 0.6;
 }
 
 @media (max-width: 900px) {
@@ -1153,7 +1202,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 14px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-1);
@@ -1195,7 +1244,7 @@
   width: 100%;
   height: 34px;
   padding: 0 10px 0 32px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   background: var(--surface-2);
   font: inherit;
@@ -1234,7 +1283,7 @@
   width: 100%;
   padding: 9px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: none;
   font: inherit;
   text-align: left;
@@ -1250,7 +1299,7 @@
   transform: translateY(-50%) scaleY(0.3);
   width: 3px;
   height: 22px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--gold);
   opacity: 0;
   transition: opacity 0.16s ease, transform 0.16s ease;
@@ -1434,7 +1483,7 @@
   height: 32px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   background: none;
   font: inherit;
   font-size: 12.2px;
@@ -1516,15 +1565,12 @@
   flex-direction: column;
   gap: 12px;
   padding: 17px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
-  transition: border-color 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gm-person:hover {
-  transform: translateY(-3px);
-}
 
 .gm-person-top {
   display: flex;
@@ -1587,10 +1633,11 @@
 
 .gm-scope {
   display: inline-flex;
+  width: fit-content;
   align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
   font-size: 11px;
   font-weight: 500;
   color: var(--ink-3);
@@ -1610,15 +1657,16 @@
 /* the rating chip, outlined */
 .gm-rating {
   display: inline-flex;
+  width: fit-content;
   align-items: center;
   gap: 4px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
   font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ok);
+  color: var(--ink-3);
   box-shadow: inset 0 0 0 1px currentColor;
 }
 
@@ -1649,16 +1697,13 @@
 .gm-plan {
   display: flex;
   flex-direction: column;
-  border-radius: var(--r-xl);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
   overflow: hidden;
-  transition: border-color 0.24s ease, box-shadow 0.24s ease, transform 0.24s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gm-plan:hover {
-  box-shadow: var(--sh-2);
-}
 
 
 
@@ -1679,7 +1724,7 @@
   align-items: center;
   height: 24px;
   padding: 0 10px;
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   font-size: 11.5px;
   font-weight: 600;
@@ -1902,7 +1947,7 @@
 
 .gm-railbox {
   padding: 12px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface-2);
   box-shadow: var(--sh-2), var(--edge);
@@ -1920,7 +1965,7 @@
 
 .gm-well {
   padding: 18px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-2), var(--edge);
@@ -1941,11 +1986,21 @@
   box-shadow: var(--sh-2), var(--edge);
 }
 
+/* One hover for every card-shaped surface, and it is the public site's:
+   a 2px lift and the border picking up the accent, in 0.15s. The console used
+   to lift 3-5px, bloom a heavier shadow, and — on the listing tiles — rotate
+   half a degree and scale the slab. Six variations of the same gesture across
+   two products; this is the one the rest of the site already uses. */
+.gm-card--lift:hover,
+.gm-stat:hover,
+.gm-linkstat:hover,
 .gm-case:hover,
 .gm-person:hover,
 .gm-ctile:hover,
 .gm-plan:hover {
-  box-shadow: var(--sh-3), var(--edge);
+  transform: translateY(-2px);
+  border-color: var(--line-2);
+  box-shadow: var(--sh-2), var(--edge);
 }
 
 .gm-pill,
@@ -1957,40 +2012,6 @@
 .gm-toast {
   box-shadow: var(--sh-4), var(--edge);
 }
-
-/* ==========================================================================
-   16 · DARK: the game chips
-
-   Their tints are literal light-theme values in cards.css, so on a dark page
-   they burn. Dark keeps the hue but drops the ground to a low-alpha wash and
-   lifts the ink.
-   ========================================================================== */
-
-:root[data-gm-theme="dark"] .gm-game--pokemon {
-  --game-ink: #e0b95c;
-  --game-bg: rgba(224, 185, 92, 0.12);
-}
-
-:root[data-gm-theme="dark"] .gm-game--magic {
-  --game-ink: #a58ae0;
-  --game-bg: rgba(165, 138, 224, 0.14);
-}
-
-:root[data-gm-theme="dark"] .gm-game--yugioh {
-  --game-ink: #dd9a52;
-  --game-bg: rgba(221, 154, 82, 0.13);
-}
-
-:root[data-gm-theme="dark"] .gm-game--onepiece {
-  --game-ink: #e07a72;
-  --game-bg: rgba(224, 122, 114, 0.13);
-}
-
-:root[data-gm-theme="dark"] .gm-game--sports {
-  --game-ink: #4fbdae;
-  --game-bg: rgba(79, 189, 174, 0.13);
-}
-
 
 /* ==========================================================================
    17 · DASHBOARD — MONEY AND THE FUNNEL
@@ -2055,7 +2076,7 @@
 .gm-stackbar {
   display: flex;
   height: 11px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   overflow: hidden;
   background: var(--surface-3);
   box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.09);
@@ -2096,7 +2117,7 @@
 .gm-planline-key {
   width: 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   box-shadow: 0 1px 2px rgba(21, 33, 47, 0.2);
 }
 
@@ -2178,7 +2199,7 @@
    against the neighbour every step looks nearly full and the fall vanishes */
 .gm-funnel-track {
   height: 9px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-3);
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.09);
@@ -2187,7 +2208,7 @@
 .gm-funnel-track > i {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--grad-navy);
   transition: width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
@@ -2218,7 +2239,10 @@
 .gm-rowact {
   display: flex;
   gap: 6px;
-  justify-content: flex-end;
+  /* The cell is now shrink-to-fit (`gm-rowend`), so the buttons already sit
+     at the right edge of the table and can pack from the left inside it —
+     which is what puts the "Action" heading directly over the first one. */
+  justify-content: flex-start;
   flex-wrap: nowrap;
 }
 
@@ -2278,7 +2302,7 @@
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-2);
   color: var(--ink-4);
   background: var(--surface);
@@ -2337,4 +2361,293 @@
   text-transform: uppercase;
   color: var(--ink-4);
   padding-top: 4px;
+}
+
+/* ==========================================================================
+   SIGN IN
+
+   One card on a navy field. The reference this follows put a white card on a
+   flat colour and nothing else on the screen, which is right for a page with
+   one job — so the only changes are the palette and the missing sign-up
+   button, because console accounts are made by an owner, not claimed.
+   ========================================================================== */
+
+.gm-login {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  /* Navy, with the gold bloom the console uses for its own ground — kept
+     stronger here than on the console because this screen has nothing else
+     on it to read against. */
+  background:
+    radial-gradient(760px 480px at 76% -4%, rgba(212, 185, 137, 0.62), transparent 58%),
+    radial-gradient(620px 480px at 6% 104%, rgba(168, 141, 96, 0.22), transparent 62%),
+    radial-gradient(700px 520px at 50% 50%, rgba(56, 83, 111, 0.35), transparent 70%),
+    linear-gradient(158deg, #24344a 0%, #1a2632 52%, #121a24 100%);
+}
+
+.gm-login-card {
+  position: relative;
+  z-index: 1;
+  width: min(392px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 30px 30px 26px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(9, 14, 20, 0.42), 0 2px 6px rgba(9, 14, 20, 0.3);
+}
+
+/* A gold hairline along the top edge. The one place the brand colour touches
+   the card, which is enough on a screen with a single control on it. */
+.gm-login-card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 18px;
+  right: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.gm-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 2px;
+}
+
+.gm-login-mark {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--grad-navy);
+  color: var(--gold);
+  box-shadow: var(--sh-navy);
+}
+
+.gm-login-mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.gm-login-brand b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.gm-login-brand span {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* the eye sits inside the field rather than beside it, so the input keeps its
+   full width and the control cannot be mistaken for a second field */
+.gm-login-secret {
+  position: relative;
+}
+
+.gm-login-secret .gm-input {
+  padding-right: 40px;
+}
+
+.gm-login-reveal {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.gm-login-reveal:hover {
+  color: var(--gold-600);
+  background: var(--surface-2);
+}
+
+.gm-login-reveal:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 1px;
+}
+
+.gm-login-reveal svg {
+  width: 15px;
+  height: 15px;
+}
+
+.gm-login-forgot {
+  align-self: flex-end;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  text-decoration: none;
+}
+
+.gm-login-forgot:hover {
+  color: var(--gold-600);
+}
+
+.gm-login-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: 12.6px;
+  line-height: 1.5;
+}
+
+.gm-login-go {
+  height: 42px;
+  font-size: 13.5px;
+}
+
+.gm-login-foot {
+  margin: 0;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-4);
+}
+
+/* ==========================================================================
+   FILTER BUTTON
+
+   One button, and every filter over the list behind it. It replaced a row of
+   outlined pills that was the widest thing on the page, put the least-used
+   control at the top of the most-used screen, and grew by one every time a
+   filter was added.
+
+   The count on the button is what keeps that honest: a hidden filter that
+   leaves no mark is how an empty list gets mistaken for a quiet day.
+   ========================================================================== */
+
+.gm-filterbtn.is-open {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--ink);
+}
+
+.gm-filterbtn-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.gm-filterpanel {
+  width: 268px;
+  padding: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-filtergroup {
+  padding: 8px 12px 10px;
+}
+
+.gm-filtergroup + .gm-filtergroup {
+  border-top: 1px solid var(--line);
+}
+
+.gm-filtergroup .gm-label {
+  margin-bottom: 6px;
+}
+
+.gm-filteropts {
+  display: grid;
+  gap: 2px;
+}
+
+/* A row per option rather than a dropdown inside a dropdown: with five of
+   them the whole set is readable at once, and the count sits beside each. */
+.gm-filteropt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12.8px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.gm-filteropt > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-filteropt:hover {
+  background: var(--surface-2);
+  color: var(--gold-600);
+}
+
+.gm-filteropt.is-active {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.gm-filteropt-n {
+  flex: none;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-filteropt.is-active .gm-filteropt-n {
+  background: var(--navy);
+  color: #fff;
+}
+
+.gm-filterfoot {
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-filterfoot .gm-btn {
+  width: 100%;
 }

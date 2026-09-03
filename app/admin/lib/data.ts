@@ -42,31 +42,470 @@ export type ListingStatus =
   | "withdrawn"
   | "rejected";
 
+/**
+ * What a case is about.
+ *
+ * These are conduct cases, not commerce disputes. No money passes through
+ * Grail Market, so there is nothing here about payment, delivery or damage —
+ * a member reports another member's behaviour, and the outcome lands on
+ * standing rather than on funds.
+ */
 export type ConflictKind =
   | "not-as-described"
-  | "non-delivery"
-  | "authenticity"
-  | "payment"
-  | "grade-mismatch"
-  | "damaged-in-transit";
+  | "off-platform"
+  | "no-show"
+  | "threats"
+  | "counterfeit";
 
 export type ConflictStatus = "open" | "awaiting-evidence" | "escalated" | "resolved";
 
 export type MemberStatus = "active" | "restricted" | "revoked" | "pending";
+
+/** Which subscription the member is on. `none` is a browser who never paid. */
+export type PlanKey = "none" | "starter" | "collector" | "dealer";
+
+/** What Stripe says about the subscription, which is not the same as standing. */
+export type BillingState = "active" | "past-due" | "cancelled" | "none";
+
+/**
+ * How far an account got through the funnel.
+ *
+ * These are the same four steps the dashboard counts, and the last two are the
+ * provider's decision, not ours — we hold the outcome and no documents. A
+ * moderator can send an account back to `mobile`, which is what "reset
+ * verification" does; nothing here can move it forward.
+ */
+export type VerificationLevel = "none" | "mobile" | "id-submitted" | "id-verified";
 
 export type MemberRole = "buyer" | "seller" | "buyer-seller" | "consignor";
 
 export type TicketStatus = "new" | "open" | "waiting" | "resolved";
 export type TicketPriority = "urgent" | "high" | "normal" | "low";
 
+/**
+ * Who holds a ticket.
+ *
+ * Three rungs, in order. Tier 1 is the outsourced desk and sees only its own
+ * queue; Tier 2 is the team lead and gets listing and trade history for the
+ * ticket in hand; Trust and safety is Grail Market staff and is where conduct
+ * and threats end up.
+ */
+export type SupportTier = "tier-1" | "tier-2" | "trust-safety";
+
+export const supportTierLabel: Record<SupportTier, string> = {
+  "tier-1": "Tier 1",
+  "tier-2": "Tier 2",
+  "trust-safety": "Trust & safety",
+};
+
+export const supportTierDetail: Record<SupportTier, string> = {
+  "tier-1": "Outsourced desk. Their own queue only, with no ID data, no member records and no listing tools.",
+  "tier-2": "Outsourced team lead. Escalations, plus listing and trade history for the ticket in hand.",
+  "trust-safety": "Grail Market staff. Conduct, threats, and the ID exceptions the provider could not settle.",
+};
+
+/**
+ * The ladder, in order.
+ *
+ * Escalation reads this and moves exactly one rung. There is deliberately no
+ * way to hand a ticket sideways to another agent on the same tier: a ticket
+ * that has already defeated one Tier 1 agent will defeat the next one, and
+ * passing it along the row is how a member waits three days for the same
+ * answer nobody at that tier can give.
+ */
+export const TIER_LADDER: SupportTier[] = ["tier-1", "tier-2", "trust-safety"];
+
+/** The next rung up, or null at the top. */
+export const nextTier = (t: SupportTier): SupportTier | null =>
+  TIER_LADDER[TIER_LADDER.indexOf(t) + 1] ?? null;
+
+/**
+ * First-reply target, in hours, by priority.
+ *
+ * The clock is on the FIRST reply, not on resolution: what a member is owed
+ * is an answer from a person, and a target that counted until the ticket
+ * closed would reward closing it before it was solved.
+ */
+export const SLA_TARGET_HOURS: Record<TicketPriority, number> = {
+  urgent: 1,
+  high: 4,
+  normal: 8,
+  low: 24,
+};
+
 /* ==========================================================================
    The signed-in operator (a placeholder until auth lands)
    ========================================================================== */
 
+/* ==========================================================================
+   Marketplace rules
+
+   Categories, the terms that stop a listing, and the words that make the
+   platform look twice at a message. All three are lists a person edits, which
+   is the reason they are here and not in code: the useful entry is the one
+   somebody adds the morning after they see a new trick.
+   ========================================================================== */
+
+export type Category = {
+  key: string;
+  name: string;
+  /** Off means nothing new can be listed in it; live listings are untouched. */
+  live: boolean;
+  /** Sub-classes the listing form offers under it. */
+  kinds: string[];
+  listings: number;
+};
+
+export const categories: Category[] = [
+  { key: "pokemon", name: "Pokémon", live: true, kinds: ["Singles", "Sealed", "Promo"], listings: 4820 },
+  { key: "magic", name: "Magic", live: true, kinds: ["Singles", "Sealed"], listings: 1541 },
+  { key: "yugioh", name: "Yu-Gi-Oh!", live: true, kinds: ["Singles", "Sealed"], listings: 903 },
+  { key: "onepiece", name: "One Piece", live: true, kinds: ["Singles", "Sealed"], listings: 612 },
+  { key: "sports", name: "Sports", live: true, kinds: ["Singles", "Relic", "Autograph"], listings: 2288 },
+  {
+    key: "memorabilia",
+    name: "Memorabilia",
+    live: false,
+    kinds: ["Signed", "Game-used"],
+    listings: 0,
+  },
+];
+
+/** What a matched term does. Blocking is a decision; flagging is a queue. */
+export type TermAction = "block" | "flag";
+
+export type BannedTerm = {
+  term: string;
+  action: TermAction;
+  /** Why it is on the list — the thing a later reader always wants. */
+  reason: string;
+  /** Hits in the last 30 days. A rule that never fires is worth removing. */
+  hits: number;
+};
+
+/**
+ * Terms that stop or flag a LISTING.
+ *
+ * Deliberately about what is being sold, not about how someone talks. A
+ * listing that says "proxy" is describing a card we do not sell; a message
+ * that says "bank transfer" is a different problem, handled below.
+ */
+export const bannedTerms: BannedTerm[] = [
+  { term: "proxy", action: "block", reason: "Not a real card. The single most common counterfeit listing word.", hits: 41 },
+  { term: "custom", action: "flag", reason: "Sometimes a legitimate art card, usually not. Worth a human.", hits: 126 },
+  { term: "replica", action: "block", reason: "Explicitly a copy.", hits: 18 },
+  { term: "reprint", action: "flag", reason: "Legitimate for some sets, misleading for others.", hits: 73 },
+  { term: "not authentic", action: "block", reason: "Says so itself.", hits: 4 },
+  { term: "psa ready", action: "flag", reason: "Implies a grade the card does not carry.", hits: 55 },
+  { term: "gem mint (raw)", action: "flag", reason: "A grade claim on an ungraded card.", hits: 31 },
+];
+
+/**
+ * The off-platform chat interceptor.
+ *
+ * A member asking another to settle direct is the single highest-harm thing
+ * that happens in messages: it strips the identity check off both sides, and
+ * once it is off-platform there is nothing anyone here can do. The list is
+ * words, not intent, so it over-matches on purpose — the action for most of
+ * it is a warning to the sender rather than a block, and only the payment
+ * rails hold a message for review.
+ */
+export type InterceptAction = "warn" | "hold" | "escalate";
+
+export const interceptActionLabel: Record<InterceptAction, string> = {
+  warn: "Warn the sender",
+  hold: "Hold for review",
+  escalate: "Escalate to Trust & safety",
+};
+
+export type InterceptTerm = {
+  term: string;
+  action: InterceptAction;
+  group: "payment" | "contact" | "intent";
+  hits: number;
+};
+
+export const interceptTerms: InterceptTerm[] = [
+  { term: "bank transfer", action: "hold", group: "payment", hits: 88 },
+  { term: "paypal", action: "hold", group: "payment", hits: 214 },
+  { term: "payid", action: "hold", group: "payment", hits: 167 },
+  { term: "venmo", action: "hold", group: "payment", hits: 12 },
+  { term: "cash app", action: "hold", group: "payment", hits: 9 },
+  { term: "direct deposit", action: "hold", group: "payment", hits: 44 },
+  { term: "whatsapp", action: "warn", group: "contact", hits: 301 },
+  { term: "instagram", action: "warn", group: "contact", hits: 288 },
+  { term: "telegram", action: "warn", group: "contact", hits: 51 },
+  { term: "my number is", action: "warn", group: "contact", hits: 96 },
+  { term: "off platform", action: "escalate", group: "intent", hits: 27 },
+  { term: "avoid the fees", action: "escalate", group: "intent", hits: 63 },
+  { term: "cut out the middleman", action: "escalate", group: "intent", hits: 19 },
+];
+
+/**
+ * Listing fees.
+ *
+ * The brief says "once they are agreed", and they have not been — so the
+ * numbers are here, editable, and switched off. Shipping a fee schedule that
+ * is live by default because somebody typed a placeholder into it is the
+ * failure this flag exists to prevent.
+ */
+export const listingFees = {
+  agreed: false,
+  /** AUD, charged per listing beyond the allowance. */
+  perListing: 1.5,
+  /** Free listings per member per calendar month, before the fee applies. */
+  freeAllowance: 5,
+  /** Whether the allowance resets monthly or is a lifetime grant. */
+  resets: "monthly" as "monthly" | "once",
+  /** Fees never apply below this ask — a $4 card cannot carry a $1.50 fee. */
+  floor: 25,
+};
+
+/* ==========================================================================
+   Audit log
+
+   Who did what, and when. Every decision in this console lands here, and the
+   entries are append-only: an action that can be edited afterwards is not a
+   record of anything.
+   ========================================================================== */
+
+export type AuditArea =
+  | "listing"
+  | "member"
+  | "conduct"
+  | "support"
+  | "billing"
+  | "pricing"
+  | "settings"
+  | "staff";
+
+export type AuditEntry = {
+  id: string;
+  at: string;
+  /** Who did it. "System" for anything automatic. */
+  actor: string;
+  area: AuditArea;
+  /** The verb, in the past tense, as it should read in a list. */
+  action: string;
+  /** What it was done to — a handle, a listing id, a setting name. */
+  target: string;
+  /** The reason recorded at the time, where one was required. */
+  detail?: string;
+  /** Whether it moved money, standing, or only a setting. */
+  weight: "high" | "normal";
+};
+
+const seededAudit: AuditEntry[] = [
+  { id: "AU-5512", at: "2026-08-31T08:05:00Z", actor: "System", area: "conduct", action: "Escalated to Trust and safety", target: "CF-2291", detail: "Open past 72 hours with no finding.", weight: "normal" },
+  { id: "AU-5509", at: "2026-08-31T06:10:00Z", actor: "Ayna Sulaiman", area: "conduct", action: "Recorded a formal warning", target: "@galar_pc", detail: "Off-platform contact, first offence, admitted. A second one restricts the account.", weight: "high" },
+  { id: "AU-5504", at: "2026-08-30T15:00:00Z", actor: "Ayna Sulaiman", area: "listing", action: "Withdrew a listing", target: "LS-9008", detail: "Suspected resealed slab, pending review. Seller's other listings pulled.", weight: "high" },
+  { id: "AU-5498", at: "2026-08-30T12:10:00Z", actor: "Marco Reyes", area: "support", action: "Replied to a ticket", target: "SP-1190", weight: "normal" },
+  { id: "AU-5490", at: "2026-08-29T12:02:00Z", actor: "Ayna Sulaiman", area: "listing", action: "Approved a listing", target: "LS-9036", weight: "normal" },
+  { id: "AU-5487", at: "2026-08-28T17:41:00Z", actor: "Ayna Sulaiman", area: "member", action: "Revoked marketplace access", target: "@vault_flipper", detail: "Third authenticity strike inside 30 days.", weight: "high" },
+  { id: "AU-5486", at: "2026-08-28T16:44:00Z", actor: "Ayna Sulaiman", area: "listing", action: "Rejected a listing", target: "LS-9002", detail: "Print dot pattern inconsistent with 1952 Topps stock.", weight: "normal" },
+  { id: "AU-5480", at: "2026-08-27T09:18:00Z", actor: "Marco Reyes", area: "listing", action: "Rejected a listing", target: "Dark Magician Girl", detail: "Four angles supplied, ten required.", weight: "normal" },
+  { id: "AU-5474", at: "2026-08-26T12:00:00Z", actor: "Ayna Sulaiman", area: "member", action: "Restricted an account", target: "@duelistdepot", detail: "Two reports of coordinated bidding.", weight: "high" },
+  { id: "AU-5470", at: "2026-08-24T09:30:00Z", actor: "Priya Nandakumar", area: "settings", action: "Changed a setting", target: "Grail-tier review floor", detail: "A$4,000 → A$5,000.", weight: "normal" },
+  { id: "AU-5462", at: "2026-08-18T13:30:00Z", actor: "Marco Reyes", area: "billing", action: "Comped a boost", target: "@duelistdepot", detail: "A$12 not charged. The listing was wrongly pulled.", weight: "high" },
+  { id: "AU-5455", at: "2026-08-14T10:02:00Z", actor: "Ayna Sulaiman", area: "staff", action: "Invited a staff account", target: "d.aydin@northstar-cx.com", detail: "Support · Tier 1, Northstar CX.", weight: "high" },
+  { id: "AU-5441", at: "2026-08-09T16:40:00Z", actor: "Tobias Lang", area: "pricing", action: "Excluded a sale as an outlier", target: "CP-7004", detail: "149% above the median; listing title carried 'lot of 3'.", weight: "normal" },
+];
+
+const sessionAudit: AuditEntry[] = [];
+
+/** Write to the log. Nothing here can be edited or removed afterwards. */
+export function logAudit(e: Omit<AuditEntry, "id" | "at">): AuditEntry {
+  const entry: AuditEntry = {
+    ...e,
+    id: `AU-${5600 + sessionAudit.length}`,
+    at: new Date().toISOString(),
+  };
+  sessionAudit.unshift(entry);
+  return entry;
+}
+
+/** The whole log, newest first — this session's entries ahead of the seeded. */
+export const auditLog = () => [...sessionAudit, ...seededAudit];
+
+export const auditActors = () =>
+  [...new Set(auditLog().map((e) => e.actor))].sort();
+
+/* --------------------------------------------------------------------------
+   Roles
+
+   The five in the operations brief, and nothing else. Support is split into
+   two tiers because the outsourcing argument depends on it: a Tier 1 agent
+   sitting offshore can be given a queue without being given the member
+   directory, the ID exceptions or the listing tools, and that separation is
+   the whole reason the desk can be run by people outside the company.
+   -------------------------------------------------------------------------- */
+
+export type Role = "tier-1" | "tier-2" | "moderator" | "trust-safety" | "owner";
+
+export const ROLES: {
+  key: Role;
+  label: string;
+  /** Who actually holds it, from the brief's table. */
+  who: string;
+  /** What it sees, in the same words the brief uses. */
+  sees: string;
+}[] = [
+  {
+    key: "tier-1",
+    label: "Support · Tier 1",
+    who: "Outsourced team",
+    sees: "Their own queue only. No ID data, no member records, no listing tools.",
+  },
+  {
+    key: "tier-2",
+    label: "Support · Tier 2",
+    who: "Outsourced team lead",
+    sees: "Escalations, plus listing and trade history for the ticket in hand.",
+  },
+  {
+    key: "moderator",
+    label: "Moderator",
+    who: "Grail Market",
+    sees: "Listing queue: approve, reject, ask for more photos. No billing, no ID.",
+  },
+  {
+    key: "trust-safety",
+    label: "Trust & safety",
+    who: "Grail Market",
+    sees: "Reports, conduct outcomes, and the ID exceptions the provider could not settle.",
+  },
+  {
+    key: "owner",
+    label: "Owner",
+    who: "Grail Market",
+    sees: "Everything, including subscriptions, the price engine and the audit log.",
+  },
+];
+
+export const roleLabel = (r: Role) => ROLES.find((x) => x.key === r)?.label ?? r;
+
+/**
+ * What a role is allowed to do.
+ *
+ * Capabilities rather than page names, because the same page shows different
+ * things to different people: a moderator opens a member record and must not
+ * see the plan or the verification level on it, which is a rule about fields,
+ * not about routes.
+ */
+export type Capability =
+  | "dashboard.read"
+  | "listings.review"
+  | "members.read"
+  | "members.act"
+  | "team.read"
+  | "conduct.decide"
+  | "support.read"
+  | "support.reply"
+  | "id.exceptions"
+  | "billing.read"
+  | "pricing.read"
+  | "reports.read"
+  | "audit.read"
+  | "announce.write"
+  | "settings.write";
+
+const CAPABILITIES: Record<Role, Capability[]> = {
+  "tier-1": ["support.read", "support.reply"],
+  /* Tier 2 gets trade context inside a ticket — see `support.read` in the
+     support desk — but still no member directory of its own. */
+  "tier-2": ["support.read", "support.reply"],
+  moderator: ["dashboard.read", "listings.review", "members.read"],
+  "trust-safety": [
+    "dashboard.read",
+    "members.read",
+    "members.act",
+    "conduct.decide",
+    "support.read",
+    "support.reply",
+    "id.exceptions",
+  ],
+  owner: [
+    "dashboard.read",
+    "listings.review",
+    "members.read",
+    "members.act",
+    "team.read",
+    "conduct.decide",
+    "support.read",
+    "support.reply",
+    "id.exceptions",
+    "billing.read",
+    "pricing.read",
+    "reports.read",
+    "audit.read",
+    "announce.write",
+    "settings.write",
+  ],
+};
+
+/**
+ * What each permission is called on screen.
+ *
+ * The keys are for the code; nobody using this console should ever be shown
+ * `listings.review` and asked to work out what it means.
+ */
+export const capabilityLabel: Record<Capability, string> = {
+  "dashboard.read": "See the dashboard",
+  "listings.review": "Review the listing queue",
+  "members.read": "Open member records",
+  "members.act": "Change a member's standing",
+  "team.read": "See the admin team",
+  "conduct.decide": "Decide reports and conduct cases",
+  "support.read": "Work the support queue",
+  "support.reply": "Reply to members",
+  "id.exceptions": "See ID check outcomes",
+  "billing.read": "See subscriptions and boosts",
+  "pricing.read": "See the price engine",
+  "reports.read": "See reports",
+  "audit.read": "See the audit log",
+  "announce.write": "Send announcements",
+  "settings.write": "Change settings",
+};
+
+export const can = (role: Role, c: Capability) => CAPABILITIES[role].includes(c);
+
+/** Everything a role may reach, for the "your scope is" panel. */
+export const capabilitiesOf = (role: Role) => CAPABILITIES[role];
+
+/**
+ * Which capability each route needs.
+ *
+ * IMPORTANT: this gates the interface, not the data. Hiding a route in the
+ * browser stops an agent wandering into a page they have no business in; it
+ * does not stop anyone who can type a URL and read a network response. The
+ * same table has to exist on the API before any of this is a security
+ * boundary, and until the admin API exists there is nothing to put it in.
+ */
+export const ROUTE_CAPABILITY: { path: string; param?: [string, string]; cap: Capability }[] = [
+  { path: "/admin/listings", cap: "listings.review" },
+  { path: "/admin/conflicts", cap: "conduct.decide" },
+  { path: "/admin/support", cap: "support.read" },
+  { path: "/admin/members", param: ["scope", "team"], cap: "team.read" },
+  { path: "/admin/members", cap: "members.read" },
+  { path: "/admin/pricing", cap: "billing.read" },
+  { path: "/admin/price-engine", cap: "pricing.read" },
+  { path: "/admin/audit", cap: "audit.read" },
+  { path: "/admin/announcements", cap: "announce.write" },
+  { path: "/admin/reports", cap: "reports.read" },
+  { path: "/admin/settings", cap: "settings.write" },
+  { path: "/admin", cap: "dashboard.read" },
+];
+
+/** Where to send someone who has no business on the page they opened. */
+export const homeFor = (role: Role): { href: string; label: string } =>
+  can(role, "dashboard.read")
+    ? { href: "/admin", label: "Dashboard" }
+    : { href: "/admin/support", label: "your support queue" };
+
 export const operator = {
   name: "Ayna Sulaiman",
   email: "ayna.sulaiman@calcite.live",
-  role: "Lead moderator",
+  role: "owner" as Role,
   initials: "AS",
 };
 
@@ -102,10 +541,10 @@ export const dashboardStats: Stat[] = [
   },
   {
     key: "conflicts",
-    label: "Open conflicts",
-    value: "7",
+    label: "Open conduct cases",
+    value: "4",
     delta: { dir: "down", text: "2" },
-    foot: "2 escalated past 72h",
+    foot: "1 with Trust and safety",
   },
   {
     key: "members",
@@ -159,8 +598,19 @@ export type SubscriptionTier = {
   name: string;
   /** Monthly, in AUD. Stripe holds the amount that is actually charged. */
   price: number;
-  /** Live listings allowed at once. null = no ceiling. */
+  /**
+   * Live listings allowed at once. null = no ceiling.
+   *
+   * This is the enforcement point, and the reason a plan exists at all — the
+   * sell flow checks it before publishing. It is deliberately a quota and not
+   * a commission rate: Grail Market takes no cut of a sale, because no money
+   * passes through it.
+   */
   quota: number | null;
+  blurb: string;
+  perks: string[];
+  /** Empty until billing is configured — Stripe holds the charged amount. */
+  stripePriceId: string;
   subscribers: number;
   /** The same headcount a month ago, so movement can be stated, not implied. */
   priorSubscribers: number;
@@ -168,12 +618,25 @@ export type SubscriptionTier = {
   color: string;
 };
 
+/**
+ * The three plans, as `grail-market-backend/src/billing/plans.ts` has them.
+ *
+ * That file is the source of truth — it is what the sell flow enforces — and
+ * this is the console's mirror of it. They were allowed to disagree once: the
+ * admin console carried a free Collector, a $39 Dealer and a custom House
+ * tier priced on commission, none of which existed anywhere else. A plan
+ * table nobody can act on is worse than no plan table, because a support
+ * agent reads it and quotes it.
+ */
 export const subscriptionTiers: SubscriptionTier[] = [
   {
     key: "starter",
     name: "Starter",
     price: 5,
     quota: 1,
+    blurb: "One live listing at a time.",
+    perks: ["One live listing", "Unlimited price checks", "Save a collection"],
+    stripePriceId: "STRIPE_PRICE_STARTER",
     subscribers: 2840,
     priorSubscribers: 2612,
     color: "var(--gold-300)",
@@ -183,6 +646,14 @@ export const subscriptionTiers: SubscriptionTier[] = [
     name: "Collector",
     price: 10,
     quota: 10,
+    blurb: "Up to 10 live listings.",
+    perks: [
+      "Everything in Starter",
+      "10 live listings",
+      "Bulk scan up to 25 cards",
+      "Priority support",
+    ],
+    stripePriceId: "STRIPE_PRICE_COLLECTOR",
     subscribers: 1663,
     priorSubscribers: 1498,
     color: "var(--gold)",
@@ -192,11 +663,31 @@ export const subscriptionTiers: SubscriptionTier[] = [
     name: "Dealer",
     price: 20,
     quota: null,
+    blurb: "Unlimited listings + featured credits.",
+    perks: [
+      "Everything in Collector",
+      "Unlimited live listings",
+      "Featured listing credits",
+    ],
+    stripePriceId: "STRIPE_PRICE_DEALER",
     subscribers: 402,
     priorSubscribers: 371,
     color: "var(--navy-500)",
   },
 ];
+
+/* --------------------------------------------------------------------------
+   Subscription arithmetic
+
+   The price engine's fixtures, the boost ledger and the billing feed used to
+   live here as sample data. All three are read from the API now — see
+   `lib/api.ts` — and the copies were deleted rather than left beside them, so
+   there is no second set of figures for a page to drift back onto.
+   -------------------------------------------------------------------------- */
+
+/** How many times a failed charge is retried, and when. Policy rather than
+ *  sample data: it is what the ladder on the billing tab describes. */
+export const DUNNING_LADDER = ["Immediately", "After 3 days", "After 5 days", "After 7 days"];
 
 /** What a tier bills in a month at today's headcount. */
 export const mrrOf = (t: SubscriptionTier) => t.price * t.subscribers;
@@ -255,7 +746,7 @@ export const gameSplit = [
 export type ActivityItem = {
   id: string;
   tone: "ok" | "warn" | "bad" | "gold" | "plain";
-  icon: "check" | "alert" | "ban" | "card" | "message" | "dollar";
+  icon: "check" | "alert" | "ban" | "card" | "message" | "shield";
   text: string;
   actor: string;
   time: string;
@@ -274,7 +765,7 @@ export const activity: ActivityItem[] = [
     id: "a2",
     tone: "bad",
     icon: "ban",
-    text: "Revoked access for **@vault_flipper** — three authenticity strikes in 30 days",
+    text: "Revoked access for **@vault_flipper** after three authenticity strikes in 30 days",
     actor: "Ayna Sulaiman",
     time: "48 minutes ago",
   },
@@ -282,7 +773,7 @@ export const activity: ActivityItem[] = [
     id: "a3",
     tone: "warn",
     icon: "alert",
-    text: "Conflict **CF-2291** escalated: buyer and seller both refused the split refund",
+    text: "Case **CF-2291** escalated to Trust and safety after 72 hours open with no finding",
     actor: "System",
     time: "1 hour ago",
   },
@@ -298,15 +789,15 @@ export const activity: ActivityItem[] = [
     id: "a5",
     tone: "plain",
     icon: "message",
-    text: "Replied to support ticket **SP-1180** about a payout hold",
+    text: "Replied to support ticket **SP-1180** about an off-platform contact warning",
     actor: "Marco Reyes",
     time: "3 hours ago",
   },
   {
     id: "a6",
     tone: "ok",
-    icon: "dollar",
-    text: "Released **$8,400** in held funds after conflict **CF-2287** closed in the seller's favour",
+    icon: "shield",
+    text: "Case **CF-2287** closed with a formal warning against **@galar_pc** for off-platform contact",
     actor: "Ayna Sulaiman",
     time: "5 hours ago",
   },
@@ -314,7 +805,7 @@ export const activity: ActivityItem[] = [
     id: "a7",
     tone: "warn",
     icon: "alert",
-    text: "**@cardsbyjules** rejected — slab label photo unreadable, resubmission requested",
+    text: "**@cardsbyjules** rejected. Slab label photo unreadable, resubmission requested",
     actor: "Priya Nandakumar",
     time: "6 hours ago",
   },
@@ -737,8 +1228,8 @@ export const listings: Listing[] = [
     setLine: "1952 Topps · Reprint suspected",
     game: "Sports",
     grader: "Raw",
-    grade: "—",
-    cert: "—",
+    grade: "None",
+    cert: "None",
     askPrice: 41000,
     marketPrice: 0,
     confidence: "low",
@@ -753,7 +1244,7 @@ export const listings: Listing[] = [
     views: 0,
     watchers: 0,
     flags: ["Print dot pattern inconsistent with 1952 stock", "Third authenticity strike"],
-    note: "Rejected. Escalated to member review — access revoked.",
+    note: "Rejected. Escalated to member review, then access revoked.",
   },
 ];
 
@@ -883,12 +1374,65 @@ export const flagsFor = (l: Listing) => checksFor(l).filter((c) => !c.passed);
    decided, read back by handle.
    -------------------------------------------------------------------------- */
 
+/**
+ * Everything that can land on a member's record.
+ *
+ * The record is meant to be the whole history in one place — listings,
+ * offers, trades, reviews, tickets and conduct — so the union covers all six
+ * rather than only the decisions this console happens to take. `plan` and
+ * `verification` are here because changing either is an admin action a member
+ * can be told about later, and an action nobody can point to is not one.
+ */
 export type MemberEventKind =
   | "listing-approved"
   | "listing-rejected"
   | "info-requested"
+  | "listing-live"
+  | "offer"
+  | "trade"
+  | "review"
+  | "ticket"
   | "conduct"
+  | "plan"
+  | "boost"
+  | "verification"
   | "note";
+
+/** How each kind reads in a filter, and which side of the record it is on. */
+export const eventKindLabel: Record<MemberEventKind, string> = {
+  "listing-approved": "Listing approved",
+  "listing-rejected": "Listing rejected",
+  "info-requested": "Information requested",
+  "listing-live": "Listing live",
+  offer: "Offer",
+  trade: "Trade",
+  review: "Review",
+  ticket: "Ticket",
+  conduct: "Conduct action",
+  plan: "Plan change",
+  boost: "Boost",
+  verification: "Verification",
+  note: "Staff note",
+};
+
+/**
+ * The groups the timeline filter offers.
+ *
+ * Six buttons, not twelve: a moderator asks "what did they sell" or "has this
+ * one been in trouble", never "show me info-requested only".
+ */
+export const eventGroups: { key: string; label: string; kinds: MemberEventKind[] }[] = [
+  {
+    key: "listings",
+    label: "Listings",
+    kinds: ["listing-approved", "listing-rejected", "info-requested", "listing-live"],
+  },
+  { key: "trades", label: "Offers & trades", kinds: ["offer", "trade"] },
+  { key: "reviews", label: "Reviews", kinds: ["review"] },
+  { key: "tickets", label: "Tickets", kinds: ["ticket"] },
+  { key: "conduct", label: "Conduct", kinds: ["conduct"] },
+  { key: "account", label: "Account", kinds: ["plan", "boost", "verification", "note"] },
+];
 
 export type MemberEvent = {
   id: string;
@@ -905,15 +1449,87 @@ export type MemberEvent = {
 };
 
 const seededEvents: MemberEvent[] = [
+  /* ---------------------------------------------------- @courtsidecards */
+  {
+    id: "EV-2044",
+    at: "2026-08-31T08:05:00Z",
+    handle: "@courtsidecards",
+    kind: "conduct",
+    title: "Case escalated to Trust and safety",
+    detail: "CF-2291 open past 72 hours with no finding. Listings remain paused.",
+    by: "System",
+    ref: "CF-2291",
+  },
+  {
+    id: "EV-2043",
+    at: "2026-08-28T16:02:00Z",
+    handle: "@courtsidecards",
+    kind: "conduct",
+    title: "Reported by @bucks_collector: not as described",
+    detail: "Buyer says the slab brought to the meet was a PSA 9, not the listed PSA 10.",
+    by: "System",
+    ref: "CF-2291",
+  },
+  {
+    id: "EV-2042",
+    at: "2026-08-27T11:20:00Z",
+    handle: "@courtsidecards",
+    kind: "review",
+    title: "Review received: 2 stars",
+    detail: "“Card was fine but he argued about the meeting point for two days.”",
+    by: "@nrg_cards",
+  },
+
+  /* ------------------------------------------------------ @moonbreon_co */
   {
     id: "EV-2041",
     at: "2026-08-29T12:02:00Z",
     handle: "@moonbreon_co",
     kind: "listing-approved",
-    title: "Listing approved — Umbreon VMAX #215",
+    title: "Listing approved: Umbreon VMAX #215",
     by: "Ayna Sulaiman",
     ref: "LS-9036",
   },
+  {
+    id: "EV-2040",
+    at: "2026-08-29T09:14:00Z",
+    handle: "@moonbreon_co",
+    kind: "trade",
+    title: "Trade completed: Charizard VMAX #020",
+    detail: "$8,400 · met in person, both sides confirmed.",
+    by: "System",
+    ref: "LS-8974",
+  },
+  {
+    id: "EV-2039",
+    at: "2026-08-28T19:35:00Z",
+    handle: "@moonbreon_co",
+    kind: "review",
+    title: "Review received: 5 stars",
+    detail: "“Exactly as described, packed properly, straightforward to deal with.”",
+    by: "@galar_pc",
+  },
+  {
+    id: "EV-2036",
+    at: "2026-08-26T13:02:00Z",
+    handle: "@moonbreon_co",
+    kind: "offer",
+    title: "Offer received: $6,100 on Lugia #9",
+    detail: "Declined by the seller. Asking was $7,400.",
+    by: "@neo_era",
+    ref: "LS-9036",
+  },
+  {
+    id: "EV-2035",
+    at: "2026-07-04T10:00:00Z",
+    handle: "@moonbreon_co",
+    kind: "plan",
+    title: "Plan changed: Collector to Dealer",
+    detail: "Upgraded by the member. Live-listing ceiling lifted.",
+    by: "System",
+  },
+
+  /* ------------------------------------------------------ @vault_flipper */
   {
     id: "EV-2038",
     at: "2026-08-28T17:41:00Z",
@@ -928,38 +1544,153 @@ const seededEvents: MemberEvent[] = [
     at: "2026-08-28T16:44:00Z",
     handle: "@vault_flipper",
     kind: "listing-rejected",
-    title: "Listing rejected — Mickey Mantle #311",
+    title: "Listing rejected: Mickey Mantle #311",
     detail:
       "The print dot pattern is inconsistent with 1952 Topps stock. Do not relist this card without a grading company's opinion.",
     by: "Ayna Sulaiman",
     ref: "LS-9002",
   },
   {
+    id: "EV-2034",
+    at: "2026-08-25T14:10:00Z",
+    handle: "@vault_flipper",
+    kind: "ticket",
+    title: "Ticket opened: “Why was my listing pulled?”",
+    detail: "Answered by Tier 1, escalated to Trust and safety the same day.",
+    by: "Marco Reyes",
+    ref: "SP-1171",
+  },
+
+  /* ------------------------------------------------------ @duelistdepot */
+  {
     id: "EV-2033",
     at: "2026-08-27T09:18:00Z",
     handle: "@duelistdepot",
     kind: "listing-rejected",
-    title: "Listing rejected — Dark Magician Girl (first submission)",
+    title: "Listing rejected: Dark Magician Girl (first submission)",
     detail: "Only four angles supplied. Ten are required, including all four corners.",
     by: "Marco Reyes",
   },
   {
-    id: "EV-2029",
-    at: "2026-08-24T10:00:00Z",
-    handle: "@pacificrim_pc",
-    kind: "listing-approved",
-    title: "Listing approved — Shohei Ohtani #660",
+    id: "EV-2032",
+    at: "2026-08-26T12:00:00Z",
+    handle: "@duelistdepot",
+    kind: "conduct",
+    title: "Restricted: listing privileges paused",
+    detail: "Two reports of coordinated bidding on their own listings. Buying unaffected.",
+    by: "Ayna Sulaiman",
+  },
+  {
+    id: "EV-2031",
+    at: "2026-08-30T07:22:00Z",
+    handle: "@duelistdepot",
+    kind: "ticket",
+    title: "Ticket opened: “Cannot list, account says restricted”",
+    detail: "Explained the restriction and what closes it.",
     by: "Marco Reyes",
-    ref: "LS-9024",
+    ref: "SP-1190",
   },
   {
     id: "EV-2024",
     at: "2026-08-22T08:30:00Z",
     handle: "@duelistdepot",
     kind: "listing-approved",
-    title: "Listing approved — Dark Magician Girl",
+    title: "Listing approved: Dark Magician Girl",
     by: "Ayna Sulaiman",
     ref: "LS-9014",
+  },
+
+  /* ------------------------------------------------------ @pacificrim_pc */
+  {
+    id: "EV-2030",
+    at: "2026-08-30T09:06:00Z",
+    handle: "@pacificrim_pc",
+    kind: "conduct",
+    title: "Reported by @nrg_cards: no-show",
+    detail: "Agreed a meet, did not attend, stopped replying. 72h to answer.",
+    by: "System",
+    ref: "CF-2289",
+  },
+  {
+    id: "EV-2029",
+    at: "2026-08-24T10:00:00Z",
+    handle: "@pacificrim_pc",
+    kind: "listing-approved",
+    title: "Listing approved: Shohei Ohtani #660",
+    by: "Marco Reyes",
+    ref: "LS-9024",
+  },
+  {
+    id: "EV-2028",
+    at: "2026-08-12T06:40:00Z",
+    handle: "@pacificrim_pc",
+    kind: "plan",
+    title: "Payment failed: Collector",
+    detail: "Card declined. Third attempt scheduled; access unchanged while it retries.",
+    by: "System",
+  },
+
+  /* -------------------------------------------------------- @holo_vault */
+  {
+    id: "EV-2027",
+    at: "2026-08-31T06:10:00Z",
+    handle: "@holo_vault",
+    kind: "conduct",
+    title: "Report upheld against @galar_pc",
+    detail: "Their report of off-platform contact was upheld. No action against this account.",
+    by: "Ayna Sulaiman",
+    ref: "CF-2287",
+  },
+  {
+    id: "EV-2026",
+    at: "2026-08-26T10:00:00Z",
+    handle: "@holo_vault",
+    kind: "ticket",
+    title: "Ticket opened: “Buyer asking to settle direct”",
+    detail: "Correct escalation. Screenshots attached to the case.",
+    by: "Ayna Sulaiman",
+    ref: "SP-1194",
+  },
+  {
+    id: "EV-2025",
+    at: "2026-08-21T15:25:00Z",
+    handle: "@holo_vault",
+    kind: "trade",
+    title: "Trade completed: Blastoise #2",
+    detail: "$5,400 · shipped, delivery confirmed by the buyer.",
+    by: "System",
+    ref: "LS-9008",
+  },
+
+  /* ------------------------------------------------------ @kanto_archive */
+  {
+    id: "EV-2023",
+    at: "2026-08-30T11:15:00Z",
+    handle: "@kanto_archive",
+    kind: "ticket",
+    title: "Ticket opened: “Grail-tier review open five days”",
+    detail: "Second reviewer required at this value. 48h commitment given.",
+    by: "Ayna Sulaiman",
+    ref: "SP-1192",
+  },
+  {
+    id: "EV-2022",
+    at: "2026-08-24T09:00:00Z",
+    handle: "@kanto_archive",
+    kind: "info-requested",
+    title: "Information requested: Pikachu Illustrator",
+    detail: "Auction invoice and chain of ownership since 2021.",
+    by: "Ayna Sulaiman",
+    ref: "VF-4815",
+  },
+  {
+    id: "EV-2021",
+    at: "2026-08-19T08:00:00Z",
+    handle: "@kanto_archive",
+    kind: "verification",
+    title: "ID submitted to the provider",
+    detail: "Awaiting the DVS result. No documents held on our side.",
+    by: "System",
   },
   {
     id: "EV-2019",
@@ -970,6 +1701,47 @@ const seededEvents: MemberEvent[] = [
     detail:
       "High-value consignor, slow to answer. Give provenance requests the full seven days before expiring them.",
     by: "Priya Nandakumar",
+  },
+
+  /* ------------------------------------------------------ @sunsetbinder */
+  {
+    id: "EV-2018",
+    at: "2026-06-02T09:00:00Z",
+    handle: "@sunsetbinder",
+    kind: "plan",
+    title: "Payment failed: Starter",
+    detail: "Second failure. Plan prompt emailed; no reply.",
+    by: "System",
+  },
+  {
+    id: "EV-2017",
+    at: "2026-05-01T09:00:00Z",
+    handle: "@sunsetbinder",
+    kind: "listing-live",
+    title: "Last listing went live: Pikachu VMAX #044",
+    detail: "Expired unsold after 30 days. Nothing listed since.",
+    by: "System",
+  },
+
+  /* -------------------------------------------------------- @johto_grails */
+  {
+    id: "EV-2016",
+    at: "2026-08-30T18:41:00Z",
+    handle: "@johto_grails",
+    kind: "conduct",
+    title: "Reported by @neo_era: threats",
+    detail: "Routed straight to Trust and safety. Messaging between the two accounts closed.",
+    by: "System",
+    ref: "CF-2288",
+  },
+  {
+    id: "EV-2015",
+    at: "2026-08-14T11:05:00Z",
+    handle: "@johto_grails",
+    kind: "review",
+    title: "Review received: 5 stars",
+    detail: "“Knows the Neo sets better than anyone. Would buy again.”",
+    by: "@neo_era",
   },
 ];
 
@@ -982,6 +1754,25 @@ const sessionEvents: MemberEvent[] = [];
  * Returns the entry so the caller can show exactly what was filed, rather
  * than a paraphrase of it in a toast.
  */
+const AUDIT_AREA: Record<MemberEventKind, AuditArea> = {
+  "listing-approved": "listing",
+  "listing-rejected": "listing",
+  "info-requested": "listing",
+  "listing-live": "listing",
+  offer: "member",
+  trade: "member",
+  review: "member",
+  ticket: "support",
+  conduct: "conduct",
+  plan: "billing",
+  boost: "billing",
+  verification: "member",
+  note: "member",
+};
+
+/** Decisions that change what someone can do, rather than only recording one. */
+const HEAVY: MemberEventKind[] = ["conduct", "plan", "boost", "verification", "listing-rejected"];
+
 export function writeToRecord(e: Omit<MemberEvent, "id" | "at">): MemberEvent {
   const entry: MemberEvent = {
     ...e,
@@ -989,12 +1780,182 @@ export function writeToRecord(e: Omit<MemberEvent, "id" | "at">): MemberEvent {
     at: new Date().toISOString(),
   };
   sessionEvents.unshift(entry);
+
+  /* The member record and the audit log answer different questions — "what
+     has happened to this person" and "what has this operator done" — but they
+     are the same events, so one write feeds both rather than asking every
+     caller to remember two. */
+  logAudit({
+    actor: e.by,
+    area: AUDIT_AREA[e.kind],
+    action: e.title,
+    target: e.ref ? `${e.handle} · ${e.ref}` : e.handle,
+    detail: e.detail,
+    weight: HEAVY.includes(e.kind) ? "high" : "normal",
+  });
+
   return entry;
 }
 
 /** One member's record, newest first. */
 export const recordFor = (handle: string) =>
   [...sessionEvents, ...seededEvents].filter((e) => e.handle === handle);
+
+/* --------------------------------------------------------------------------
+   Tags, and the fields a moderator can change
+
+   Same shape as the event store above and for the same reason: there is no
+   admin API yet, so a change made here has to live somewhere the next render
+   can read it back. Overrides are keyed by handle and layered over the
+   fixture, so a member the session never touched still reads straight from
+   `members`.
+   -------------------------------------------------------------------------- */
+
+type MemberOverride = {
+  tags?: string[];
+  plan?: PlanKey;
+  verification?: VerificationLevel;
+};
+
+const overrides = new Map<string, MemberOverride>();
+
+/** The member as it stands now — fixture underneath, session changes on top. */
+export function memberNow(m: Member): Member {
+  const o = overrides.get(m.handle);
+  return o ? { ...m, ...o } : m;
+}
+
+export const tagsFor = (m: Member) => memberNow(m).tags;
+
+export function setTags(handle: string, tags: string[]) {
+  overrides.set(handle, { ...overrides.get(handle), tags });
+}
+
+export function setPlan(handle: string, plan: PlanKey) {
+  overrides.set(handle, { ...overrides.get(handle), plan });
+}
+
+export function setVerification(handle: string, verification: VerificationLevel) {
+  overrides.set(handle, { ...overrides.get(handle), verification });
+}
+
+/**
+ * Tags already in use, for the suggestion list.
+ *
+ * Free text with a datalist rather than a fixed vocabulary: the useful labels
+ * are the ones a moderator invents mid-case, and a closed list would send
+ * them back to the note field to say it in prose where nothing can find it.
+ */
+export const knownTags = () => {
+  const all = new Set<string>();
+  for (const m of members) for (const t of memberNow(m).tags) all.add(t);
+  return [...all].sort();
+};
+
+/* --------------------------------------------------------------------------
+   Segments
+
+   Who to look at, and who to send something to. Each one is a predicate over
+   the member list so the same definition drives the filter bar and the
+   audience count on a message — a segment that means one thing on screen and
+   another in the send dialog is worse than no segment at all.
+   -------------------------------------------------------------------------- */
+
+/** Not seen for this long and they count as lapsed. */
+export const LAPSED_DAYS = 90;
+
+export type Segment = {
+  key: string;
+  label: string;
+  /** Shown under the filter so the definition is never guessed at. */
+  detail: string;
+  match: (m: Member) => boolean;
+};
+
+export const segments: Segment[] = [
+  {
+    key: "all",
+    label: "Everyone",
+    detail: "Every record in the directory.",
+    match: () => true,
+  },
+  {
+    key: "lapsed",
+    label: "Lapsed",
+    detail: `Not seen in ${LAPSED_DAYS} days or more, and not revoked.`,
+    match: (m) => m.lastSeenDays >= LAPSED_DAYS && m.status !== "revoked",
+  },
+  {
+    key: "never-listed",
+    label: "Never listed",
+    detail: "Has never published a listing, however long they have been here.",
+    match: (m) => m.listed === 0,
+  },
+  {
+    key: "unverified",
+    label: "Stuck in verification",
+    detail: "Started the funnel and never came out of it.",
+    match: (m) => memberNow(m).verification !== "id-verified",
+  },
+  {
+    key: "billing",
+    label: "Billing needs attention",
+    detail: "Payment failed or the subscription was cancelled.",
+    match: (m) => m.billing === "past-due" || m.billing === "cancelled",
+  },
+  {
+    key: "at-risk",
+    label: "At risk",
+    detail: "Carrying a strike, restricted, or reported and still open.",
+    match: (m) => m.strikes > 0 || m.status === "restricted",
+  },
+];
+
+/* --------------------------------------------------------------------------
+   Comms
+
+   Push and email to a segment. Templates are the three the brief names, and
+   each one says which channel it is actually suited to — a policy change that
+   goes out as a push notification and nowhere else has not been sent.
+   -------------------------------------------------------------------------- */
+
+export type CommsTemplate = {
+  key: string;
+  label: string;
+  /** What it is for, in the sender's words. */
+  detail: string;
+  subject: string;
+  body: string;
+  channels: ("push" | "email")[];
+};
+
+export const commsTemplates: CommsTemplate[] = [
+  {
+    key: "digest",
+    label: "Price-alert digest",
+    detail: "Weekly movement on the cards they watch. The one people opt into.",
+    subject: "This week on your watchlist",
+    body: "Three cards you follow moved more than 5% this week. Open Grail Market to see the comparable sales behind each figure.",
+    channels: ["push", "email"],
+  },
+  {
+    key: "plan",
+    label: "Plan prompt",
+    detail: "For members at their listing ceiling, or with a failed payment.",
+    subject: "You are at your listing limit",
+    body: "Your plan allows a set number of live listings at once. Upgrading lifts the ceiling immediately; nothing you have already listed is affected.",
+    channels: ["push", "email"],
+  },
+  {
+    key: "policy",
+    label: "Policy change",
+    detail: "Email only. A rule change has to be readable later, not swiped away.",
+    subject: "A change to the Grail Market rules",
+    body: "We are changing how reports and conduct cases are handled. The full text is on the policy page; this email is the record that you were told.",
+    channels: ["email"],
+  },
+];
+
 
 /* ==========================================================================
    Conflict resolution
@@ -1012,8 +1973,13 @@ export type Conflict = {
   kind: ConflictKind;
   status: ConflictStatus;
   opened: string;
+  /**
+   * What the trade between the two was worth. Context for how serious the
+   * case is — nothing is held against it, because nothing passes through us.
+   */
   amount: number;
-  heldFunds: boolean;
+  /** Whose conduct is being reported. The outcome lands on this account. */
+  against: "buyer" | "seller";
   listing: { id: string; card: string; setLine: string; grader: Grader; grade: string; game: Game; art?: string };
   buyer: { handle: string; name: string; initials: string; joined: string; disputes: number };
   seller: { handle: string; name: string; initials: string; joined: string; disputes: number };
@@ -1027,11 +1993,11 @@ export type Conflict = {
 export const conflicts: Conflict[] = [
   {
     id: "CF-2291",
-    kind: "grade-mismatch",
+    kind: "not-as-described",
     status: "escalated",
     opened: "2026-08-28T14:20:00Z",
     amount: 6900,
-    heldFunds: true,
+    against: "seller",
     listing: {
       id: "LS-9041",
       card: "Giannis Antetokounmpo #340",
@@ -1055,31 +2021,31 @@ export const conflicts: Conflict[] = [
       disputes: 4,
     },
     buyerClaim:
-      "The slab that arrived is a PSA 9, not the PSA 10 in the listing. The cert number on the label does not match the one shown in the listing photos.",
+      "The slab he brought to the meet is a PSA 9, not the PSA 10 in the listing. The cert on the label does not match the one in the listing photos, and he had the listing open on his phone.",
     sellerClaim:
-      "I shipped the exact slab I photographed. The buyer is comparing against a screenshot from a different listing of mine — I have two Giannis Prizms and both were live that week.",
+      "I brought the exact slab I photographed. The buyer is comparing against a screenshot from a different listing of mine. I have two Giannis Prizms and both were live that week.",
     evidence: [
-      { label: "Slab label close-up (received)", from: "buyer", kind: "photo" },
+      { label: "Slab label close-up, taken at the meet", from: "buyer", kind: "photo" },
       { label: "Original listing photo set (6)", from: "seller", kind: "photo" },
-      { label: "Packing video, 4m12s", from: "seller", kind: "document" },
-      { label: "UPS delivery scan", from: "seller", kind: "tracking" },
+      { label: "Message thread, full export", from: "buyer", kind: "document" },
+      { label: "PSA register lookup, both certs", from: "seller", kind: "document" },
     ],
     timeline: [
-      { at: "28 Aug, 14:20", by: "Owen Fitzgerald", side: "buyer", text: "Opened a conflict: grade does not match the listing." },
-      { at: "28 Aug, 16:02", by: "System", side: "system", text: "Payout of $6,900 placed on hold." },
-      { at: "29 Aug, 09:15", by: "Marcus Hale", side: "seller", text: "Submitted packing video and the original photo set." },
-      { at: "30 Aug, 11:40", by: "Marco Reyes", side: "admin", text: "Proposed a 50/50 split. Both parties declined." },
-      { at: "31 Aug, 08:05", by: "System", side: "system", text: "Escalated — open past 72 hours with no agreement." },
+      { at: "28 Aug, 14:20", by: "Owen Fitzgerald", side: "buyer", text: "Reported @courtsidecards. The card shown in the listing was not the card brought." },
+      { at: "28 Aug, 16:02", by: "System", side: "system", text: "Seller's live listings paused pending review. Both accounts notified." },
+      { at: "29 Aug, 09:15", by: "Marcus Hale", side: "seller", text: "Submitted the original photo set and register lookups for both certs." },
+      { at: "30 Aug, 11:40", by: "Marco Reyes", side: "admin", text: "Both certs are genuine and both are his. Cannot yet establish which one was listed." },
+      { at: "31 Aug, 08:05", by: "System", side: "system", text: "Escalated to Trust and safety, open past 72 hours with no finding." },
     ],
     ageHours: 78,
   },
   {
     id: "CF-2289",
-    kind: "non-delivery",
+    kind: "no-show",
     status: "awaiting-evidence",
     opened: "2026-08-30T09:05:00Z",
     amount: 1420,
-    heldFunds: true,
+    against: "seller",
     listing: {
       id: "LS-9031",
       card: "Shohei Ohtani #660",
@@ -1103,26 +2069,26 @@ export const conflicts: Conflict[] = [
       disputes: 1,
     },
     buyerClaim:
-      "Tracking has said 'label created' for nine days. No package, no reply to two messages.",
+      "We agreed a time and a place and she confirmed that morning. She did not turn up and has not answered two messages since. I travelled 40 minutes each way.",
     sellerClaim: "Awaiting a response from the seller.",
     evidence: [
-      { label: "Tracking history export", from: "buyer", kind: "tracking" },
-      { label: "Message thread screenshots", from: "buyer", kind: "document" },
+      { label: "Message thread confirming the meet", from: "buyer", kind: "document" },
+      { label: "Screenshots of two unanswered follow-ups", from: "buyer", kind: "document" },
     ],
     timeline: [
-      { at: "30 Aug, 09:05", by: "Jade Lim", side: "buyer", text: "Opened a conflict: item never shipped." },
-      { at: "30 Aug, 09:06", by: "System", side: "system", text: "Payout of $1,420 placed on hold. Seller given 72h to respond." },
-      { at: "31 Aug, 10:00", by: "System", side: "system", text: "Reminder sent to the seller. 24h remaining." },
+      { at: "30 Aug, 09:05", by: "Jade Lim", side: "buyer", text: "Reported @pacificrim_pc. Agreed a meet, did not attend, stopped replying." },
+      { at: "30 Aug, 09:06", by: "System", side: "system", text: "Seller given 72h to answer. Their listing is held off the market until they do." },
+      { at: "31 Aug, 10:00", by: "System", side: "system", text: "Reminder sent to the seller. 24h remaining before the case decides without them." },
     ],
     ageHours: 30,
   },
   {
     id: "CF-2288",
-    kind: "damaged-in-transit",
+    kind: "threats",
     status: "open",
     opened: "2026-08-30T18:40:00Z",
     amount: 3120,
-    heldFunds: true,
+    against: "seller",
     listing: {
       id: "LS-9036",
       card: "Lugia #9",
@@ -1147,28 +2113,28 @@ export const conflicts: Conflict[] = [
       disputes: 0,
     },
     buyerClaim:
-      "The slab arrived cracked along the top seam. The card itself looks fine but the case is compromised and CGC will not honour it as-is.",
+      "I asked one question about the seam on the case and he told me he knows the area I live in and that I should think carefully about my next message. I have stopped replying. I want it on record.",
     sellerClaim:
-      "It left here intact — I have unboxing footage. This is a courier problem and the parcel was insured for full value.",
+      "I was angry and I typed something stupid. I did not mean it as a threat and I apologised in the thread twenty minutes later.",
     evidence: [
-      { label: "Cracked slab, 5 angles", from: "buyer", kind: "photo" },
-      { label: "Packing footage", from: "seller", kind: "document" },
-      { label: "Insurance certificate", from: "seller", kind: "document" },
+      { label: "Message thread, unedited export", from: "buyer", kind: "document" },
+      { label: "Screenshots of the two messages", from: "buyer", kind: "photo" },
+      { label: "Seller's apology, sent 21 minutes later", from: "seller", kind: "document" },
     ],
     timeline: [
-      { at: "30 Aug, 18:40", by: "Tom Bennett", side: "buyer", text: "Opened a conflict: slab damaged in transit." },
-      { at: "30 Aug, 18:41", by: "System", side: "system", text: "Payout of $3,120 placed on hold." },
-      { at: "31 Aug, 07:30", by: "Takumi Kondo", side: "seller", text: "Submitted packing footage and insurance certificate." },
+      { at: "30 Aug, 18:40", by: "Tom Bennett", side: "buyer", text: "Reported @johto_grails. Threatening message referencing where he lives." },
+      { at: "30 Aug, 18:41", by: "System", side: "system", text: "Routed straight to Trust and safety. Messaging between the two accounts closed." },
+      { at: "31 Aug, 07:30", by: "Ayna Sulaiman", side: "admin", text: "Thread preserved unedited in case this goes to police. Buyer asked whether he should report it himself." },
     ],
     ageHours: 21,
   },
   {
     id: "CF-2285",
-    kind: "authenticity",
+    kind: "counterfeit",
     status: "open",
     opened: "2026-08-29T12:15:00Z",
     amount: 5400,
-    heldFunds: true,
+    against: "seller",
     listing: {
       id: "LS-9008",
       card: "Blastoise #2",
@@ -1193,26 +2159,26 @@ export const conflicts: Conflict[] = [
       disputes: 5,
     },
     buyerClaim:
-      "The slab looks resealed. The label font weight is off and there is adhesive residue on the inner lip.",
+      "The slab looks resealed. The label font weight is off and there is adhesive residue on the inner lip. This is the third listing of his I have queried this month.",
     sellerClaim: "Bought it this way at a show. I have no way to know.",
     evidence: [
       { label: "Macro shots of the seam (8)", from: "buyer", kind: "photo" },
       { label: "PSA register lookup", from: "buyer", kind: "document" },
     ],
     timeline: [
-      { at: "29 Aug, 12:15", by: "Ines Duarte", side: "buyer", text: "Opened a conflict: suspected resealed slab." },
-      { at: "29 Aug, 12:16", by: "System", side: "system", text: "Payout of $5,400 placed on hold." },
-      { at: "30 Aug, 15:00", by: "Ayna Sulaiman", side: "admin", text: "Listing withdrawn pending review. Seller's other listings frozen." },
+      { at: "29 Aug, 12:15", by: "Ines Duarte", side: "buyer", text: "Reported @vault_flipper. Suspected resealed slab." },
+      { at: "29 Aug, 12:16", by: "System", side: "system", text: "Fifth report against this account in 30 days. Flagged to Trust and safety." },
+      { at: "30 Aug, 15:00", by: "Ayna Sulaiman", side: "admin", text: "Listing withdrawn pending review. The seller's other listings pulled off the market." },
     ],
     ageHours: 45,
   },
   {
     id: "CF-2287",
-    kind: "not-as-described",
+    kind: "off-platform",
     status: "resolved",
     opened: "2026-08-26T10:00:00Z",
     amount: 8400,
-    heldFunds: false,
+    against: "buyer",
     listing: {
       id: "LS-8974",
       card: "Charizard VMAX #020",
@@ -1235,16 +2201,18 @@ export const conflicts: Conflict[] = [
       joined: "Feb 2023",
       disputes: 1,
     },
-    buyerClaim: "Listing said 'mint case'. There is a hairline scuff on the front of the slab.",
-    sellerClaim: "The scuff is visible in listing photo 3 and was disclosed in the description.",
+    buyerClaim:
+      "I asked to settle it directly to save us both the trouble. I did not know that was against the rules.",
+    sellerClaim:
+      "He asked me twice to take the sale off-platform, the second time after I had already said no. Screenshotting rather than replying, as the help page says to.",
     evidence: [
-      { label: "Listing photo 3, annotated", from: "seller", kind: "photo" },
-      { label: "Received condition photos", from: "buyer", kind: "photo" },
+      { label: "Screenshots of both requests", from: "seller", kind: "photo" },
+      { label: "Message thread export", from: "seller", kind: "document" },
     ],
     timeline: [
-      { at: "26 Aug, 10:00", by: "Ryan Osei", side: "buyer", text: "Opened a conflict: case condition not as described." },
-      { at: "27 Aug, 14:20", by: "Daniel Wu", side: "seller", text: "Pointed to the disclosure in photo 3." },
-      { at: "31 Aug, 06:10", by: "Ayna Sulaiman", side: "admin", text: "Resolved for the seller — the scuff was disclosed. Funds released." },
+      { at: "26 Aug, 10:00", by: "Daniel Wu", side: "seller", text: "Reported @galar_pc. Asked twice to complete the sale off-platform." },
+      { at: "27 Aug, 14:20", by: "Ryan Osei", side: "buyer", text: "Accepted that it happened. Says he did not know the rule." },
+      { at: "31 Aug, 06:10", by: "Ayna Sulaiman", side: "admin", text: "Formal warning recorded against @galar_pc. First offence, admitted, nothing lost by the seller. A second one restricts the account." },
     ],
     ageHours: 120,
   },
@@ -1252,33 +2220,74 @@ export const conflicts: Conflict[] = [
 
 export const conflictKindLabel: Record<ConflictKind, string> = {
   "not-as-described": "Not as described",
-  "non-delivery": "Non-delivery",
-  authenticity: "Authenticity",
-  payment: "Payment",
-  "grade-mismatch": "Grade mismatch",
-  "damaged-in-transit": "Damaged in transit",
+  "off-platform": "Asked me to go off-platform",
+  "no-show": "No-show",
+  threats: "Threats or harassment",
+  counterfeit: "Counterfeit or tampered slab",
 };
 
-export const resolutionOptions = [
+/**
+ * What closing a case can actually do.
+ *
+ * Grail Market holds no funds, so there is no refund to award and no payout
+ * to release. Every outcome here acts on standing — what the account may do
+ * and what its record says — which is the only lever the platform has.
+ *
+ * `severity` orders them; `escalates` marks the two that a Tier 1 or Tier 2
+ * agent cannot apply on their own.
+ */
+export type ConductAction = {
+  key: string;
+  title: string;
+  detail: string;
+  severity: 0 | 1 | 2 | 3 | 4;
+  tone: "ok" | "warn" | "bad";
+  /** Needs Trust and safety, not a moderator. */
+  escalates?: boolean;
+};
+
+export const conductActions: ConductAction[] = [
   {
-    key: "buyer",
-    title: "Full refund to buyer",
-    detail: "Return required. Funds move back within 2 business days once tracking shows delivery.",
+    key: "none",
+    title: "No action",
+    detail:
+      "The report is closed without a finding. It stays on both records as a case that was raised and answered, so a pattern is still visible later.",
+    severity: 0,
+    tone: "ok",
   },
   {
-    key: "seller",
-    title: "Release funds to seller",
-    detail: "Closes the conflict in the seller's favour. The hold is lifted immediately.",
+    key: "warn",
+    title: "Warn",
+    detail:
+      "A formal warning, worded by you, sent to the member and written to their record. Says which rule was broken and what a second one costs.",
+    severity: 1,
+    tone: "warn",
   },
   {
-    key: "split",
-    title: "Partial refund",
-    detail: "Split the amount. Both sides must accept, or it escalates back here.",
+    key: "restrict",
+    title: "Restrict",
+    detail:
+      "Listing and selling stop; browsing and buying continue. Live listings come off the market. Lifted by a lead moderator, never automatically.",
+    severity: 2,
+    tone: "warn",
   },
   {
-    key: "return",
-    title: "Return and relist",
-    detail: "Card goes back to the seller, buyer is made whole, the listing re-enters verification.",
+    key: "close",
+    title: "Close the account",
+    detail:
+      "Sign-in blocked, every listing pulled, the handle retired so it cannot be re-registered. The member is emailed the reason recorded here.",
+    severity: 3,
+    tone: "bad",
+    escalates: true,
+  },
+  {
+    key: "police",
+    title: "Refer to police",
+    detail:
+      "For threats, stalking and fraud. The case, the message thread and the verified identity go to Trust and safety, who make the report. Identity is released on lawful request only.",
+    severity: 4,
+    tone: "bad",
+    escalates: true,
   },
 ];
 
@@ -1294,16 +2303,64 @@ export type Member = {
   email: string;
   role: MemberRole;
   status: MemberStatus;
+  /** What they pay for, and what Stripe says about it. */
+  plan: PlanKey;
+  billing: BillingState;
+  /** How far through the funnel — see `VerificationLevel`. */
+  verification: VerificationLevel;
   joined: string;
   lastSeen: string;
+  /**
+   * The same figure as `lastSeen`, as a number.
+   *
+   * Segmenting by activity cannot be done against "12 minutes ago" — the
+   * string is for reading, this is for filtering, and they are written from
+   * the same fact so they cannot disagree.
+   */
+  lastSeenDays: number;
   country: string;
   sales: number;
   purchases: number;
+  /** Listings ever published. 0 is the never-listed cohort. */
+  listed: number;
+  /** Live on the market right now — what a plan downgrade has to fit under. */
+  liveListings: number;
   volume: number;
   rating: number;
   strikes: number;
   verifiedSeller: boolean;
+  /** Internal labels. Never shown to the member. */
+  tags: string[];
   note?: string;
+};
+
+export const planLabel: Record<PlanKey, string> = {
+  none: "No plan",
+  starter: "Starter",
+  collector: "Collector",
+  dealer: "Dealer",
+};
+
+export const verificationLabel: Record<VerificationLevel, string> = {
+  none: "Unverified",
+  mobile: "Mobile confirmed",
+  "id-submitted": "ID submitted",
+  "id-verified": "ID verified",
+};
+
+export const billingLabel: Record<BillingState, string> = {
+  active: "Billing active",
+  "past-due": "Payment failed",
+  cancelled: "Cancelled",
+  none: "Never subscribed",
+};
+
+/** Live-listing ceiling per plan. null = no ceiling. Mirrors `subscriptionTiers`. */
+export const planQuota: Record<PlanKey, number | null> = {
+  none: 0,
+  starter: 1,
+  collector: 10,
+  dealer: null,
 };
 
 export const members: Member[] = [
@@ -1315,15 +2372,22 @@ export const members: Member[] = [
     email: "elena@moonbreon.co",
     role: "buyer-seller",
     status: "active",
+    plan: "dealer",
+    billing: "active",
+    verification: "id-verified",
     joined: "2023-05-14",
     lastSeen: "12 minutes ago",
+    lastSeenDays: 0,
     country: "Portugal",
     sales: 366,
     purchases: 91,
+    listed: 402,
+    liveListings: 24,
     volume: 428400,
     rating: 5.0,
     strikes: 0,
     verifiedSeller: true,
+    tags: ["top-seller", "fast-dispatch"],
   },
   {
     id: "MB-0987",
@@ -1333,16 +2397,23 @@ export const members: Member[] = [
     email: "marcus@courtsidecards.com",
     role: "seller",
     status: "active",
+    plan: "dealer",
+    billing: "active",
+    verification: "id-verified",
     joined: "2023-01-09",
     lastSeen: "1 hour ago",
+    lastSeenDays: 0,
     country: "United States",
     sales: 512,
     purchases: 14,
+    listed: 610,
+    liveListings: 31,
     volume: 741200,
     rating: 4.8,
     strikes: 1,
     verifiedSeller: true,
-    note: "One open grade-mismatch conflict (CF-2291).",
+    tags: ["high-volume", "watch"],
+    note: "One open not-as-described case (CF-2291). Listings paused while it runs.",
   },
   {
     id: "MB-1188",
@@ -1352,16 +2423,23 @@ export const members: Member[] = [
     email: "cdoyle.trades@mail.com",
     role: "seller",
     status: "revoked",
+    plan: "collector",
+    billing: "cancelled",
+    verification: "id-verified",
     joined: "2026-07-02",
     lastSeen: "48 minutes ago",
+    lastSeenDays: 0,
     country: "Ireland",
     sales: 12,
     purchases: 3,
+    listed: 18,
+    liveListings: 0,
     volume: 21800,
     rating: 3.4,
     strikes: 3,
     verifiedSeller: false,
-    note: "Access revoked 31 Aug — three authenticity strikes in 30 days. Two listings withdrawn, $5,400 held pending CF-2285.",
+    tags: ["repeat-reports"],
+    note: "Access revoked 31 Aug after three authenticity strikes in 30 days. Two listings withdrawn, and CF-2285 is still open.",
   },
   {
     id: "MB-0771",
@@ -1371,15 +2449,22 @@ export const members: Member[] = [
     email: "dan@holovault.io",
     role: "buyer-seller",
     status: "active",
+    plan: "dealer",
+    billing: "active",
+    verification: "id-verified",
     joined: "2023-02-27",
     lastSeen: "3 hours ago",
+    lastSeenDays: 0,
     country: "Singapore",
     sales: 214,
     purchases: 158,
+    listed: 240,
+    liveListings: 12,
     volume: 512900,
     rating: 4.9,
     strikes: 0,
     verifiedSeller: true,
+    tags: ["trusted"],
   },
   {
     id: "MB-1301",
@@ -1389,15 +2474,22 @@ export const members: Member[] = [
     email: "amir@duelistdepot.net",
     role: "seller",
     status: "restricted",
+    plan: "collector",
+    billing: "active",
+    verification: "id-verified",
     joined: "2024-11-18",
     lastSeen: "9 hours ago",
+    lastSeenDays: 0,
     country: "United Arab Emirates",
     sales: 89,
     purchases: 22,
+    listed: 96,
+    liveListings: 0,
     volume: 96300,
     rating: 4.6,
     strikes: 2,
     verifiedSeller: false,
+    tags: ["under-review"],
     note: "Listing privileges paused after two pricing-manipulation reports. Buying still allowed.",
   },
   {
@@ -1408,15 +2500,22 @@ export const members: Member[] = [
     email: "rosa@alphaonly.cards",
     role: "consignor",
     status: "active",
+    plan: "dealer",
+    billing: "active",
+    verification: "id-verified",
     joined: "2025-03-30",
     lastSeen: "22 minutes ago",
+    lastSeenDays: 0,
     country: "United Kingdom",
     sales: 76,
     purchases: 4,
+    listed: 88,
+    liveListings: 9,
     volume: 318700,
     rating: 5.0,
     strikes: 0,
     verifiedSeller: true,
+    tags: ["consignment"],
   },
   {
     id: "MB-1512",
@@ -1426,15 +2525,22 @@ export const members: Member[] = [
     email: "sofia.m@grandline.gr",
     role: "buyer-seller",
     status: "active",
+    plan: "collector",
+    billing: "active",
+    verification: "id-verified",
     joined: "2024-08-04",
     lastSeen: "5 hours ago",
+    lastSeenDays: 0,
     country: "Greece",
     sales: 148,
     purchases: 203,
+    listed: 160,
+    liveListings: 6,
     volume: 187500,
     rating: 4.9,
     strikes: 0,
     verifiedSeller: true,
+    tags: ["raised-a-report"],
   },
   {
     id: "MB-1633",
@@ -1444,15 +2550,22 @@ export const members: Member[] = [
     email: "yuki@kantoarchive.jp",
     role: "consignor",
     status: "pending",
+    plan: "dealer",
+    billing: "active",
+    verification: "id-submitted",
     joined: "2026-08-19",
     lastSeen: "1 day ago",
+    lastSeenDays: 1,
     country: "Japan",
     sales: 31,
     purchases: 0,
+    listed: 34,
+    liveListings: 2,
     volume: 402000,
     rating: 4.7,
     strikes: 0,
     verifiedSeller: false,
+    tags: ["consignment", "grail-tier"],
     note: "Consignor agreement signed, awaiting provenance review on VF-4815.",
   },
   {
@@ -1463,15 +2576,22 @@ export const members: Member[] = [
     email: "owen.fitz@mail.com",
     role: "buyer",
     status: "active",
+    plan: "starter",
+    billing: "active",
+    verification: "id-verified",
     joined: "2024-03-11",
     lastSeen: "2 hours ago",
+    lastSeenDays: 0,
     country: "United States",
     sales: 0,
     purchases: 46,
+    listed: 0,
+    liveListings: 0,
     volume: 88400,
     rating: 4.8,
     strikes: 0,
     verifiedSeller: false,
+    tags: [],
   },
   {
     id: "MB-1802",
@@ -1481,15 +2601,22 @@ export const members: Member[] = [
     email: "takumi@johtograils.jp",
     role: "seller",
     status: "active",
+    plan: "collector",
+    billing: "active",
+    verification: "id-verified",
     joined: "2023-08-21",
     lastSeen: "6 hours ago",
+    lastSeenDays: 0,
     country: "Japan",
     sales: 194,
     purchases: 31,
+    listed: 210,
+    liveListings: 8,
     volume: 264100,
     rating: 4.9,
     strikes: 0,
     verifiedSeller: true,
+    tags: [],
   },
   {
     id: "MB-1877",
@@ -1499,16 +2626,23 @@ export const members: Member[] = [
     email: "hana@pacificrim.pc",
     role: "seller",
     status: "restricted",
+    plan: "collector",
+    billing: "past-due",
+    verification: "id-verified",
     joined: "2024-06-02",
     lastSeen: "4 days ago",
+    lastSeenDays: 4,
     country: "Japan",
     sales: 141,
     purchases: 8,
+    listed: 150,
+    liveListings: 0,
     volume: 112900,
     rating: 4.5,
     strikes: 1,
     verifiedSeller: true,
-    note: "Payouts frozen while CF-2289 (non-delivery) is open.",
+    tags: ["payment-failed"],
+    note: "Listings held off the market while CF-2289 (no-show) is open.",
   },
   {
     id: "MB-1901",
@@ -1518,15 +2652,98 @@ export const members: Member[] = [
     email: "ines@shadowless.pt",
     role: "buyer",
     status: "active",
+    plan: "starter",
+    billing: "active",
+    verification: "mobile",
     joined: "2024-09-15",
     lastSeen: "8 hours ago",
+    lastSeenDays: 0,
     country: "Portugal",
     sales: 0,
     purchases: 62,
+    listed: 0,
+    liveListings: 0,
     volume: 141600,
     rating: 5.0,
     strikes: 0,
     verifiedSeller: false,
+    tags: [],
+  },
+  {
+    id: "MB-1503",
+    handle: "@sunsetbinder",
+    name: "Priya Raman",
+    initials: "PR",
+    email: "priya@sunsetbinder.au",
+    role: "buyer-seller",
+    status: "active",
+    plan: "starter",
+    billing: "past-due",
+    verification: "mobile",
+    joined: "2024-02-10",
+    lastSeen: "4 months ago",
+    lastSeenDays: 124,
+    country: "Australia",
+    sales: 11,
+    purchases: 6,
+    listed: 14,
+    liveListings: 0,
+    volume: 8400,
+    rating: 4.4,
+    strikes: 0,
+    verifiedSeller: false,
+    tags: ["lapsed"],
+    note: "Card has failed twice since May. Two plan prompts sent, no reply.",
+  },
+  {
+    id: "MB-1209",
+    handle: "@tcg_dormant",
+    name: "Ben Whitfield",
+    initials: "BW",
+    email: "ben.whitfield@outlook.com",
+    role: "buyer",
+    status: "active",
+    plan: "none",
+    billing: "cancelled",
+    verification: "id-verified",
+    joined: "2023-09-01",
+    lastSeen: "7 months ago",
+    lastSeenDays: 214,
+    country: "United Kingdom",
+    sales: 0,
+    purchases: 19,
+    listed: 0,
+    liveListings: 0,
+    volume: 21300,
+    rating: 4.8,
+    strikes: 0,
+    verifiedSeller: false,
+    tags: [],
+  },
+  {
+    id: "MB-1990",
+    handle: "@newcomer_au",
+    name: "Lucy Tran",
+    initials: "LT",
+    email: "lucy.tran@proton.me",
+    role: "buyer",
+    status: "pending",
+    plan: "starter",
+    billing: "active",
+    verification: "none",
+    joined: "2026-08-30",
+    lastSeen: "3 hours ago",
+    lastSeenDays: 0,
+    country: "Australia",
+    sales: 0,
+    purchases: 0,
+    listed: 0,
+    liveListings: 0,
+    volume: 0,
+    rating: 0,
+    strikes: 0,
+    verifiedSeller: false,
+    tags: ["new"],
   },
 ];
 
@@ -1551,7 +2768,7 @@ export type Report = {
   cadence: string;
   updated: string;
   format: string;
-  category: "Marketplace" | "Moderation" | "Finance" | "Members";
+  category: "Marketplace" | "Moderation" | "Trust and safety" | "Members";
   /** How the report draws itself — the caption under its name in the
       catalogue, and what the panel actually renders when it is selected. */
   chart: "Area chart" | "Line chart" | "Column chart" | "Table";
@@ -1596,7 +2813,7 @@ export const reports: Report[] = [
   {
     id: "RP-03",
     name: "Conflict outcomes",
-    detail: "Every conflict closed in the period, its category, who it went to, and the amount moved.",
+    detail: "Every case closed in the period, what it was about, whose conduct it concerned, and the action applied.",
     cadence: "Weekly · Monday",
     updated: "3 days ago",
     format: "CSV · PDF",
@@ -1609,17 +2826,18 @@ export const reports: Report[] = [
   },
   {
     id: "RP-04",
-    name: "Payouts and holds",
-    detail: "Funds released, funds held, and the age of every hold still open at the cut-off.",
+    name: "Conduct actions",
+    detail:
+      "Every warning, restriction, closure and police referral in the period, with the case it came from and the moderator who applied it.",
     cadence: "Daily · 23:00 UTC",
     updated: "9 hours ago",
     format: "CSV · XLSX",
-    category: "Finance",
+    category: "Trust and safety",
     chart: "Column chart",
-    unit: "k",
-    headline: "$286,410",
-    headlineLabel: "Released to sellers",
-    trend: [42, 48, 44, 51, 55, 52, 61, 58, 66, 71, 68, 79],
+    unit: "n",
+    headline: "134",
+    headlineLabel: "Actions applied",
+    trend: [8, 11, 9, 14, 12, 10, 16, 13, 15, 12, 9, 11],
   },
   {
     id: "RP-05",
@@ -1695,16 +2913,25 @@ export const decisionSplit = [
 ];
 
 export const conflictOutcomes = [
-  { label: "For the buyer", value: 38 },
-  { label: "For the seller", value: 51 },
-  { label: "Partial refund", value: 22 },
-  { label: "Return, relist", value: 14 },
-  { label: "Withdrawn", value: 9 },
+  { label: "Warned", value: 51 },
+  { label: "No action", value: 38 },
+  { label: "Restricted", value: 22 },
+  { label: "Account closed", value: 14 },
+  { label: "Referred to police", value: 3 },
 ];
 
 /* ==========================================================================
    Support
    ========================================================================== */
+
+export type TicketMessage = {
+  from: "member" | "admin";
+  author: string;
+  text: string;
+  at: string;
+  /** Set on the entry an escalation writes, so the handover reads in place. */
+  system?: boolean;
+};
 
 export type Ticket = {
   id: string;
@@ -1712,32 +2939,69 @@ export type Ticket = {
   preview: string;
   status: TicketStatus;
   priority: TicketPriority;
+  /** Which rung holds it now. */
+  tier: SupportTier;
   category: string;
   member: { handle: string; name: string; initials: string; role: MemberRole };
   opened: string;
   lastReply: string;
+  /**
+   * Hours left on the first-reply target. Negative is over.
+   *
+   * Same convention and same sign as `Listing.slaHours`, so the queue badge
+   * on both pages can be read the same way without checking which one it is.
+   */
+  slaHours: number;
+  /** Whether a person has answered yet — the clock stops on the first reply. */
+  answered: boolean;
   assignee?: string;
-  thread: { from: "member" | "admin"; author: string; text: string; at: string }[];
+  thread: TicketMessage[];
 };
 
 export const tickets: Ticket[] = [
   {
     id: "SP-1194",
-    subject: "Payout still on hold after the conflict closed",
+    subject: "The member I reported is messaging me again",
     preview:
-      "CF-2287 was resolved in my favour four days ago but the $8,400 has not landed. Support said 2 business days.",
+      "CF-2287 closed with a warning four days ago and he has messaged me twice since. I do not want to deal with him.",
     status: "new",
     priority: "urgent",
-    category: "Payouts",
+    tier: "trust-safety",
+    category: "Trust and safety",
     member: { handle: "@holo_vault", name: "Daniel Wu", initials: "DW", role: "buyer-seller" },
     opened: "2026-08-31T08:40:00Z",
     lastReply: "45 minutes ago",
+    slaHours: -2,
+    answered: false,
     thread: [
       {
         from: "member",
         author: "Daniel Wu",
         at: "31 Aug, 08:40",
-        text: "CF-2287 was resolved in my favour four days ago but the $8,400 has not landed. Support said 2 business days. It has been four.",
+        text: "CF-2287 closed with a warning four days ago. He has messaged me twice since, once about the same card. I do not want any contact with this account.",
+      },
+    ],
+  },
+  {
+    id: "SP-1196",
+    subject: "Paid for a boost and nothing happened",
+    preview:
+      "Bought a 7-day boost on Tuesday. The listing is in the same place it was. Nobody has replied.",
+    status: "new",
+    priority: "normal",
+    tier: "tier-1",
+    category: "Listings",
+    member: { handle: "@johto_grails", name: "Takumi Kondo", initials: "TK", role: "seller" },
+    opened: "2026-08-31T04:15:00Z",
+    lastReply: "6 hours ago",
+    slaHours: 2,
+    answered: false,
+    thread: [
+      {
+        from: "member",
+        author: "Takumi Kondo",
+        at: "31 Aug, 04:15",
+        text: "I bought a 7-day boost on LS-9036 on Tuesday and the listing has not moved. Has it been applied or not?",
       },
     ],
   },
@@ -1748,10 +3012,13 @@ export const tickets: Ticket[] = [
       "VF-4815 (Pikachu Illustrator) is still sitting in review. I sent the auction invoice on Tuesday. Is anything else needed?",
     status: "open",
     priority: "high",
+    tier: "tier-2",
     category: "Verification",
     member: { handle: "@kanto_archive", name: "Yuki Tanaka", initials: "YT", role: "consignor" },
     opened: "2026-08-30T11:15:00Z",
     lastReply: "2 hours ago",
+    slaHours: 3,
+    answered: true,
     assignee: "Ayna Sulaiman",
     thread: [
       {
@@ -1764,7 +3031,7 @@ export const tickets: Ticket[] = [
         from: "admin",
         author: "Ayna Sulaiman",
         at: "30 Aug, 15:02",
-        text: "Thank you — the invoice arrived. A card at this price with two comparable sales on record needs a second reviewer, which is where it sits now. I will come back to you within 48 hours either way.",
+        text: "Thank you, the invoice arrived. A card at this price with two comparable sales on record needs a second reviewer, which is where it sits now. I will come back to you within 48 hours either way.",
       },
       {
         from: "member",
@@ -1776,14 +3043,17 @@ export const tickets: Ticket[] = [
   },
   {
     id: "SP-1190",
-    subject: "Cannot list — account says restricted",
+    subject: "Cannot list, account says restricted",
     preview: "I can browse and buy but the sell button is gone. No email explaining why.",
     status: "open",
     priority: "high",
+    tier: "tier-2",
     category: "Account",
     member: { handle: "@duelistdepot", name: "Amir Farooq", initials: "AF", role: "seller" },
     opened: "2026-08-30T07:22:00Z",
     lastReply: "1 day ago",
+    slaHours: 6,
+    answered: true,
     assignee: "Marco Reyes",
     thread: [
       {
@@ -1806,10 +3076,13 @@ export const tickets: Ticket[] = [
     preview: "Do you take CGC and SGC slabs for the consignment programme, or PSA and BGS only?",
     status: "waiting",
     priority: "normal",
+    tier: "tier-1",
     category: "Verification",
     member: { handle: "@neo_era", name: "Tom Bennett", initials: "TB", role: "buyer" },
     opened: "2026-08-29T16:05:00Z",
     lastReply: "2 days ago",
+    slaHours: 19,
+    answered: true,
     assignee: "Priya Nandakumar",
     thread: [
       {
@@ -1822,7 +3095,7 @@ export const tickets: Ticket[] = [
         from: "admin",
         author: "Priya Nandakumar",
         at: "29 Aug, 17:30",
-        text: "All four, plus TAG. Each grader is priced on its own scale — we never convert a grade between companies to reach a figure, so a CGC 9.5 is valued from CGC 9.5 sales only.",
+        text: "All four, plus TAG. Each grader is priced on its own scale. We never convert a grade between companies to reach a figure, so a CGC 9.5 is valued from CGC 9.5 sales only.",
       },
     ],
   },
@@ -1832,10 +3105,13 @@ export const tickets: Ticket[] = [
     preview: "Screenshotting this rather than replying. Handle attached.",
     status: "open",
     priority: "urgent",
+    tier: "trust-safety",
     category: "Trust and safety",
     member: { handle: "@grandline_gr", name: "Sofia Marchetti", initials: "SM", role: "buyer-seller" },
     opened: "2026-08-29T09:48:00Z",
     lastReply: "3 hours ago",
+    slaHours: 1,
+    answered: true,
     assignee: "Ayna Sulaiman",
     thread: [
       {
@@ -1854,27 +3130,30 @@ export const tickets: Ticket[] = [
   },
   {
     id: "SP-1180",
-    subject: "Refund arrived short by the shipping cost",
-    preview: "Full refund was agreed but the shipping was deducted. $18 short.",
+    subject: "Why did I get a warning for asking to pay direct?",
+    preview: "I offered a bank transfer to save the seller trouble. Now there is a warning on my account.",
     status: "resolved",
     priority: "low",
-    category: "Payouts",
+    tier: "tier-1",
+    category: "Trust and safety",
     member: { handle: "@galar_pc", name: "Ryan Osei", initials: "RO", role: "buyer" },
     opened: "2026-08-27T13:00:00Z",
     lastReply: "3 hours ago",
+    slaHours: 21,
+    answered: true,
     assignee: "Marco Reyes",
     thread: [
       {
         from: "member",
         author: "Ryan Osei",
         at: "27 Aug, 13:00",
-        text: "A full refund was agreed but the shipping cost was deducted. I am $18 short.",
+        text: "I offered to pay the seller by bank transfer to save us both the trouble. Now there is a warning on my account. I was not trying to scam anyone.",
       },
       {
         from: "admin",
         author: "Marco Reyes",
         at: "31 Aug, 05:40",
-        text: "You are right — outbound shipping should not have been deducted on a full refund. The $18 has been sent and the rule has been corrected so it does not repeat.",
+        text: "Understood, and it is recorded as a first offence with no loss to the seller. The rule exists because a sale taken off-platform loses the identity check on both sides, and we hold no money so we cannot step in afterwards. The warning stays on the record; nothing else changes about your account.",
       },
     ],
   },
@@ -1887,52 +3166,146 @@ export const supportStats: Stat[] = [
   { key: "s4", label: "Resolved this week", value: "61", delta: { dir: "up", text: "9%" }, foot: "94% satisfaction" },
 ];
 
-export const cannedReplies = [
-  { key: "sla", label: "Verification is still in review" },
-  { key: "hold", label: "Why funds are on hold" },
-  { key: "restrict", label: "Explaining a restriction" },
-  { key: "grader", label: "Which graders we accept" },
-  { key: "offplat", label: "Off-platform contact warning" },
+/* --------------------------------------------------------------------------
+   The ticket store
+
+   Same reason as the member record: escalating a ticket or resolving one has
+   to survive the next render, and there is no admin API to put it in yet.
+   Overrides are keyed by ticket id and layered over the fixture.
+   -------------------------------------------------------------------------- */
+
+type TicketOverride = {
+  tier?: SupportTier;
+  status?: TicketStatus;
+  assignee?: string;
+  answered?: boolean;
+  extra?: TicketMessage[];
+};
+
+const ticketOverrides = new Map<string, TicketOverride>();
+
+/** The ticket as it stands now — fixture underneath, session changes on top. */
+export function ticketNow(t: Ticket): Ticket {
+  const o = ticketOverrides.get(t.id);
+  if (!o) return t;
+  const { extra, ...rest } = o;
+  return { ...t, ...rest, thread: extra ? [...t.thread, ...extra] : t.thread };
+}
+
+function patch(id: string, next: TicketOverride) {
+  ticketOverrides.set(id, { ...ticketOverrides.get(id), ...next });
+}
+
+export function appendMessage(t: Ticket, m: TicketMessage) {
+  const cur = ticketOverrides.get(t.id);
+  patch(t.id, { extra: [...(cur?.extra ?? []), m] });
+}
+
+export function assignTicket(id: string, to: string) {
+  patch(id, { assignee: to });
+}
+
+export function setTicketStatus(id: string, status: TicketStatus) {
+  patch(id, { status });
+}
+
+/** The first reply from a person stops the clock. */
+export function markAnswered(id: string) {
+  patch(id, { answered: true });
+}
+
+/**
+ * Move a ticket one rung up the ladder.
+ *
+ * Returns the tier it landed on, or null if it was already at the top —
+ * there is nothing above Trust and safety, and a button that pretends
+ * otherwise sends a member's problem in a circle.
+ */
+/* --------------------------------------------------------------------------
+   Looking a member up from somewhere else
+
+   The support desk needs the person behind the handle on the ticket — their
+   standing, what they have listed, and what they have traded. Tier 1 does not
+   get this; Tier 2 and above do, for the ticket in hand only.
+   -------------------------------------------------------------------------- */
+
+/** The member record behind a handle, with session changes applied. */
+export const memberByHandle = (handle: string) => {
+  const m = members.find((x) => x.handle === handle);
+  return m ? memberNow(m) : null;
+};
+
+/** Everything this member has in the listing queue or on the market. */
+export const listingsBy = (handle: string) =>
+  listings.filter((l) => l.seller.handle === handle);
+
+export function escalate(t: Ticket): SupportTier | null {
+  const to = nextTier(ticketNow(t).tier);
+  if (!to) return null;
+  patch(t.id, { tier: to, status: "open", assignee: undefined });
+  return to;
+}
+
+/* --------------------------------------------------------------------------
+   Canned replies
+
+   The repeat questions, in the words an agent would actually use. Each one
+   carries the body, not just a label: a template that only fills in a subject
+   leaves the agent writing the hard part from scratch every time, which is
+   the part that ends up inconsistent between one agent and the next.
+   -------------------------------------------------------------------------- */
+
+export type CannedReply = {
+  key: string;
+  label: string;
+  body: string;
+  /** Shown as a hint so nobody sends the wrong one. */
+  when: string;
+};
+
+export const cannedReplies: CannedReply[] = [
+  {
+    key: "id-stuck",
+    label: "ID check stuck",
+    when: "Submitted to the provider and sitting there.",
+    body: "Your ID is with our accredited verification provider, who check it against the government DVS. That check is theirs rather than ours. We are sent the outcome and never hold the documents. Yours is still open, which usually means the photo of the code you wrote out was hard to read. Resubmitting from the app is the fastest way through; it goes to the front of their queue, not the back.",
+  },
+  {
+    key: "listing-rejected",
+    label: "Listing rejected",
+    when: "They want to know why, or want it back.",
+    body: "Your listing was read by a moderator before it could go live, and it was not approved. The reason recorded at the time is on the listing itself and in your account history, word for word. Most rejections are fixable, usually with more photographs or a clearer shot of the slab label. A corrected listing counts as a new submission rather than an appeal. If you think the reason is wrong, reply here and I will have a second moderator look.",
+  },
+  {
+    key: "boost",
+    label: "Boost not applied",
+    when: "Paid for a boost and the listing is not surfacing.",
+    body: "I can see the boost on your account and it is active. A boost lifts a listing within its own category and grade band. It does not move it above listings with a stronger price-confidence score, which is what the front page is ordered by. If the listing is still not appearing where you expect after 24 hours, send me the listing id and I will check it against the ranking directly.",
+  },
+  {
+    key: "restrict",
+    label: "Explaining a restriction",
+    when: "Selling is paused and they were not sure why.",
+    body: "Listing and selling on your account are paused. Browsing and buying are unaffected. The reason and the date are on your member record, and the member is always told which behaviour caused it. A restriction is lifted by a lead moderator rather than on a timer, so replying here with anything that puts it in context is worth doing.",
+  },
+  {
+    key: "grader",
+    label: "Which graders we accept",
+    when: "Asked before consigning or listing.",
+    body: "PSA, BGS, CGC, SGC and TAG. Each grader is priced on its own scale, and we never convert a grade between companies to reach a figure, so a CGC 9.5 is valued from CGC 9.5 sales only. Raw cards are accepted below the high-value floor.",
+  },
+  {
+    key: "offplat",
+    label: "Off-platform contact",
+    when: "Someone asked them to settle direct.",
+    body: "Thank you for reporting it rather than replying. That was exactly the right call. Taking a sale off-platform loses the identity check on both sides, and no money passes through Grail Market, so we cannot step in afterwards. The account is under review and your screenshots are attached to the case. Please do not reply to the thread.",
+  },
 ];
 
 /* ==========================================================================
    Settings
    ========================================================================== */
 
-export const adminTeam = [
-  {
-    name: "Ayna Sulaiman",
-    initials: "AS",
-    email: "ayna.sulaiman@calcite.live",
-    role: "Lead moderator",
-    scopes: "Verification · Conflicts · Members · Settings",
-    lastActive: "Now",
-  },
-  {
-    name: "Marco Reyes",
-    initials: "MR",
-    email: "marco.reyes@grailmarket.app",
-    role: "Moderator",
-    scopes: "Verification · Conflicts · Support",
-    lastActive: "3 hours ago",
-  },
-  {
-    name: "Priya Nandakumar",
-    initials: "PN",
-    email: "priya.n@grailmarket.app",
-    role: "Moderator",
-    scopes: "Verification · Support",
-    lastActive: "6 hours ago",
-  },
-  {
-    name: "Ops service account",
-    initials: "OP",
-    email: "ops-bot@grailmarket.app",
-    role: "Service account",
-    scopes: "Reports · Audit log (read-only)",
-    lastActive: "18 minutes ago",
-  },
-];
 
 
 /* ==========================================================================
@@ -1943,71 +3316,6 @@ export const adminTeam = [
    why each plan carries its Stripe price id and the console shows it.
    ========================================================================== */
 
-export type Plan = {
-  key: string;
-  name: string;
-  price: number | null;
-  /** null price = "Custom", quoted per account rather than listed. */
-  cadence: string;
-  tagline: string;
-  featured: boolean;
-  stripePriceId: string;
-  subscribers: number;
-  features: string[];
-};
-
-export const plans: Plan[] = [
-  {
-    key: "collector",
-    name: "Collector",
-    price: 0,
-    cadence: "month",
-    tagline: "For someone selling out of their own collection.",
-    featured: false,
-    stripePriceId: "price_1QkCollector00",
-    subscribers: 4820,
-    features: [
-      "5 active listings",
-      "Standard-tier auto listing",
-      "9.5% commission on a sale",
-      "Community support",
-    ],
-  },
-  {
-    key: "dealer",
-    name: "Dealer",
-    price: 39,
-    cadence: "month",
-    tagline: "For a shop moving stock every week.",
-    featured: true,
-    stripePriceId: "price_1QkDealer000",
-    subscribers: 1146,
-    features: [
-      "Unlimited active listings",
-      "Priority verification queue",
-      "7.5% commission on a sale",
-      "Bulk upload and CSV import",
-      "Sales analytics",
-    ],
-  },
-  {
-    key: "house",
-    name: "House",
-    price: null,
-    cadence: "month",
-    tagline: "For auction houses and consignment at volume.",
-    featured: false,
-    stripePriceId: "price_1QkHouse0000",
-    subscribers: 27,
-    features: [
-      "Everything in Dealer",
-      "Negotiated commission",
-      "Dedicated verification lane",
-      "Consignment agreements",
-      "Named account manager",
-    ],
-  },
-];
 
 /* ==========================================================================
    The admin team, as member records
@@ -2022,9 +3330,11 @@ export type Staff = {
   name: string;
   initials: string;
   email: string;
+  /** One of the five. What they can reach is derived from this, not typed in. */
+  role: Role;
+  /** How the role reads on their card — usually the role's own label. */
   title: string;
   status: "active" | "restricted" | "revoked";
-  scopes: string[];
   location: string;
   since: string;
   lastActive: string;
@@ -2032,6 +3342,258 @@ export type Staff = {
   medianDecision: string;
   rating: number;
   lead: boolean;
+  /** Held by the outsourcing partner rather than by Grail Market. */
+  outsourced?: boolean;
+};
+
+/**
+ * What a staff account can reach, as chips.
+ *
+ * Derived from the role rather than stored beside it — a scope list typed in
+ * by hand is a second source of truth that drifts from the one the console
+ * actually enforces, which is exactly the state this replaced.
+ */
+/* --------------------------------------------------------------------------
+   Staff accounts: invite, scope, revoke
+
+   Session-local like everything else here. An invite does not create an
+   account — it creates a pending one, which is the honest shape: the account
+   exists when the person accepts and sets up 2FA, not when a lead types their
+   email in.
+   -------------------------------------------------------------------------- */
+
+export type Invite = {
+  id: string;
+  email: string;
+  role: Role;
+  invitedBy: string;
+  at: string;
+  /** Partner staff get a shorter window and a named company. */
+  company?: string;
+};
+
+const invites: Invite[] = [];
+const roleOverrides = new Map<string, Role>();
+const revoked = new Set<string>();
+
+/** A staff account as it stands now. */
+export function staffNow(p: Staff): Staff {
+  const role = roleOverrides.get(p.id);
+  const out = role ? { ...p, role, title: roleLabel(role) } : p;
+  return revoked.has(p.id) ? { ...out, status: "revoked" as const } : out;
+}
+
+export const pendingInvites = () => [...invites];
+
+export function inviteStaff(email: string, role: Role, by: string, company?: string): Invite {
+  const inv: Invite = {
+    id: `IN-${400 + invites.length}`,
+    email,
+    role,
+    invitedBy: by,
+    at: new Date().toISOString(),
+    company,
+  };
+  invites.unshift(inv);
+  logAudit({
+    actor: by,
+    area: "staff",
+    action: "Invited a staff account",
+    target: email,
+    detail: `${roleLabel(role)}${company ? ` · ${company}` : ""}. Nothing is created until they accept and set up 2FA.`,
+    weight: "high",
+  });
+  return inv;
+}
+
+/** Change what an account can reach, by moving the role it holds. */
+export function setStaffRole(p: Staff, role: Role, by: string, why: string) {
+  const from = staffNow(p).role;
+  roleOverrides.set(p.id, role);
+  logAudit({
+    actor: by,
+    area: "staff",
+    action: "Changed a staff role",
+    target: `${p.name} · ${p.email}`,
+    detail: `${roleLabel(from)} → ${roleLabel(role)}. ${why}`,
+    weight: "high",
+  });
+}
+
+export function revokeStaff(p: Staff, by: string, why: string) {
+  revoked.add(p.id);
+  logAudit({
+    actor: by,
+    area: "staff",
+    action: "Revoked a staff account",
+    target: `${p.name} · ${p.email}`,
+    detail: why,
+    weight: "high",
+  });
+}
+
+/* ==========================================================================
+   Announcements
+
+   Broadcasts, banners and scheduled sends. Marked "Next" in the brief rather
+   than "Must", and built to the same shape as everything else so it does not
+   become a second comms system beside the one on the member directory.
+   ========================================================================== */
+
+export type AnnouncementChannel = "push" | "email" | "banner";
+
+export type BannerTone = "info" | "outage" | "policy";
+
+export const bannerToneLabel: Record<BannerTone, string> = {
+  info: "Information",
+  outage: "Outage",
+  policy: "Policy change",
+};
+
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  channels: AnnouncementChannel[];
+  /** Segment key from `segments`, or "all". */
+  audience: string;
+  tone: BannerTone;
+  state: "draft" | "scheduled" | "sent" | "live";
+  /** ISO. When it goes, or went. */
+  at: string;
+  /** Banners only: when it comes down on its own. */
+  until?: string;
+  by: string;
+  /** Set once sent. */
+  reach?: number;
+};
+
+export const announcements: Announcement[] = [
+  {
+    id: "AN-021",
+    title: "Card scanning is slow this morning",
+    body: "Scans are taking up to 30 seconds while we work through a backlog on the image pipeline. Prices and listings are unaffected. We will update this banner when it clears.",
+    channels: ["banner"],
+    audience: "all",
+    tone: "outage",
+    state: "live",
+    at: "2026-09-03T06:15:00Z",
+    until: "2026-09-03T18:00:00Z",
+    by: "Ayna Sulaiman",
+  },
+  {
+    id: "AN-019",
+    title: "How reports and conduct cases are handled",
+    body: "We are changing what happens when one member reports another. Outcomes are now a warning, a restriction, a closed account, or a referral to police, and the reason is always written to the member's record. The full text is on the policy page.",
+    channels: ["email", "banner"],
+    audience: "all",
+    tone: "policy",
+    state: "scheduled",
+    at: "2026-09-05T23:00:00Z",
+    by: "Ayna Sulaiman",
+  },
+  {
+    id: "AN-016",
+    title: "Your watchlist moved this week",
+    body: "Three cards you follow moved more than 5% this week. Open Grail Market to see the comparable sales behind each figure.",
+    channels: ["push"],
+    audience: "all",
+    tone: "info",
+    state: "sent",
+    at: "2026-08-30T08:00:00Z",
+    by: "Marco Reyes",
+    reach: 5218,
+  },
+  {
+    id: "AN-014",
+    title: "You are at your listing limit",
+    body: "Your plan allows a set number of live listings at once. Upgrading lifts the ceiling immediately; nothing you have already listed is affected.",
+    channels: ["push", "email"],
+    audience: "billing",
+    tone: "info",
+    state: "sent",
+    at: "2026-08-27T09:00:00Z",
+    by: "Marco Reyes",
+    reach: 92,
+  },
+];
+
+const sessionAnnouncements: Announcement[] = [];
+
+export const allAnnouncements = () => [...sessionAnnouncements, ...announcements];
+
+export function scheduleAnnouncement(a: Omit<Announcement, "id">): Announcement {
+  const entry: Announcement = { ...a, id: `AN-${900 + sessionAnnouncements.length}` };
+  sessionAnnouncements.unshift(entry);
+  logAudit({
+    actor: a.by,
+    area: "settings",
+    action: a.state === "scheduled" ? "Scheduled an announcement" : "Sent an announcement",
+    target: a.title,
+    detail: `${a.channels.join(" + ")} · ${a.audience === "all" ? "everyone" : a.audience}`,
+    weight: "high",
+  });
+  return entry;
+}
+
+/** The banner currently on the app, if any. Only one runs at a time. */
+export const liveBanner = () => allAnnouncements().find((a) => a.state === "live") ?? null;
+
+/* --------------------------------------------------------------------------
+   Service accounts
+
+   Deliberately NOT a `Role` and deliberately not in `staff`.
+
+   The brief names five roles and every one of them is a person who signs in.
+   A machine that pulls a nightly report is neither — it holds a key, not a
+   role, and the only reason it was ever in the roles table is that both were
+   lists of things with an email address. Modelling it as a role meant giving
+   it one, and the nearest fit was Owner, which is how a reporting bot ends up
+   holding `settings.write`. It has its own list and its own literal scope
+   instead, which is also the only honest way to answer "who can change the
+   price engine" with a number.
+   -------------------------------------------------------------------------- */
+
+export type ServiceAccount = {
+  id: string;
+  name: string;
+  initials: string;
+  email: string;
+  /** What it exists to do, in one line. */
+  purpose: string;
+  /** Literal, and read-only. Not derived from a role, because it has none. */
+  scopes: string[];
+  status: "active" | "restricted" | "revoked";
+  lastActive: string;
+};
+
+export const serviceAccounts: ServiceAccount[] = [
+  {
+    id: "SVC-001",
+    name: "Ops service account",
+    initials: "OP",
+    email: "ops-bot@grailmarket.app",
+    purpose: "Pulls the nightly report set and the audit log export.",
+    scopes: ["Reports (read-only)", "Audit log (read-only)"],
+    status: "restricted",
+    lastActive: "18 minutes ago",
+  },
+];
+
+export const scopesOf = (role: Role): string[] => {
+  const out: string[] = [];
+  if (can(role, "listings.review")) out.push("Listing queue");
+  if (can(role, "conduct.decide")) out.push("Reports & conduct");
+  if (can(role, "support.read")) out.push("Support");
+  if (can(role, "members.read")) out.push("Members");
+  if (can(role, "id.exceptions")) out.push("ID exceptions");
+  if (can(role, "billing.read")) out.push("Billing");
+  if (can(role, "pricing.read")) out.push("Price engine");
+  if (can(role, "audit.read")) out.push("Audit log");
+  if (can(role, "announce.write")) out.push("Announcements");
+  if (can(role, "reports.read")) out.push("Reports");
+  if (can(role, "settings.write")) out.push("Settings");
+  return out;
 };
 
 export const staff: Staff[] = [
@@ -2040,9 +3602,9 @@ export const staff: Staff[] = [
     name: "Ayna Sulaiman",
     initials: "AS",
     email: "ayna.sulaiman@calcite.live",
-    title: "Lead moderator",
+    role: "owner",
+    title: "Owner",
     status: "active",
-    scopes: ["Verification", "Conflicts", "Members", "Pricing", "Settings"],
     location: "Karachi, PK",
     since: "Jan 2024",
     lastActive: "Now",
@@ -2056,93 +3618,174 @@ export const staff: Staff[] = [
     name: "Marco Reyes",
     initials: "MR",
     email: "marco.reyes@grailmarket.app",
+    role: "moderator",
     title: "Moderator",
     status: "active",
-    scopes: ["Verification", "Conflicts", "Support"],
     location: "Lisbon, PT",
     since: "Mar 2024",
     lastActive: "3 hours ago",
-    decisions: 1962,
-    medianDecision: "5h 02m",
+    decisions: 1904,
+    medianDecision: "4h 05m",
     rating: 4.7,
     lead: false,
   },
   {
-    id: "AD-007",
+    id: "AD-006",
     name: "Priya Nandakumar",
     initials: "PN",
     email: "priya.n@grailmarket.app",
+    role: "moderator",
     title: "Moderator",
     status: "active",
-    scopes: ["Verification", "Support"],
     location: "Bengaluru, IN",
-    since: "Sep 2024",
+    since: "Jun 2024",
     lastActive: "6 hours ago",
-    decisions: 1104,
-    medianDecision: "4h 18m",
+    decisions: 1466,
+    medianDecision: "3h 12m",
     rating: 4.8,
     lead: false,
   },
   {
-    id: "AD-011",
+    id: "AD-009",
     name: "Tobias Lang",
     initials: "TL",
     email: "tobias.lang@grailmarket.app",
-    title: "Authentication specialist",
+    role: "trust-safety",
+    title: "Trust & safety",
     status: "active",
-    scopes: ["Verification", "Grail tier"],
     location: "Berlin, DE",
-    since: "Feb 2025",
-    lastActive: "1 day ago",
-    decisions: 418,
-    medianDecision: "9h 55m",
-    rating: 5.0,
-    lead: false,
-  },
-  {
-    id: "AD-013",
-    name: "Nadia Haddad",
-    initials: "NH",
-    email: "nadia.haddad@grailmarket.app",
-    title: "Support lead",
-    status: "active",
-    scopes: ["Support", "Members"],
-    location: "Amman, JO",
-    since: "May 2025",
-    lastActive: "22 minutes ago",
-    decisions: 76,
-    medianDecision: "1h 12m",
+    since: "Sep 2024",
+    lastActive: "1 hour ago",
+    decisions: 742,
+    medianDecision: "6h 30m",
     rating: 4.9,
     lead: false,
   },
   {
-    id: "AD-015",
-    name: "Ops service account",
-    initials: "OP",
-    email: "ops-bot@grailmarket.app",
-    title: "Service account",
-    status: "restricted",
-    scopes: ["Reports", "Audit log"],
-    location: "eu-west-1",
-    since: "Jan 2024",
-    lastActive: "18 minutes ago",
-    decisions: 0,
-    medianDecision: "—",
-    rating: 0,
+    id: "AD-011",
+    name: "Nadia Haddad",
+    initials: "NH",
+    email: "nadia.haddad@grailmarket.app",
+    role: "trust-safety",
+    title: "Trust & safety",
+    status: "active",
+    location: "Beirut, LB",
+    since: "Nov 2024",
+    lastActive: "20 minutes ago",
+    decisions: 588,
+    medianDecision: "5h 48m",
+    rating: 4.8,
     lead: false,
+  },
+  /* ---------------------------------------------------------------------
+     The outsourced desk.
+
+     Two tiers, held by a different company in a different country. Every
+     argument in the brief for running support this way depends on these
+     accounts being able to answer a member without being able to reach the
+     member directory, the ID exceptions or the listing queue — which is a
+     claim about what the console lets them open, not about their contract.
+     --------------------------------------------------------------------- */
+  {
+    id: "AD-021",
+    name: "Reuben Castillo",
+    initials: "RC",
+    email: "r.castillo@northstar-cx.com",
+    role: "tier-2",
+    title: "Support · Tier 2",
+    status: "active",
+    location: "Manila, PH · Northstar CX",
+    since: "Feb 2025",
+    lastActive: "12 minutes ago",
+    decisions: 3120,
+    medianDecision: "38m",
+    rating: 4.6,
+    lead: false,
+    outsourced: true,
+  },
+  {
+    id: "AD-024",
+    name: "Grace Mwangi",
+    initials: "GM",
+    email: "g.mwangi@northstar-cx.com",
+    role: "tier-1",
+    title: "Support · Tier 1",
+    status: "active",
+    location: "Nairobi, KE · Northstar CX",
+    since: "Apr 2025",
+    lastActive: "4 minutes ago",
+    decisions: 5410,
+    medianDecision: "21m",
+    rating: 4.5,
+    lead: false,
+    outsourced: true,
+  },
+  {
+    id: "AD-027",
+    name: "Deniz Aydın",
+    initials: "DA",
+    email: "d.aydin@northstar-cx.com",
+    role: "tier-1",
+    title: "Support · Tier 1",
+    status: "active",
+    location: "Izmir, TR · Northstar CX",
+    since: "Jun 2025",
+    lastActive: "Now",
+    decisions: 2988,
+    medianDecision: "26m",
+    rating: 4.4,
+    lead: false,
+    outsourced: true,
+  },
+  {
+    id: "AD-030",
+    name: "Imani Okafor",
+    initials: "IO",
+    email: "i.okafor@northstar-cx.com",
+    role: "tier-1",
+    title: "Support · Tier 1",
+    status: "restricted",
+    location: "Lagos, NG · Northstar CX",
+    since: "Jul 2025",
+    lastActive: "2 days ago",
+    decisions: 611,
+    medianDecision: "44m",
+    rating: 3.9,
+    lead: false,
+    outsourced: true,
   },
 ];
 
-/** How severe a conflict is, from the amount held and how long it has run. */
-export function severityOf(amount: number, ageHours: number): "high" | "med" | "low" {
-  const score = Math.min(10, Math.round(amount / 2000 + ageHours / 24));
+/**
+ * How urgent a conduct case is.
+ *
+ * What the trade was worth still counts, but it cannot be the whole of it:
+ * threats are the most serious thing on this queue at any price, and a $60
+ * card does not make them a small matter. The kind sets a floor, and money
+ * and age move the number above it.
+ */
+const KIND_WEIGHT: Record<ConflictKind, number> = {
+  threats: 7,
+  counterfeit: 4,
+  "off-platform": 3,
+  "no-show": 2,
+  "not-as-described": 2,
+};
+
+export function severityScore(kind: ConflictKind, amount: number, ageHours: number) {
+  const raw = KIND_WEIGHT[kind] + amount / 4000 + ageHours / 36;
+  return Math.max(1, Math.min(10, Math.round(raw)));
+}
+
+export function severityOf(
+  kind: ConflictKind,
+  amount: number,
+  ageHours: number
+): "high" | "med" | "low" {
+  const score = severityScore(kind, amount, ageHours);
   if (score >= 7) return "high";
   if (score >= 4) return "med";
   return "low";
-}
-
-export function severityScore(amount: number, ageHours: number) {
-  return Math.max(1, Math.min(10, Math.round(amount / 2000 + ageHours / 24)));
 }
 
 /* ==========================================================================

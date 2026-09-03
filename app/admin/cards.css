@@ -14,7 +14,7 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   overflow: hidden;
   isolation: isolate;
   background: linear-gradient(158deg, #f4f6f9 0%, #dfe5ec 100%);
@@ -73,7 +73,7 @@
   position: relative;
   flex: 1 1 auto;
   overflow: hidden;
-  background: var(--slab-art, linear-gradient(155deg, #2c4159, #131c26));
+  background: linear-gradient(155deg, #2c4159, #131c26);
 }
 
 /* A real photograph beats anything drawn, so when `art` is supplied the
@@ -112,63 +112,23 @@
   right: 8%;
   bottom: 7%;
   height: 26%;
-  border-radius: 2px;
+  border-radius: var(--r-xs);
   background: rgba(9, 14, 20, 0.42);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
-/* ------------------------------------------- per-game colour identity */
-
-.gm-slab--pokemon {
-  --slab-art: linear-gradient(155deg, #3c5a8a 0%, #1d2c44 55%, #d8a72a 190%);
-}
-
-.gm-slab--magic {
-  --slab-art: linear-gradient(155deg, #4a3a6b 0%, #1e1830 60%, #8a6cc4 200%);
-}
-
-.gm-slab--yugioh {
-  --slab-art: linear-gradient(155deg, #6b4420 0%, #2a1a0e 58%, #d08a3a 200%);
-}
-
-.gm-slab--onepiece {
-  --slab-art: linear-gradient(155deg, #7a2f2f 0%, #2a1214 58%, #d45c4a 200%);
-}
-
-.gm-slab--sports {
-  --slab-art: linear-gradient(155deg, #1f5f63 0%, #10262c 58%, #3fa89a 200%);
-}
-
-/* -------------------------------- holo: a chase card catches the light */
-
-.gm-slab-holo {
-  position: absolute;
-  inset: -40%;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(
-    62deg,
-    transparent 34%,
-    rgba(255, 255, 255, 0.1) 42%,
-    rgba(203, 183, 148, 0.5) 48%,
-    rgba(255, 255, 255, 0.55) 51%,
-    rgba(168, 141, 96, 0.45) 55%,
-    rgba(255, 255, 255, 0.08) 62%,
-    transparent 70%
-  );
-  /* a fixed sheen rather than a sweep: the card still reads as foil, but
-     nothing on the page moves on its own. -42% is where the old animation
-     rested for most of its cycle — the glint sits off the card's shoulder
-     rather than as a bar straight across the art. */
-  transform: translateX(-42%);
-}
+/* There were five per-game gradients here — a blue, a purple, an amber, a red
+   and a teal — plus a foil sheen over the top. All of it was painted behind a
+   real photograph that covers it, on a 44px thumbnail, in a console where the
+   game is already written in the set line beside the card. One neutral ground
+   for every game, and the photo does the rest. */
 
 /* ------------------------------------------------------------- sizes */
 
 .gm-slab--sm {
   width: 34px;
   height: 48px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
 }
 
 .gm-slab--sm .gm-slab-label {
@@ -195,7 +155,7 @@
 .gm-slab--lg {
   width: 116px;
   height: 162px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
 }
 
 .gm-slab--lg .gm-slab-label {
@@ -237,12 +197,12 @@
   top: 3px;
   left: 3px;
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.02em;
   background: rgba(9, 14, 20, 0.62);
-  color: var(--gold-300);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .gm-slab--lg .gm-slab-raw-tag {
@@ -260,15 +220,16 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 21px;
-  padding: 0 8px;
-  border-radius: 6px;
+  width: fit-content;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  background: var(--game-bg, var(--idle-bg));
-  color: var(--game-ink, var(--ink-2));
-  box-shadow: inset 0 0 0 1px currentColor;
+  background: var(--surface);
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
 }
 
 /* a tiny card silhouette instead of a dot */
@@ -276,35 +237,14 @@
   content: "";
   width: 5px;
   height: 7px;
-  border-radius: 1px;
+  border-radius: var(--r-xs);
   background: currentColor;
   flex: none;
 }
 
-.gm-game--pokemon {
-  --game-ink: #a8760c;
-  --game-bg: #fdf4dc;
-}
-
-.gm-game--magic {
-  --game-ink: #6b4fa8;
-  --game-bg: #f0ecfa;
-}
-
-.gm-game--yugioh {
-  --game-ink: #a5641d;
-  --game-bg: #fbf0e2;
-}
-
-.gm-game--onepiece {
-  --game-ink: #b23a3a;
-  --game-bg: #fceeed;
-}
-
-.gm-game--sports {
-  --game-ink: #1f7a72;
-  --game-bg: #e6f5f2;
-}
+/* The five per-game tints are gone. Which game a card belongs to is a label,
+   not a decision — nothing on this console branches on it — so it is set in
+   the same neutral chip as everything else and read rather than decoded. */
 
 /* ==========================================================================
    GALLERY — the card-first view of a queue
@@ -321,20 +261,12 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--sh-2);
   overflow: hidden;
-  transition:
-    box-shadow 0.28s ease,
-    transform 0.28s cubic-bezier(0.22, 0.9, 0.34, 1),
-    border-color 0.28s ease;
-}
-
-/* the tile lifts and turns very slightly, the way a card does in the hand */
-.gm-ctile:hover {
-  transform: translateY(-5px) rotate(-0.5deg);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 /* The tags used to overlap the slab, which hid the status chip behind the
@@ -345,18 +277,8 @@
   display: grid;
   place-items: center;
   padding: 46px 14px 16px;
-  background:
-    radial-gradient(300px 160px at 84% -14%, rgba(168, 141, 96, 0.22), transparent 66%),
-    var(--surface-2);
+  background: var(--surface-2);
   border-bottom: 1px solid var(--line);
-}
-
-.gm-ctile .gm-slab {
-  transition: transform 0.28s cubic-bezier(0.22, 0.9, 0.34, 1);
-}
-
-.gm-ctile:hover .gm-slab {
-  transform: translateY(-3px) scale(1.04);
 }
 
 .gm-ctile-tag {
@@ -425,7 +347,7 @@
   display: inline-flex;
   gap: 3px;
   padding: 3px;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
@@ -436,7 +358,7 @@
   width: 30px;
   height: 26px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;
@@ -454,38 +376,11 @@
 }
 
 .gm-viewtoggle button.is-active {
-  background: var(--grad-navy);
-  color: var(--gold-300);
-}
-
-/* ==========================================================================
-   AMBIENT CARDS — slow-drifting card silhouettes behind the console.
-   Texture, not decoration: very low opacity, long durations, and the global
-   reduced-motion rule in admin.css freezes them where they stand.
-   ========================================================================== */
-
-.gm-drift {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.gm-drift span {
-  position: absolute;
-  display: block;
-  border-radius: 10px;
-  background: linear-gradient(150deg, rgba(26, 38, 50, 0.055), rgba(168, 141, 96, 0.075));
-  box-shadow: inset 0 0 0 1px rgba(26, 38, 50, 0.05);
-  transform: rotate(var(--rot, 0deg));
+  background: var(--navy);
+  color: #fff;
 }
 
 @media (max-width: 1000px) {
-  .gm-drift {
-    display: none;
-  }
-
   .gm-gallery {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     padding: 14px;

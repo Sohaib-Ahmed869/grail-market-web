@@ -35,6 +35,7 @@ import {
   IconSearch,
   IconTrend,
 } from "../components/icons";
+import { Gate } from "../components/Gate";
 
 /* The catalogue drives the page: pick a report on the left and the panels on
    the right belong to it. The four headline figures sit at the foot rather
@@ -101,7 +102,7 @@ function ReportPanel({ report }: { report: Report }) {
                   <td className="gm-num gm-strong">{fmt(r.value)}</td>
                   <td className="gm-num">
                     {delta === null ? (
-                      <span className="gm-dim">—</span>
+                      <span className="gm-dim">None</span>
                     ) : (
                       <span className={`gm-delta gm-delta--${delta >= 0 ? "up" : "down"}`}>
                         {delta >= 0 ? "+" : ""}
@@ -141,7 +142,7 @@ function ReportPanel({ report }: { report: Report }) {
   );
 }
 
-export default function ReportsPage() {
+function ReportsPage() {
   const [period, setPeriod] = useState(PERIODS[1]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(reports[0].id);
@@ -263,7 +264,7 @@ export default function ReportsPage() {
                   <ColumnChart
                     data={gameSplit.map((g) => ({ label: g.label, value: g.value }))}
                     height={216}
-                    color="var(--grad-gold)"
+                    color="var(--gold)"
                     format={(n) => `${n}%`}
                   />
                 </CardBody>
@@ -373,5 +374,15 @@ export default function ReportsPage() {
         </div>
       </div>
     </>
+  );
+}
+
+/* Access is decided before the page renders, not inside it — see the
+   warning in RoleContext about what this gate is and is not. */
+export default function GatedReportsPage() {
+  return (
+    <Gate need="reports.read">
+      <ReportsPage />
+    </Gate>
   );
 }

@@ -4,11 +4,14 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
-import { DECIDABLE, listings } from "../lib/data";
+import { can, ROUTE_CAPABILITY, type Capability, type Role } from "../lib/data";
+import { useRole } from "./RoleContext";
 import {
+  IconBell,
   IconChevronDown,
   IconDashboard,
   IconFlag,
+  IconKey,
   IconListing,
   IconPanel,
   IconReport,
@@ -16,6 +19,7 @@ import {
   IconShield,
   IconSupport,
   IconTag,
+  IconTrend,
   IconUsers,
 } from "./icons";
 
@@ -36,9 +40,9 @@ type Page = {
   href: string;
   label: string;
   icon: Icon;
-  /** Live work waiting on a moderator, shown as a pill on the row. */
-  count?: number;
-  alert?: boolean;
+  /* The nav carried a count pill per row. It is gone: the numbers duplicated
+     what each page says on arrival, went stale between loads, and turned a
+     list of destinations into a scoreboard. Nothing here counts anything. */
   /**
    * Two rows can share a path and differ only by a query — one page holding
    * two directories is still two places to go. `param` is the value this row
@@ -85,7 +89,8 @@ const NAV: Block[] = [
         href: "/admin/listings",
         label: "Listing queue",
         icon: IconListing,
-        count: listings.filter((l) => DECIDABLE.includes(l.status)).length,
+        /* Filled in from the API at render — see `queueCount` below. NAV is a
+           module constant, so a live figure cannot be baked into it. */
       },
     ],
   },
@@ -99,8 +104,8 @@ const NAV: Block[] = [
         label: "Cases",
         icon: IconFlag,
         children: [
-          { href: "/admin/conflicts", label: "Conflicts", icon: IconScale, count: 7, alert: true },
-          { href: "/admin/support", label: "Support", icon: IconSupport, count: 3, alert: true },
+          { href: "/admin/conflicts", label: "Reports & conduct", icon: IconScale },
+          { href: "/admin/support", label: "Support", icon: IconSupport },
         ],
       },
       /* One page, two directories. The member record and the staff record
@@ -133,16 +138,69 @@ const NAV: Block[] = [
   {
     caption: "Operations",
     items: [
-      { kind: "page", href: "/admin/pricing", label: "Pricing plans", icon: IconTag },
+      /* Two pages about money, read by the same person on the same day: what
+         the platform charges for, and where the numbers it quotes come from.
+         Given a row each they read as unrelated, which is how the price
+         engine stayed invisible behind a page called "Pricing plans". */
+      {
+        kind: "group",
+        key: "money",
+        label: "Pricing",
+        icon: IconTag,
+        children: [
+          { href: "/admin/pricing", label: "Subscriptions & boosts", icon: IconTag },
+          { href: "/admin/price-engine", label: "Price engine", icon: IconTrend },
+        ],
+      },
       { kind: "page", href: "/admin/reports", label: "Reports", icon: IconReport },
+      { kind: "page", href: "/admin/announcements", label: "Announcements", icon: IconBell },
+      { kind: "page", href: "/admin/audit", label: "Audit log", icon: IconKey },
     ],
   },
 ];
 
 const SECTIONS: Section[] = NAV.flatMap((b) => b.items);
 
+/**
+ * Which capability a row needs, matched the way `ROUTE_CAPABILITY` matches.
+ *
+ * A row nobody can open should not be in the nav at all: leaving it there and
+ * letting it fail on arrival teaches an agent that half the console is broken
+ * rather than that half of it is not theirs.
+ */
+function capabilityFor(p: Page): Capability | null {
+  const path = p.href.split("?")[0];
+  const hit = ROUTE_CAPABILITY.find(
+    (r) =>
+      r.path === path &&
+      (!r.param || (p.param && p.param.key === r.param[0] && p.param.value === r.param[1]))
+  );
+  return hit?.cap ?? null;
+}
+
+const allowed = (role: Role, p: Page) => {
+  const cap = capabilityFor(p);
+  return cap === null || can(role, cap);
+};
+
+/** The nav as this role sees it. A heading with nothing under it is dropped. */
+function navFor(role: Role): Block[] {
+  return NAV.map((b) => ({
+    ...b,
+    items: b.items.flatMap<Section>((s) => {
+      if (s.kind === "page") return allowed(role, s) ? [s] : [];
+      const children = s.children.filter((c) => allowed(role, c));
+      return children.length ? [{ ...s, children }] : [];
+    }),
+  })).filter((b) => b.items.length > 0);
+}
+
 /* Only real pages go on the rail — a heading has nowhere to send you. */
-const RAIL: Page[] = SECTIONS.flatMap((s) => (s.kind === "page" ? [s] : s.children));
+/** Only real pages go on the rail, and only the ones this role can open. */
+const railFor = (role: Role): Page[] =>
+  navFor(role)
+    .flatMap((b) => b.items)
+    .flatMap((s) => (s.kind === "page" ? [s] : s.children));
 
 /**
  * Whether a row is the page you are on.
@@ -169,6 +227,12 @@ function isActive(pathname: string, search: URLSearchParams, p: Page) {
 export default function Sidebar() {
   const pathname = usePathname() ?? "/admin";
   const search = useSearchParams() ?? new URLSearchParams();
+  const { role } = useRole();
+
+  /* The nav this role actually has. Everything below reads these, so a row
+     the role cannot open is not rendered, not merely disabled. */
+  const nav = navFor(role);
+  const rail = railFor(role);
 
   /* Which heading holds the page you are on. Seeded into the open set rather
      than applied in an effect, so the group is already open on first paint. */
@@ -221,9 +285,7 @@ export default function Sidebar() {
       >
         <Icon />
         <span className={nested ? undefined : "gm-nav-label"}>{p.label}</span>
-        {typeof p.count === "number" ? (
-          <span className={`gm-nav-count${p.alert ? " is-alert" : ""}`}>{p.count}</span>
-        ) : null}
+
       </Link>
     );
   }
@@ -254,7 +316,7 @@ export default function Sidebar() {
           <span className="gm-rail-div" aria-hidden="true" />
 
           <div className="gm-rail-items">
-            {RAIL.map((p) => {
+            {rail.map((p) => {
               const Icon = p.icon;
               const active = isActive(pathname, search, p);
               return (
@@ -267,16 +329,16 @@ export default function Sidebar() {
                   title={p.label}
                 >
                   <Icon />
-                  {typeof p.count === "number" ? (
-                    <span className={`gm-rail-dot${p.alert ? " is-alert" : ""}`} />
-                  ) : null}
+
                 </Link>
               );
             })}
           </div>
 
-          <span className="gm-rail-rule" aria-hidden="true" />
-
+          {/* A 74px decorative rule used to sit here, between the nav and the
+              theme toggle. On a short window it was the difference between
+              the last nav row being reachable and being scrolled out of
+              sight — a divider that hid a destination. */}
           {/* Settings is not here, and not in the panel either: it opens from
               the avatar menu in the topbar, which is on screen in both states. */}
           <ThemeToggle compact />
@@ -311,7 +373,7 @@ export default function Sidebar() {
         </div>
 
         <div className="gm-panel-nav">
-          {NAV.map((block) => (
+          {nav.map((block) => (
             <div key={block.caption} className="gm-nav-block">
               <div className="gm-nav-grouphead">{block.caption}</div>
 
@@ -321,8 +383,6 @@ export default function Sidebar() {
                 const Icon = s.icon;
                 const isOpen = open.includes(s.key);
                 const holdsCurrent = s.children.some((c) => isActive(pathname, search, c));
-                const waiting = s.children.reduce((n, c) => n + (c.count ?? 0), 0);
-                const alert = s.children.some((c) => c.alert && c.count);
 
                 return (
                   <div key={s.key}>
@@ -337,9 +397,6 @@ export default function Sidebar() {
                     >
                       <Icon />
                       <span className="gm-nav-label">{s.label}</span>
-                      {!isOpen && waiting > 0 ? (
-                        <span className={`gm-nav-count${alert ? " is-alert" : ""}`}>{waiting}</span>
-                      ) : null}
                       <IconChevronDown className="gm-nav-caret" />
                     </button>
 

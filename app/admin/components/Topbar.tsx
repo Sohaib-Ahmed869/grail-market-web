@@ -39,7 +39,7 @@ export default function Topbar() {
         <button
           type="button"
           className="gm-iconbtn gm-iconbtn--dot"
-          aria-label="Notifications — 3 unread"
+          aria-label="Notifications: 3 unread"
           title="Notifications"
         >
           <IconBell />

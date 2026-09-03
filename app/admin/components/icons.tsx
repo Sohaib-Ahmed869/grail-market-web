@@ -167,6 +167,18 @@ export const IconEye = (p: P) => (
   </Ico>
 );
 
+/* The eye, struck through. Its own icon rather than the open eye rotated or
+   dimmed, because "hidden" has to read at 15px without the reader comparing
+   it to the other state. */
+export const IconEyeOff = (p: P) => (
+  <Ico {...p}>
+    <path d="M10.7 6.1A9.9 9.9 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.7 3.4" />
+    <path d="M6.4 7.7A17 17 0 0 0 2.5 12S6 18 12 18a9.6 9.6 0 0 0 4-.85" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    <path d="M3.5 3.5 20.5 20.5" />
+  </Ico>
+);
+
 export const IconBan = (p: P) => (
   <Ico {...p}>
     <circle cx="12" cy="12" r="9" />

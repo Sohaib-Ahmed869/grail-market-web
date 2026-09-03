@@ -6,6 +6,22 @@
    ========================================================================== */
 
 .gm {
+  /* The public site sets `color-scheme: dark` on :root, and that inherits in
+     here. Without this line the browser keeps painting its own controls — the
+     checkboxes on the member list above all — dark on the light theme, which
+     is why they read as black squares. Only the dark block below flips it. */
+  color-scheme: light;
+
+
+  /* -- corner radius ------------------------------------------------
+     Four steps and a pill, which is the whole scale. Before this there
+     were fifteen values between 1px and 15px, close enough to each other
+     that nothing looked broken and nothing lined up either. */
+  --r-xs: 6px;   /* chips, tags, inline controls */
+  --r-sm: 10px;  /* buttons, inputs, list rows */
+  --r-md: 14px;  /* cards, panels, drawers, modals */
+  --r-pill: 999px;
+
   /* -- brand -------------------------------------------------------- */
   --navy: #1a2632;
   --navy-700: #223244;
@@ -33,21 +49,27 @@
   --line: #e2e8ef;
   --line-2: #d3dbe4;
 
-  /* -- status ------------------------------------------------------- */
+  /* -- status --------------------------------------------------------
+     Three, and only three. Cleared, needs attention, wrong. `info` used to
+     be a fourth hue — a blue — which meant a row could carry four colours
+     none of which outranked the others; it is now the house slate, so an
+     informational mark reads as ink rather than as a signal. Everything
+     else on this console is ink, paper, or gold. */
   --ok: #1f8a5b;
   --ok-bg: #e7f6ee;
   --warn: #b0761d;
   --warn-bg: #fdf3e0;
   --bad: #c0392f;
   --bad-bg: #fceceb;
-  --info: #2c6fb5;
-  --info-bg: #e8f1fb;
+  --info: #3d5570;
+  --info-bg: #eef1f5;
   --idle-bg: #eef1f5;
 
-  /* -- gradients ---------------------------------------------------- */
+  /* -- gradients ------------------------------------------------------
+     One. Navy, for the primary button and the few solid navy surfaces. The
+     gold gradient and the navy-to-gold text gradient are gone: a gradient
+     that means nothing is the first thing to cut from an operations tool. */
   --grad-navy: linear-gradient(135deg, #2c4159 0%, #1a2632 62%, #131c26 100%);
-  --grad-gold: linear-gradient(135deg, #cbb794 0%, #a88d60 55%, #8d7248 100%);
-  --grad-text: linear-gradient(100deg, #1a2632 0%, #38536f 40%, #a88d60 100%);
 
   /* -- elevation ------------------------------------------------------
      Every surface sits on a shadow beneath it plus `--edge`, a one-pixel
@@ -58,7 +80,6 @@
   --sh-2: 0 1px 3px rgba(21, 33, 47, 0.07), 0 5px 14px rgba(21, 33, 47, 0.09);
   --sh-3: 0 3px 7px rgba(21, 33, 47, 0.09), 0 14px 32px rgba(21, 33, 47, 0.13);
   --sh-4: 0 10px 20px rgba(21, 33, 47, 0.13), 0 30px 60px rgba(21, 33, 47, 0.2);
-  --sh-gold: 0 2px 10px rgba(168, 141, 96, 0.24);
   --sh-navy: 0 2px 10px rgba(26, 38, 50, 0.26);
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
@@ -71,10 +92,6 @@
   --control-h: 34px;
 
   /* -- geometry ----------------------------------------------------- */
-  --r-sm: 8px;
-  --r: 12px;
-  --r-lg: 16px;
-  --r-xl: 22px;
   /* Two states, never both: the sidebar is either the rail or the panel, so
      its width is one or the other rather than the sum. */
   --rail-w: 76px;
@@ -146,12 +163,11 @@
   --warn-bg: #2b2115;
   --bad: #e0776c;
   --bad-bg: #2e1a18;
-  --info: #6aa5df;
-  --info-bg: #14212e;
+  --info: #93a7bd;
+  --info-bg: #1e2833;
   --idle-bg: #1e2833;
 
   --grad-navy: linear-gradient(135deg, #33485f 0%, #1e2b39 62%, #16202b 100%);
-  --grad-text: linear-gradient(100deg, #e9eef4 0%, #a9bccd 40%, #bfa273 100%);
 
   /* shadow does almost no work on a dark ground — depth comes from the
      surface stepping lighter, so these stay shallow and the borders carry it */
@@ -159,7 +175,6 @@
   --sh-2: 0 2px 4px rgba(0, 0, 0, 0.42), 0 6px 16px rgba(0, 0, 0, 0.36);
   --sh-3: 0 4px 10px rgba(0, 0, 0, 0.48), 0 16px 34px rgba(0, 0, 0, 0.44);
   --sh-4: 0 18px 44px rgba(0, 0, 0, 0.6);
-  --sh-gold: 0 2px 10px rgba(0, 0, 0, 0.44);
   --sh-navy: 0 2px 10px rgba(0, 0, 0, 0.48);
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.055);
   --focus-ring: 0 0 0 3px rgba(233, 238, 244, 0.16);
@@ -191,7 +206,7 @@
 
 .gm ::-webkit-scrollbar-thumb {
   background: var(--line-2);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 3px solid transparent;
   background-clip: content-box;
 }
@@ -221,18 +236,13 @@
   letter-spacing: normal;
 }
 
-/* the gradient-text treatments below re-enable clipping deliberately; the
-   selected states put it back, because a selected tab is solid white on navy */
-.gm .gm-panel-brand b,
-.gm .gm-nav-item:hover .gm-nav-label,
-.gm .gm-tab:hover span.gm-tab-t {
-  -webkit-text-fill-color: transparent;
-}
-
-.gm .gm-nav-item.is-active .gm-nav-label,
-.gm .gm-nav-item.is-active:hover .gm-nav-label,
-.gm .gm-tab.is-active span.gm-tab-t,
-.gm .gm-tab.is-active:hover span.gm-tab-t {
+/* Nothing in the console clips text to a gradient any more, so nothing needs
+   a transparent fill. This used to name the brand mark and the two hover
+   states, which is why they went invisible when the gradients were dropped
+   and only `color` was updated: `-webkit-text-fill-color` beats `color`, and
+   it was still transparent. Every label here paints with its own colour. */
+.gm,
+.gm * {
   -webkit-text-fill-color: currentColor;
 }
 
@@ -266,8 +276,10 @@
   isolation: isolate;
 }
 
-/* the gradient field: warm gold bloom from the top-right, cool navy haze
-   trailing off to the left, then a flat paper wash underneath it all */
+/* The gradient field: the same warm bloom top-right and cool haze bottom-left,
+   turned down to roughly a fifth of what it was. It should register as a tint
+   in the paper rather than as a coloured wash you have to read the console
+   through — panels are white, and they need somewhere quiet to sit. */
 .gm-shell::before {
   content: "";
   position: fixed;
@@ -275,10 +287,10 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.3), transparent 62%),
-    radial-gradient(760px 520px at 88% 6%, rgba(203, 183, 148, 0.28), transparent 58%),
-    radial-gradient(900px 700px at 4% 100%, rgba(44, 65, 89, 0.09), transparent 60%),
-    linear-gradient(158deg, #fbfaf7 0%, #f5f7fa 44%, #eef1f6 100%);
+    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.07), transparent 66%),
+    radial-gradient(760px 520px at 88% 6%, rgba(203, 183, 148, 0.06), transparent 62%),
+    radial-gradient(900px 700px at 4% 100%, rgba(44, 65, 89, 0.03), transparent 64%),
+    linear-gradient(158deg, #fdfdfc 0%, #f9fafc 46%, #f5f7fa 100%);
 }
 
 .gm-main {
@@ -323,12 +335,12 @@
   height: 100vh;
   display: flex;
   align-items: stretch;
-  /* its own ground: without one the drifting card silhouettes in the page
-     background showed straight through the nav */
+  /* its own ground, so the nav separates from the paper rather than floating
+     on it — kept as light as the page field now is */
   background:
-    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.22), transparent 66%),
-    radial-gradient(360px 420px at -20% 108%, rgba(44, 65, 89, 0.07), transparent 62%),
-    linear-gradient(168deg, rgba(255, 255, 255, 0.9) 0%, rgba(246, 248, 251, 0.86) 52%, rgba(238, 242, 247, 0.9) 100%);
+    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.07), transparent 66%),
+    radial-gradient(360px 420px at -20% 108%, rgba(44, 65, 89, 0.03), transparent 62%),
+    linear-gradient(168deg, rgba(255, 255, 255, 0.94) 0%, rgba(250, 251, 253, 0.9) 52%, rgba(245, 247, 250, 0.92) 100%);
   backdrop-filter: blur(14px);
   border-right: 1px solid rgba(211, 219, 228, 0.75);
   box-shadow: 14px 0 34px -22px rgba(21, 33, 47, 0.28);
@@ -350,7 +362,7 @@
   align-items: center;
   gap: 6px;
   padding: 12px 0 14px;
-  border-radius: var(--r-xl);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: linear-gradient(
     172deg,
@@ -394,7 +406,7 @@
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--ink-3);
   cursor: pointer;
@@ -453,7 +465,7 @@
   height: 40px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-sm);
   color: var(--ink-3);
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.2s ease;
 }
@@ -489,7 +501,7 @@
   right: 8px;
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--gold);
   box-shadow: 0 0 0 2px var(--surface);
 }
@@ -511,13 +523,6 @@
 }
 
 /* the long rule above the footer icons, as in the reference */
-.gm-rail-rule {
-  flex: none;
-  width: 1px;
-  height: 54px;
-  margin: 10px 0;
-  background: linear-gradient(180deg, transparent, var(--line-2) 30%, var(--line-2) 70%, transparent);
-}
 
 /* ----------------------------------------------------------------- panel
 
@@ -574,10 +579,7 @@
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.15;
-  background: var(--grad-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--ink);
 }
 
 .gm-panel-brand span {
@@ -620,7 +622,7 @@
   align-items: center;
   gap: 10px;
   padding: 9px 11px;
-  border-radius: 13px;
+  border-radius: var(--r-md);
   text-decoration: none;
   color: var(--ink-2);
   font-size: 13.2px;
@@ -647,19 +649,16 @@
   white-space: nowrap;
 }
 
-/* HOVER — light tint, and the label itself picks up the brand gradient */
+/* HOVER — a light tint, and the row goes gold.
+   The gradient this replaced was navy-to-gold across the word, which meant on
+   a dark ground the first half of every label went nearly invisible. One
+   colour, and it is the brand's: gold-600 is defined per theme, so it stays
+   legible on paper and on the dark panel without a second rule. */
 .gm-nav-item:hover {
   background: var(--surface-2);
-  border-color: rgba(203, 183, 148, 0.45);
 }
 
-.gm-nav-item:hover .gm-nav-label {
-  background: var(--grad-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
+.gm-nav-item:hover .gm-nav-label,
 .gm-nav-item:hover svg {
   color: var(--gold-600);
 }
@@ -744,7 +743,7 @@
   top: 3px;
   bottom: 3px;
   width: 1.5px;
-  border-radius: 2px;
+  border-radius: var(--r-xs);
   background: var(--line-2);
 }
 
@@ -753,7 +752,7 @@
   align-items: center;
   gap: 9px;
   padding: 7px 11px;
-  border-radius: 11px;
+  border-radius: var(--r-sm);
   font-size: 12.4px;
   font-weight: 500;
   color: var(--ink-3);
@@ -796,9 +795,10 @@
   color: var(--gold);
 }
 
+/* the nested rows go gold on hover too, same as the top-level ones */
 .gm-nav-kid:hover {
   background: var(--surface-2);
-  color: var(--ink);
+  color: var(--gold-600);
 }
 
 .gm-nav-kid.is-active {
@@ -820,7 +820,7 @@
   min-width: 20px;
   height: 19px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -881,7 +881,7 @@
      lines up with the page heading underneath it */
   margin: 12px 16px 0 12px;
   padding: 0 18px;
-  border-radius: var(--r-xl);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: linear-gradient(
     120deg,
@@ -911,7 +911,7 @@
   width: 100%;
   height: var(--control-h);
   padding: 0 12px 0 32px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-1);
@@ -942,7 +942,7 @@
   gap: 7px;
   height: var(--control-h);
   padding: 0 14px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   background: var(--surface);
   color: var(--ink-2);
@@ -963,9 +963,13 @@
   flex: none;
 }
 
+/* Hover is a tint and a lift, and that is all. The border used to go gold on
+   every control that had one — a button, a card, a filter, a nav row — which
+   put the brand colour on whatever the pointer happened to be over rather
+   than on anything that meant something. */
 .gm-btn:hover {
   background: var(--surface-2);
-  border-color: var(--gold-300);
+  border-color: var(--line-2);
   color: var(--ink);
   box-shadow: var(--sh-2);
   transform: translateY(-1px);
@@ -1002,18 +1006,20 @@
   box-shadow: 0 6px 14px rgba(26, 38, 50, 0.26), 0 20px 36px rgba(26, 38, 50, 0.24);
 }
 
+/* The third decision — ask the seller for more, pause, escalate — is a real
+   action but not the one being recommended, so it is outlined like Reject
+   rather than filled like Approve. One solid button per footer; the rest are
+   outlines. That is the whole button hierarchy. */
 .gm-btn--gold {
-  background: var(--grad-gold);
-  border-color: transparent;
-  color: #2a2013;
-  box-shadow: var(--sh-gold);
+  background: var(--surface);
+  color: var(--gold-600);
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
 }
 
 .gm-btn--gold:hover {
-  background: linear-gradient(135deg, #d6c4a5 0%, #b0946a 55%, #96794c 100%);
-  border-color: transparent;
-  color: #241b0f;
-  box-shadow: 0 6px 14px rgba(168, 141, 96, 0.3), 0 20px 36px rgba(168, 141, 96, 0.24);
+  background: var(--gold-050);
+  border-color: color-mix(in srgb, var(--gold) 65%, transparent);
+  color: var(--gold-600);
 }
 
 .gm-btn--danger {
@@ -1045,7 +1051,7 @@
   height: 30px;
   padding: 0 10px;
   font-size: 12.2px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
 }
 
 .gm-btn--sm svg {
@@ -1070,14 +1076,9 @@
   position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   box-shadow: var(--sh-2), var(--edge);
-  transition: box-shadow 0.26s ease, transform 0.26s ease, border-color 0.26s ease;
-}
-
-.gm-card--lift:hover {
-  box-shadow: var(--sh-3), var(--edge);
-  transform: translateY(-3px);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .gm-card--pad {
@@ -1123,7 +1124,7 @@
   align-items: center;
   gap: 10px;
   background: var(--surface-2);
-  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  border-radius: 0 0 var(--r-md) var(--r-md);
 }
 
 /* ==========================================================================
@@ -1155,8 +1156,19 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
 }
 
-/* a fixed-width pick list beside a detail pane — conflicts and support both
-   use it. A class rather than an inline style, so the media query can undo it */
+/* A fixed-width pick list beside a detail pane — conflicts and support both
+   use it. A class rather than an inline style, so the media query can undo it.
+ *
+ * `align-items: start` is what stops the two columns being forced to the same
+ * height. Grid stretches its items by default, so the shorter of the two — the
+ * inbox, which scrolls inside its own list and therefore never grows — was
+ * being pulled down to whatever the thread beside it happened to need, leaving
+ * a tall white box under a list that had already ended. */
+.gm-grid--pane,
+.gm-grid--pane-wide {
+  align-items: start;
+}
+
 .gm-grid--pane {
   grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
 }
@@ -1243,26 +1255,14 @@
   position: relative;
   overflow: hidden;
   padding: 16px 17px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--sh-2), var(--edge);
-  transition: box-shadow 0.26s ease, transform 0.26s ease, border-color 0.26s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gm-stat::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(220px 120px at 106% -30%, rgba(168, 141, 96, 0.16), transparent 70%);
-}
 
-.gm-stat:hover {
-  box-shadow: var(--sh-3), var(--edge);
-  transform: translateY(-3px);
-}
 
 .gm-stat-top {
   display: flex;
@@ -1275,7 +1275,7 @@
   width: 30px;
   height: 30px;
   flex: none;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
   background: transparent;
@@ -1333,8 +1333,8 @@
   gap: 3px;
   font-weight: 700;
   font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 6px;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1362,20 +1362,35 @@
    BADGES / PILLS
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   Status marks
+
+   Outlined, the way the Reject button is outlined: paper behind it, the word
+   in the state's colour, and a hairline of that same colour around it. That
+   is one shape and one rule for every chip on a row, so a badge sitting next
+   to a button reads as the same family of object rather than as a stray.
+
+   `currentColor` does the work — each tone sets `color` and the border and
+   the wash follow it, so a new tone is one declaration.
+   -------------------------------------------------------------------------- */
+
 .gm-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
+  gap: 6px;
+  /* `inline-flex` is not enough: as a child of a column flex container these
+     stretch to the full width and the outline makes that visible. */
+  width: fit-content;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  background: color-mix(in srgb, currentColor 6%, var(--surface));
   font-size: 11.5px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
-  background: var(--idle-bg);
-  color: var(--ink-2);
-  box-shadow: inset 0 0 0 1px rgba(21, 33, 47, 0.07);
+  color: var(--ink-3);
 }
 
 .gm-badge svg {
@@ -1383,64 +1398,44 @@
   height: 12px;
 }
 
-.gm-badge::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
-  flex: none;
-}
-
-.gm-badge--nodot::before {
-  display: none;
-}
-
 .gm-badge--ok {
-  background: var(--ok-bg);
   color: var(--ok);
-  box-shadow: inset 0 0 0 1px rgba(31, 138, 91, 0.2);
 }
 
 .gm-badge--warn {
-  background: var(--warn-bg);
   color: var(--warn);
-  box-shadow: inset 0 0 0 1px rgba(176, 118, 29, 0.22);
-}
-
-.gm-badge--bad {
-  background: var(--bad-bg);
-  color: var(--bad);
-  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.2);
 }
 
 .gm-badge--info {
-  background: var(--info-bg);
   color: var(--info);
-  box-shadow: inset 0 0 0 1px rgba(44, 111, 181, 0.2);
 }
 
 .gm-badge--gold {
-  background: var(--gold-050);
   color: var(--gold-600);
-  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.28);
 }
 
 .gm-badge--navy {
-  background: transparent;
-  color: var(--ink-2);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--navy-600);
 }
 
-/* a small square "grail tier" chip */
+/* Still the loudest state on the row, but it shouts with a stronger border
+   and a deeper wash rather than by breaking the shape everything else keeps. */
+.gm-badge--bad {
+  color: var(--bad);
+  border-color: color-mix(in srgb, currentColor 48%, transparent);
+  background: var(--bad-bg);
+}
+
 .gm-tier {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 7px;
+  width: fit-content;
+  /* same 24px as .gm-badge so a tier and a state chip share a baseline and a
+     cap-height when they sit side by side in a queue row */
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.005em;
@@ -1520,6 +1515,13 @@
   white-space: nowrap;
 }
 
+/* The card cell carries four lines — name, grade line, ids, game chip — and a
+   thumbnail beside them. Left to share the table's width evenly it wrapped
+   every line to two, which is what made a real listing id unreadable. */
+.gm-table td:first-child {
+  min-width: 260px;
+}
+
 .gm-table tbody td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
@@ -1547,6 +1549,31 @@
 
 .gm-table .gm-actions {
   text-align: right;
+  white-space: nowrap;
+}
+
+/* The row's own controls, at the end of it.
+ *
+ * `gm-actions` right-aligns its heading along with its buttons, which left one
+ * heading in the row pointing the other way. This shrinks the column to
+ * exactly the width of the buttons instead — so it still ends up hard against
+ * the right edge of the table — and then everything inside it, heading
+ * included, aligns left like every other column. */
+.gm-table .gm-rowend {
+  width: 1%;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* A money column that reads down the page rather than sits on the right rail.
+   `gm-num` right-aligns, which is the usual answer for figures and is why it
+   is still here — but a table where two headings point left and two point
+   right reads as two tables, and the ask is one field among five rather than
+   a column being totalled. Tabular figures keep the digits in line either
+   way, which is the part that actually matters. */
+.gm-table .gm-figure {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1627,7 +1654,7 @@
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 11px;
+  border-radius: var(--r-sm);
   background: var(--surface-2);
   border: 1px solid var(--line);
   box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.04);
@@ -1641,7 +1668,7 @@
   height: 30px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--ink-3);
   font: inherit;
@@ -1658,10 +1685,7 @@
 }
 
 .gm-tab:hover span.gm-tab-t {
-  background: var(--grad-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--gold-600);
 }
 
 .gm-tab.is-active {
@@ -1681,7 +1705,7 @@
   font-size: 11px;
   font-weight: 700;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(21, 33, 47, 0.08);
   font-variant-numeric: tabular-nums;
 }
@@ -1717,7 +1741,7 @@
 .gm-input,
 .gm-textarea {
   width: 100%;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   background: var(--surface);
   box-shadow: var(--sh-1);
@@ -1774,7 +1798,7 @@
   width: 42px;
   height: 24px;
   flex: none;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-3);
   box-shadow: inset 0 1px 3px rgba(21, 33, 47, 0.14);
   transition: background 0.22s ease, box-shadow 0.22s ease;
@@ -1857,7 +1881,7 @@
 
 .gm-meter {
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-3);
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.09);
@@ -1866,25 +1890,27 @@
 .gm-meter > i {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--grad-navy);
   transition: width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
+/* Flat fills from the tokens. A four-stop gradient ramp on a 7px bar reads as
+   noise at this size, and it hard-coded four more colours into the sheet. */
 .gm-meter--gold > i {
-  background: var(--grad-gold);
+  background: var(--gold);
 }
 
 .gm-meter--ok > i {
-  background: linear-gradient(90deg, #34b07c, #1f8a5b);
+  background: var(--ok);
 }
 
 .gm-meter--warn > i {
-  background: linear-gradient(90deg, #dda23f, #b0761d);
+  background: var(--warn);
 }
 
 .gm-meter--bad > i {
-  background: linear-gradient(90deg, #e0665c, #c0392f);
+  background: var(--bad);
 }
 
 .gm-meter--lg {
@@ -1944,14 +1970,14 @@
 .gm-legend-dot {
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   flex: none;
 }
 
 .gm-legend-swatch {
   width: 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   flex: none;
   box-shadow: 0 1px 2px rgba(21, 33, 47, 0.2);
 }
@@ -2033,7 +2059,7 @@
   width: 8px;
   height: 8px;
   margin-top: 4.5px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 
 .gm-rings-key > div {
@@ -2151,7 +2177,7 @@
   flex: 1 1 0;
   min-width: 0;
   max-width: 22px;
-  border-radius: 6px 6px 3px 3px;
+  border-radius: var(--r-xs) 6px 3px 3px;
   transition: filter 0.18s ease, transform 0.18s ease;
 }
 
@@ -2184,9 +2210,9 @@
 .gm-feed-item {
   position: relative;
   display: flex;
-  gap: 12px;
+  gap: 13px;
   padding: 12px 0;
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 .gm-feed-item:last-child {
@@ -2198,16 +2224,27 @@
   padding-top: 0;
 }
 
+/* --------------------------------------------------------------------------
+   Feed markers
+
+   Were 30px tinted, ring-outlined rounded squares, one per row, which turned
+   a list of events into a column of coloured tiles competing with the text
+   beside them. The icon is the same; the tile around it has gone, and the
+   marks now hang off a hairline that runs the length of the feed so the
+   column reads as a sequence rather than as a stack of cards.
+   -------------------------------------------------------------------------- */
+
 .gm-feed-ico {
-  width: 30px;
-  height: 30px;
+  width: 18px;
+  height: 18px;
   flex: none;
-  border-radius: 9px;
+  margin-top: 1px;
   display: grid;
   place-items: center;
-  background: var(--surface-2);
-  color: var(--ink-2);
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--ink-4);
 }
 
 .gm-feed-ico svg {
@@ -2215,28 +2252,35 @@
   height: 15px;
 }
 
+/* the hairline the marks sit on */
+.gm-feed-item::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 24px;
+  bottom: -1px;
+  width: 1px;
+  background: var(--line);
+}
+
+.gm-feed-item:last-child::before {
+  display: none;
+}
+
 .gm-feed-ico--ok {
-  background: var(--ok-bg);
   color: var(--ok);
-  box-shadow: inset 0 0 0 1px rgba(31, 138, 91, 0.2);
 }
 
 .gm-feed-ico--warn {
-  background: var(--warn-bg);
   color: var(--warn);
-  box-shadow: inset 0 0 0 1px rgba(176, 118, 29, 0.22);
 }
 
 .gm-feed-ico--bad {
-  background: var(--bad-bg);
   color: var(--bad);
-  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.2);
 }
 
 .gm-feed-ico--gold {
-  background: var(--gold-050);
-  color: var(--gold);
-  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.3);
+  color: var(--gold-600);
 }
 
 .gm-feed-body {
@@ -2285,75 +2329,10 @@
   }
 }
 
-.gm-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 91;
-  width: min(560px, 100vw);
-  display: flex;
-  flex-direction: column;
-  background:
-    radial-gradient(500px 300px at 110% -6%, rgba(168, 141, 96, 0.18), transparent 64%),
-    linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
-  border-left: 1px solid var(--line-2);
-  box-shadow: -30px 0 70px rgba(15, 23, 32, 0.26);
-  animation: gm-slide 0.28s cubic-bezier(0.22, 0.9, 0.34, 1) both;
-}
-
-@keyframes gm-slide {
-  from {
-    transform: translateX(28px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-
-.gm-drawer-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--line);
-}
-
-.gm-drawer-head h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.018em;
-}
-
-.gm-drawer-head p {
-  margin: 3px 0 0;
-  font-size: 12.5px;
-  color: var(--ink-3);
-}
-
-.gm-drawer-body {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.gm-drawer-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--line);
-  background: var(--surface-2);
-}
-
-.gm-modal {
+/* One window, two widths. `--wide` carries a whole record — a member, a case,
+   a listing with its photo set — and the narrow default carries one decision
+   and the reason it needs typed. Both are centred; neither is a drawer. */
+.gm-dialog {
   position: fixed;
   z-index: 91;
   top: 50%;
@@ -2363,24 +2342,99 @@
   max-height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
-  border-radius: var(--r-xl);
-  background:
-    radial-gradient(420px 240px at 108% -12%, rgba(168, 141, 96, 0.2), transparent 66%),
-    linear-gradient(180deg, #ffffff, #fbfcfd);
+  border-radius: var(--r-md);
+  background: var(--surface);
   border: 1px solid var(--line-2);
   box-shadow: var(--sh-4);
   animation: gm-pop 0.24s cubic-bezier(0.22, 0.9, 0.34, 1) both;
   overflow: hidden;
 }
 
+/* Wide enough for two columns of record without becoming a page of its own.
+   The viewport clamp keeps it off the edges on a laptop screen. */
+.gm-dialog--wide {
+  width: min(940px, calc(100vw - 48px));
+  max-height: calc(100vh - 56px);
+}
+
 @keyframes gm-pop {
   from {
     opacity: 0;
-    transform: translate(-50%, -46%) scale(0.97);
+    transform: translate(-50%, -46%) scale(0.985);
   }
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.gm-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.gm-dialog-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+}
+
+.gm-dialog-head p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.gm-dialog-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Wraps, because a record with four actions on it is normal and a footer that
+   scrolls sideways hides the last one — which is the most consequential. */
+.gm-dialog-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+/* On a small screen there is no room to be a window, so it becomes the sheet
+   it always should have been on a phone: full width, pinned to the bottom. */
+@media (max-width: 760px) {
+  .gm-dialog,
+  .gm-dialog--wide {
+    top: auto;
+    bottom: 0;
+    width: 100vw;
+    max-height: 92vh;
+    transform: none;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    border-bottom: 0;
+    animation: gm-sheet 0.24s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+  }
+
+  @keyframes gm-sheet {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
@@ -2413,45 +2467,74 @@
    NOTE / CALLOUT
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   Asides
+
+   Was a filled, ring-outlined, fully-rounded alert card, which is the single
+   most recognisable generated-UI component there is. Now it is set as an
+   aside: a rule down the left edge carries the colour, the text stays in
+   normal ink so it is read rather than decoded, and only the opening clause
+   takes the tone.
+   -------------------------------------------------------------------------- */
+
+/* Boxed on the same 10px corner as the buttons and the chips, with the tone
+   carried by the outline and a very light wash rather than by a solid fill —
+   a message and a Reject button should look like they came from one kit. */
 .gm-note {
   display: flex;
-  gap: 11px;
-  padding: 12px 14px;
-  border-radius: var(--r);
+  gap: 10px;
+  padding: 10px 13px;
+  border: 1px solid color-mix(in srgb, var(--info) 30%, transparent);
+  border-left-width: 3px;
+  border-radius: var(--r-sm);
   font-size: 12.8px;
-  line-height: 1.55;
-  background: var(--info-bg);
-  color: #1f4f83;
-  box-shadow: inset 0 0 0 1px rgba(44, 111, 181, 0.18), var(--sh-1);
+  line-height: 1.6;
+  background: color-mix(in srgb, var(--info) 5%, var(--surface));
+  color: var(--ink-2);
 }
 
 .gm-note svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   flex: none;
-  margin-top: 1px;
+  margin-top: 2px;
+  color: var(--info);
 }
 
 .gm-note b {
-  font-weight: 700;
+  font-weight: 650;
+  color: var(--ink);
 }
 
 .gm-note--warn {
-  background: var(--warn-bg);
-  color: #7d520f;
-  box-shadow: inset 0 0 0 1px rgba(176, 118, 29, 0.22), var(--sh-1);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+  background: color-mix(in srgb, var(--warn) 6%, var(--surface));
+}
+
+.gm-note--warn svg {
+  color: var(--warn);
 }
 
 .gm-note--bad {
-  background: var(--bad-bg);
-  color: #93261e;
-  box-shadow: inset 0 0 0 1px rgba(192, 57, 47, 0.2), var(--sh-1);
+  border-color: color-mix(in srgb, var(--bad) 30%, transparent);
+  background: color-mix(in srgb, var(--bad) 6%, var(--surface));
+}
+
+.gm-note--bad svg {
+  color: var(--bad);
+}
+
+.gm-note--bad b {
+  color: var(--bad);
 }
 
 .gm-note--gold {
-  background: var(--gold-050);
-  color: #6d5732;
-  box-shadow: inset 0 0 0 1px rgba(168, 141, 96, 0.26), var(--sh-1);
+  border-color: color-mix(in srgb, var(--gold) 30%, transparent);
+  background: color-mix(in srgb, var(--gold) 6%, var(--surface));
+}
+
+.gm-note--gold svg {
+  color: var(--gold-600);
 }
 
 /* ==========================================================================
@@ -2470,7 +2553,7 @@
 .gm-empty-ico {
   width: 52px;
   height: 52px;
-  border-radius: 15px;
+  border-radius: var(--r-md);
   display: grid;
   place-items: center;
   background: linear-gradient(150deg, #fbfcfd, #eef1f6);
@@ -2505,7 +2588,7 @@
   width: 42px;
   height: 58px;
   flex: none;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   display: grid;
   place-items: center;
   background: linear-gradient(150deg, #223244, #131c26);
@@ -2532,14 +2615,14 @@
   width: 30px;
   height: 42px;
   font-size: 8px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
 }
 
 .gm-thumb--lg {
   width: 108px;
   height: 150px;
   font-size: 12px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
 }
 
 /* ==========================================================================
@@ -2554,7 +2637,7 @@
 
 .gm-side-panel {
   padding: 14px;
-  border-radius: var(--r);
+  border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--sh-1);
@@ -2571,12 +2654,14 @@
   gap: 7px;
 }
 
-.gm-side-panel--buyer {
-  border-top: 3px solid var(--info);
+.gm-side-panel--buyer h4 {
+  color: var(--ink-2);
 }
 
-.gm-side-panel--seller {
-  border-top: 3px solid var(--gold);
+/* The one distinction worth drawing is who is being reported, and it belongs
+   on the words rather than on a stripe across the top of the box. */
+.gm-side-panel--seller h4 {
+  color: var(--ink-2);
 }
 
 .gm-quote {
@@ -2584,7 +2669,7 @@
   line-height: 1.6;
   color: var(--ink-2);
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: var(--surface-2);
   box-shadow: inset 0 0 0 1px var(--line);
 }
@@ -2608,7 +2693,7 @@
 
 .gm-msg-bubble {
   padding: 10px 13px;
-  border-radius: 14px 14px 14px 4px;
+  border-radius: var(--r-md) 14px 14px 4px;
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--sh-1);
@@ -2633,7 +2718,7 @@
   background: var(--grad-navy);
   border-color: transparent;
   color: #eef2f6;
-  border-radius: 14px 14px 4px 14px;
+  border-radius: var(--r-md) 14px 4px 14px;
   box-shadow: var(--sh-navy);
 }
 
@@ -2670,7 +2755,7 @@
 
 .gm-pick:hover {
   background: var(--surface-2);
-  border-left-color: var(--gold-300);
+  border-left-color: var(--line-2);
 }
 
 .gm-pick.is-active {
@@ -2735,7 +2820,7 @@
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   font-size: 10.5px;
   font-weight: 700;
   color: var(--ink-3);

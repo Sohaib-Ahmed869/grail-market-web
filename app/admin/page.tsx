@@ -47,6 +47,7 @@ import {
   IconShield,
   IconXCircle,
 } from "./components/icons";
+import { Gate } from "./components/Gate";
 
 /* The greeting, the money, the funnel and the queue stack in the left column;
    the rail runs the full height beside them rather than sitting under a chart.
@@ -58,33 +59,26 @@ import {
    being worked here: its rows are decided in place rather than handed off. */
 const SLA_ROWS = 4;
 
-/* The fan behind the greeting. Real card art, pulled once into public/cards/
-   by `scripts/fetch-card-art.mjs`. Fixed values rather than random so the
-   server and the client render the same markup. */
-const TRAIL: {
-  grader: string;
-  grade: string;
-  game: string;
-  art: string;
-  fan: string;
-  delay: string;
-}[] = [
-  { grader: "PSA", grade: "9", game: "Yu-Gi-Oh!", art: "yugioh-blue-eyes", fan: "-13deg", delay: "-2.4s" },
-  { grader: "BGS", grade: "9.5", game: "Magic", art: "magic-mox-sapphire", fan: "-6deg", delay: "-1.2s" },
-  { grader: "PSA", grade: "10", game: "Pokémon", art: "pokemon-charizard", fan: "1deg", delay: "0s" },
-  { grader: "CGC", grade: "8.5", game: "Magic", art: "magic-black-lotus", fan: "8deg", delay: "-1.8s" },
-  { grader: "PSA", grade: "10", game: "Pokémon", art: "pokemon-umbreon", fan: "15deg", delay: "-3.1s" },
-];
-
 /* `DECIDABLE` is awaiting + in-review — the rows waiting on us. A listing in
    `info-requested` is waiting on the seller with its clock stopped, so a
    decision on the row would be a decision taken without the thing you asked
    for. Those still count towards the queue depth in the rail, which is a
    different question. */
 
+/* The fan behind the greeting. Real card art, pulled once into public/cards/
+   by `scripts/fetch-card-art.mjs`. Fixed values rather than random so the
+   server and the client render the same markup. */
+const TRAIL: { grader: string; grade: string; art: string; fan: string }[] = [
+  { grader: "PSA", grade: "9", art: "yugioh-blue-eyes", fan: "-13deg" },
+  { grader: "BGS", grade: "9.5", art: "magic-mox-sapphire", fan: "-6deg" },
+  { grader: "PSA", grade: "10", art: "pokemon-charizard", fan: "1deg" },
+  { grader: "CGC", grade: "8.5", art: "magic-black-lotus", fan: "8deg" },
+  { grader: "PSA", grade: "10", art: "pokemon-umbreon", fan: "15deg" },
+];
+
 type Decision = "approved" | "rejected";
 
-export default function DashboardPage() {
+function DashboardPage() {
   /* Decisions taken on this screen, by submission id. Front-end only until
      the admin API lands, but the queue has to behave like a queue while you
      work it: a row you have dealt with leaves, and the next one moves up. */
@@ -121,7 +115,7 @@ export default function DashboardPage() {
     const entry = writeToRecord({
       handle: l.seller.handle,
       kind: "listing-approved",
-      title: `Listing approved — ${l.card}`,
+      title: `Listing approved: ${l.card}`,
       by: operator.name,
       ref: l.id,
     });
@@ -137,7 +131,7 @@ export default function DashboardPage() {
     const entry = writeToRecord({
       handle: rejecting.seller.handle,
       kind: "listing-rejected",
-      title: `Listing rejected — ${rejecting.card}`,
+      title: `Listing rejected: ${rejecting.card}`,
       detail: reason.trim(),
       by: operator.name,
       ref: rejecting.id,
@@ -181,11 +175,8 @@ export default function DashboardPage() {
 
           <div className="gm-hero-trail">
             {TRAIL.map((c, i) => (
-              <span
-                key={i}
-                style={{ "--fan": c.fan, animationDelay: c.delay } as React.CSSProperties}
-              >
-                <Slab grader={c.grader} grade={c.grade} game={c.game} art={c.art} size="lg" />
+              <span key={i} style={{ "--fan": c.fan } as React.CSSProperties}>
+                <Slab grader={c.grader} grade={c.grade} art={c.art} size="lg" />
               </span>
             ))}
           </div>
@@ -273,7 +264,7 @@ export default function DashboardPage() {
               <Funnel stages={verificationFunnel} />
               <p className="gm-tiny gm-dim" style={{ marginTop: 14 }}>
                 The last two steps are the provider&rsquo;s decision against the DVS. We hold the
-                outcome only — no documents reach this database.
+                outcome only. No documents reach this database.
               </p>
             </div>
           </section>
@@ -283,7 +274,7 @@ export default function DashboardPage() {
         <section>
           <div className="gm-blockhead">
             <h3>Awaiting review</h3>
-            <p>Sorted by time left, not by value — decide on the row</p>
+            <p>Sorted by time left rather than by value. Decide on the row.</p>
             <Link href="/admin/listings" className="gm-spacer gm-btn gm-btn--sm">
               All {queue.length}
               <IconArrowRight />
@@ -314,7 +305,7 @@ export default function DashboardPage() {
                       <tr key={s.id}>
                         <td>
                           <div className="gm-cell-user">
-                            <Slab grader={s.grader} grade={s.grade} game={s.game} art={s.art} size="sm" />
+                            <Slab grader={s.grader} grade={s.grade} art={s.art} size="sm" />
                             <div className="gm-cell2">
                               <b>{s.card}</b>
                               <span>
@@ -466,7 +457,6 @@ export default function DashboardPage() {
                 <Slab
                   grader={rejecting.grader}
                   grade={rejecting.grade}
-                  game={rejecting.game}
                   art={rejecting.art}
                 />
                 <div className="gm-cell2">
@@ -493,10 +483,10 @@ export default function DashboardPage() {
                 className="gm-textarea"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Be specific — the seller acts on this."
+                placeholder="Be specific. The seller acts on this."
               />
               <span className="gm-hint">
-                At least 8 characters. This is the only thing the seller is told.
+                At least 8 characters. This is what the seller is told.
               </span>
             </div>
           </>
@@ -507,5 +497,15 @@ export default function DashboardPage() {
         <Toast title={toast.title} body={toast.body} onDone={() => setToast(null)} />
       ) : null}
     </div>
+  );
+}
+
+/* Access is decided before the page renders, not inside it — see the
+   warning in RoleContext about what this gate is and is not. */
+export default function GatedDashboardPage() {
+  return (
+    <Gate need="dashboard.read">
+      <DashboardPage />
+    </Gate>
   );
 }
