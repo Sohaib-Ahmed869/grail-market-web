@@ -347,6 +347,19 @@
   z-index: 30;
 }
 
+/* Folded, the rail is a card standing off the page — so the strip it used to
+   sit in goes with the panel. The wash, the border and the sideways shadow
+   are all edge-to-edge straight lines, and beside a 64px rounded card they
+   read as a seam the card is stuck to rather than as depth. Nothing here is
+   dividing anything once the labels are gone: the card's own shadow is what
+   lifts it. */
+:root[data-gm-rail="1"] .gm-side {
+  background: none;
+  backdrop-filter: none;
+  border-right: 0;
+  box-shadow: none;
+}
+
 /* ------------------------------------------------------------------ rail */
 
 .gm-rail {
@@ -442,6 +455,14 @@
   background: var(--line-2);
 }
 
+/* The padding is not spacing, it is room for the selected item's shadow.
+
+   This scrolls, and a box that scrolls on one axis clips on both — `overflow-y`
+   alone is enough, `overflow-x: hidden` only says so out loud. So `--sh-navy`
+   under the active disc was being cut off square on all four sides, which drew
+   a hard-edged rectangle around the one element on the rail meant to look
+   lifted. 12px clears a 10px blur at a 2px drop; the item is 40px in a 64px
+   card, so the sides cost nothing and the list still centres. */
 .gm-rail-items {
   display: flex;
   flex-direction: column;
@@ -449,6 +470,7 @@
   gap: 4px;
   flex: 1 1 auto;
   min-height: 0;
+  padding: 4px 12px 12px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
@@ -1154,27 +1176,6 @@
 
 .gm-grid--2b {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
-}
-
-/* A fixed-width pick list beside a detail pane — conflicts and support both
-   use it. A class rather than an inline style, so the media query can undo it.
- *
- * `align-items: start` is what stops the two columns being forced to the same
- * height. Grid stretches its items by default, so the shorter of the two — the
- * inbox, which scrolls inside its own list and therefore never grows — was
- * being pulled down to whatever the thread beside it happened to need, leaving
- * a tall white box under a list that had already ended. */
-.gm-grid--pane,
-.gm-grid--pane-wide {
-  align-items: start;
-}
-
-.gm-grid--pane {
-  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
-}
-
-.gm-grid--pane-wide {
-  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
 }
 
 .gm-stack {
@@ -2727,83 +2728,6 @@
 }
 
 /* ==========================================================================
-   LIST OF SELECTABLE ROWS (support inbox, conflicts list)
-   ========================================================================== */
-
-.gm-picklist {
-  display: flex;
-  flex-direction: column;
-  max-height: 620px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.gm-pick {
-  display: flex;
-  gap: 11px;
-  padding: 13px 16px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-left: 3px solid transparent;
-  background: transparent;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  width: 100%;
-  transition: background 0.16s ease, border-color 0.18s ease, box-shadow 0.2s ease;
-}
-
-.gm-pick:hover {
-  background: var(--surface-2);
-  border-left-color: var(--line-2);
-}
-
-.gm-pick.is-active {
-  background: var(--surface-3);
-  border-left-color: var(--navy);
-  box-shadow: inset 0 0 0 1px rgba(44, 65, 89, 0.09);
-}
-
-.gm-pick-main {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.gm-pick-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-
-.gm-pick-top b {
-  font-size: 13.2px;
-  font-weight: 650;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gm-pick-sub {
-  font-size: 12.2px;
-  color: var(--ink-3);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.45;
-}
-
-.gm-pick-time {
-  font-size: 11px;
-  color: var(--ink-4);
-  white-space: nowrap;
-  flex: none;
-  margin-left: auto;
-}
-
-/* ==========================================================================
    MISC
    ========================================================================== */
 
@@ -2896,15 +2820,8 @@
 @media (max-width: 1000px) {
   .gm-grid--3,
   .gm-grid--2,
-  .gm-grid--pane,
-  .gm-grid--pane-wide,
   .gm-split {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  /* stacked, the pick list must not run the full height of the page */
-  .gm-picklist {
-    max-height: 340px;
   }
 }
 

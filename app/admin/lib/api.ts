@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  BannerTone,
   BillingState,
   Capability,
   Confidence,
@@ -539,6 +540,177 @@ export const fetchStaff = () => call<{ staff: AdminStaff[] }>("staff").then((r) 
 
 export const setStaffRole = (id: string, role: Role) =>
   post<{ staff: AdminStaff[] }>(`staff/${id}/role`, { role }).then((r) => r.staff);
+
+/* ============================================================== audit log */
+
+export const AUDIT_AREAS = [
+  "listing",
+  "member",
+  "conduct",
+  "support",
+  "billing",
+  "pricing",
+  "settings",
+  "staff",
+] as const;
+
+export type AuditArea = (typeof AUDIT_AREAS)[number];
+
+export type AuditEntry = {
+  id: string;
+  at: string;
+  actor: string;
+  area: AuditArea;
+  action: string;
+  target: string;
+  detail?: string;
+  weight: "high" | "normal";
+};
+
+/**
+ * The log, filtered by the database.
+ *
+ * Every argument goes to the API rather than being applied to a bundled array:
+ * the page promises seven years of retention underneath itself, and nothing
+ * that long is coming down the wire to be filtered in a browser.
+ */
+export async function fetchAudit(q: {
+  area?: string;
+  actor?: string;
+  weight?: string;
+  search?: string;
+}) {
+  const p = new URLSearchParams();
+  if (q.area && q.area !== "all") p.set("area", q.area);
+  if (q.actor && q.actor !== "all") p.set("actor", q.actor);
+  if (q.weight && q.weight !== "all") p.set("weight", q.weight);
+  if (q.search) p.set("q", q.search);
+  return call<{
+    entries: AuditEntry[];
+    actors: string[];
+    totals: { all: number; high: number };
+  }>(`audit?${p.toString()}`);
+}
+
+/* ========================================================== announcements */
+
+export type AnnouncementChannel = "push" | "email" | "banner";
+/* The tone is shared with the console's own vocabulary rather than restated:
+   `bannerToneLabel` in data.ts is how each one is worded on screen, and two
+   copies of the union is how a fourth tone gets added to one of them. */
+export type { BannerTone };
+
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  channels: AnnouncementChannel[];
+  audience: string;
+  tone: BannerTone;
+  state: "scheduled" | "sent" | "live" | "cancelled" | "taken-down";
+  at: string;
+  until?: string;
+  by: string;
+  /** How many accounts it was addressed to, counted when it went. */
+  reach?: number;
+  /**
+   * Whether anything actually left the building.
+   *
+   * False until a push or email provider is wired. The console says so rather
+   * than implying a member received something — "sent to 5,218" over a
+   * dispatcher that does not exist is the one claim this page must not make.
+   */
+  delivered: boolean;
+};
+
+/** A segment and how many accounts are currently in it. `reach` is null when
+ *  the API could not count it, which is not the same as nobody being in it. */
+export type Audience = { key: string; reach: number | null };
+
+export const fetchAnnouncements = () =>
+  call<{ announcements: Announcement[]; banner: Announcement | null; segments: Audience[] }>(
+    "announcements",
+  );
+
+export const createAnnouncement = (a: {
+  title: string;
+  body: string;
+  channels: AnnouncementChannel[];
+  audience: string;
+  tone: BannerTone;
+  when: "now" | "later";
+  at?: string;
+  until?: string;
+}) => post<{ announcement: Announcement }>("announcements", a).then((r) => r.announcement);
+
+export const setAnnouncementState = (id: string, state: "cancelled" | "taken-down") =>
+  post<{ announcement: Announcement }>(`announcements/${id}/state`, { state }).then(
+    (r) => r.announcement,
+  );
+
+/* ============================================================== reporting */
+
+/**
+ * One report in the catalogue, and the series behind it.
+ *
+ * `available` is the half that matters. A report whose source the API could
+ * not read keeps its row — the catalogue says what is reported on, not what
+ * happened to answer this minute — but carries no numbers, and the panel draws
+ * the reason instead of a flat line at zero.
+ */
+export type ReportSeries = {
+  id: string;
+  name: string;
+  detail: string;
+  cadence: string;
+  category: "Marketplace" | "Moderation" | "Trust and safety" | "Members";
+  chart: "Area chart" | "Line chart" | "Column chart" | "Table";
+  unit: "k" | "n" | "%";
+  format: string;
+  available: boolean;
+  unavailable?: string;
+  headline: string;
+  headlineLabel: string;
+  /** The bucket names, from the API. Days for a short period, weeks for a
+   *  long one — the console does not decide this and must not assume weeks. */
+  labels: string[];
+  trend: number[];
+};
+
+export type ReportsPayload = {
+  period: { key: string; label: string; days: number; from: string; to: string };
+  kpis: {
+    key: string;
+    label: string;
+    value: string;
+    delta: { dir: "up" | "down" | "flat"; text: string } | null;
+    foot: string;
+    tone?: "navy" | "gold";
+  }[];
+  gameSplit: { label: string; value: number; amount: string }[];
+  decisionSplit: { label: string; value: number; color: string }[];
+  conflictOutcomes: { label: string; value: number }[];
+  throughput: {
+    /** Percentage decided inside the 24h target, or null when nothing was. */
+    onTime: number | null;
+    medianLabel: string;
+    breached: number;
+    decided: number;
+  };
+  reports: ReportSeries[];
+};
+
+/** The period keys the API understands. Sent as-is; it falls back to 30 days
+ *  rather than erroring on one it does not know. */
+export const REPORT_PERIODS: { key: string; label: string }[] = [
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "quarter", label: "This quarter" },
+  { key: "ytd", label: "Year to date" },
+];
+
+export const fetchReports = (period: string) =>
+  call<ReportsPayload>(`reports?period=${encodeURIComponent(period)}`);
 
 /* ------------------------------------------------------ reports & conduct */
 

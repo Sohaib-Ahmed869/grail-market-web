@@ -269,66 +269,11 @@ export const listingFees = {
    record of anything.
    ========================================================================== */
 
-export type AuditArea =
-  | "listing"
-  | "member"
-  | "conduct"
-  | "support"
-  | "billing"
-  | "pricing"
-  | "settings"
-  | "staff";
-
-export type AuditEntry = {
-  id: string;
-  at: string;
-  /** Who did it. "System" for anything automatic. */
-  actor: string;
-  area: AuditArea;
-  /** The verb, in the past tense, as it should read in a list. */
-  action: string;
-  /** What it was done to — a handle, a listing id, a setting name. */
-  target: string;
-  /** The reason recorded at the time, where one was required. */
-  detail?: string;
-  /** Whether it moved money, standing, or only a setting. */
-  weight: "high" | "normal";
-};
-
-const seededAudit: AuditEntry[] = [
-  { id: "AU-5512", at: "2026-08-31T08:05:00Z", actor: "System", area: "conduct", action: "Escalated to Trust and safety", target: "CF-2291", detail: "Open past 72 hours with no finding.", weight: "normal" },
-  { id: "AU-5509", at: "2026-08-31T06:10:00Z", actor: "Ayna Sulaiman", area: "conduct", action: "Recorded a formal warning", target: "@galar_pc", detail: "Off-platform contact, first offence, admitted. A second one restricts the account.", weight: "high" },
-  { id: "AU-5504", at: "2026-08-30T15:00:00Z", actor: "Ayna Sulaiman", area: "listing", action: "Withdrew a listing", target: "LS-9008", detail: "Suspected resealed slab, pending review. Seller's other listings pulled.", weight: "high" },
-  { id: "AU-5498", at: "2026-08-30T12:10:00Z", actor: "Marco Reyes", area: "support", action: "Replied to a ticket", target: "SP-1190", weight: "normal" },
-  { id: "AU-5490", at: "2026-08-29T12:02:00Z", actor: "Ayna Sulaiman", area: "listing", action: "Approved a listing", target: "LS-9036", weight: "normal" },
-  { id: "AU-5487", at: "2026-08-28T17:41:00Z", actor: "Ayna Sulaiman", area: "member", action: "Revoked marketplace access", target: "@vault_flipper", detail: "Third authenticity strike inside 30 days.", weight: "high" },
-  { id: "AU-5486", at: "2026-08-28T16:44:00Z", actor: "Ayna Sulaiman", area: "listing", action: "Rejected a listing", target: "LS-9002", detail: "Print dot pattern inconsistent with 1952 Topps stock.", weight: "normal" },
-  { id: "AU-5480", at: "2026-08-27T09:18:00Z", actor: "Marco Reyes", area: "listing", action: "Rejected a listing", target: "Dark Magician Girl", detail: "Four angles supplied, ten required.", weight: "normal" },
-  { id: "AU-5474", at: "2026-08-26T12:00:00Z", actor: "Ayna Sulaiman", area: "member", action: "Restricted an account", target: "@duelistdepot", detail: "Two reports of coordinated bidding.", weight: "high" },
-  { id: "AU-5470", at: "2026-08-24T09:30:00Z", actor: "Priya Nandakumar", area: "settings", action: "Changed a setting", target: "Grail-tier review floor", detail: "A$4,000 → A$5,000.", weight: "normal" },
-  { id: "AU-5462", at: "2026-08-18T13:30:00Z", actor: "Marco Reyes", area: "billing", action: "Comped a boost", target: "@duelistdepot", detail: "A$12 not charged. The listing was wrongly pulled.", weight: "high" },
-  { id: "AU-5455", at: "2026-08-14T10:02:00Z", actor: "Ayna Sulaiman", area: "staff", action: "Invited a staff account", target: "d.aydin@northstar-cx.com", detail: "Support · Tier 1, Northstar CX.", weight: "high" },
-  { id: "AU-5441", at: "2026-08-09T16:40:00Z", actor: "Tobias Lang", area: "pricing", action: "Excluded a sale as an outlier", target: "CP-7004", detail: "149% above the median; listing title carried 'lot of 3'.", weight: "normal" },
-];
-
-const sessionAudit: AuditEntry[] = [];
-
-/** Write to the log. Nothing here can be edited or removed afterwards. */
-export function logAudit(e: Omit<AuditEntry, "id" | "at">): AuditEntry {
-  const entry: AuditEntry = {
-    ...e,
-    id: `AU-${5600 + sessionAudit.length}`,
-    at: new Date().toISOString(),
-  };
-  sessionAudit.unshift(entry);
-  return entry;
-}
-
-/** The whole log, newest first — this session's entries ahead of the seeded. */
-export const auditLog = () => [...sessionAudit, ...seededAudit];
-
-export const auditActors = () =>
-  [...new Set(auditLog().map((e) => e.actor))].sort();
+/* The audit log used to live here: a seeded array, a session array, and a
+   `logAudit` that appended to it. It is now a table the API owns and writes
+   on every real action — see `admin_audit` and GET /admin/audit. A
+   client-side copy could only ever hold what this one tab had done, which is
+   the opposite of what an audit log is for. */
 
 /* --------------------------------------------------------------------------
    Roles
@@ -733,14 +678,6 @@ export const verificationFunnel: FunnelStage[] = [
   { key: "mobile", label: "Mobile confirmed", value: 1102 },
   { key: "submitted", label: "ID submitted", value: 806 },
   { key: "approved", label: "ID approved", value: 731 },
-];
-
-export const gameSplit = [
-  { label: "Pokémon", value: 47, amount: "$194,100" },
-  { label: "Sports", value: 24, amount: "$99,090" },
-  { label: "Magic", value: 15, amount: "$61,930" },
-  { label: "One Piece", value: 9, amount: "$37,160" },
-  { label: "Yu-Gi-Oh!", value: 5, amount: "$20,600" },
 ];
 
 export type ActivityItem = {
@@ -1754,25 +1691,6 @@ const sessionEvents: MemberEvent[] = [];
  * Returns the entry so the caller can show exactly what was filed, rather
  * than a paraphrase of it in a toast.
  */
-const AUDIT_AREA: Record<MemberEventKind, AuditArea> = {
-  "listing-approved": "listing",
-  "listing-rejected": "listing",
-  "info-requested": "listing",
-  "listing-live": "listing",
-  offer: "member",
-  trade: "member",
-  review: "member",
-  ticket: "support",
-  conduct: "conduct",
-  plan: "billing",
-  boost: "billing",
-  verification: "member",
-  note: "member",
-};
-
-/** Decisions that change what someone can do, rather than only recording one. */
-const HEAVY: MemberEventKind[] = ["conduct", "plan", "boost", "verification", "listing-rejected"];
-
 export function writeToRecord(e: Omit<MemberEvent, "id" | "at">): MemberEvent {
   const entry: MemberEvent = {
     ...e,
@@ -1781,18 +1699,11 @@ export function writeToRecord(e: Omit<MemberEvent, "id" | "at">): MemberEvent {
   };
   sessionEvents.unshift(entry);
 
-  /* The member record and the audit log answer different questions — "what
-     has happened to this person" and "what has this operator done" — but they
-     are the same events, so one write feeds both rather than asking every
-     caller to remember two. */
-  logAudit({
-    actor: e.by,
-    area: AUDIT_AREA[e.kind],
-    action: e.title,
-    target: e.ref ? `${e.handle} · ${e.ref}` : e.handle,
-    detail: e.detail,
-    weight: HEAVY.includes(e.kind) ? "high" : "normal",
-  });
+  /* This no longer writes to the audit log. The log is a table the API owns
+     and writes itself on every real action; an entry appended here would
+     exist only in this tab, and a moderator checking the log after a decision
+     taken anywhere else would not find it. The member record below is still a
+     fixture, and goes the same way when the dashboard is wired. */
 
   return entry;
 }
@@ -2759,166 +2670,14 @@ export const revokeReasons = [
 
 /* ==========================================================================
    Reports
+
+   Nothing here. Every figure the page draws is computed by the API over the
+   selected period — see GET /admin/reports and reports.store.ts. The
+   fixtures that used to sit here (the catalogue, the KPI row, the decision
+   split, the conflict outcomes and the GMV-by-game split) went with the
+   wiring rather than staying beside it: a page that has been connected can
+   drift back onto a constant that is still exported.
    ========================================================================== */
-
-export type Report = {
-  id: string;
-  name: string;
-  detail: string;
-  cadence: string;
-  updated: string;
-  format: string;
-  category: "Marketplace" | "Moderation" | "Trust and safety" | "Members";
-  /** How the report draws itself — the caption under its name in the
-      catalogue, and what the panel actually renders when it is selected. */
-  chart: "Area chart" | "Line chart" | "Column chart" | "Table";
-  /** What `trend` counts, so its axis can be labelled: thousands, a plain
-      count, or a percentage. */
-  unit: "k" | "n" | "%";
-  /** Headline figure and its movement, shown when the report is selected. */
-  headline: string;
-  headlineLabel: string;
-  trend: number[];
-};
-
-export const reports: Report[] = [
-  {
-    id: "RP-01",
-    name: "GMV and take rate",
-    detail: "Gross merchandise value, commission collected, and take rate by game and price band.",
-    cadence: "Daily · 06:00 UTC",
-    updated: "2 hours ago",
-    format: "CSV · XLSX",
-    category: "Marketplace",
-    chart: "Area chart",
-    unit: "k",
-    headline: "$412,880",
-    headlineLabel: "GMV, last 30 days",
-    trend: [61, 68, 59, 74, 81, 77, 92, 88, 103, 114, 108, 127],
-  },
-  {
-    id: "RP-02",
-    name: "Verification throughput",
-    detail: "Submissions in, cleared, rejected, and time-to-decision against the 24h SLA, split by tier.",
-    cadence: "Daily · 06:00 UTC",
-    updated: "2 hours ago",
-    format: "CSV",
-    category: "Moderation",
-    chart: "Line chart",
-    unit: "n",
-    headline: "284",
-    headlineLabel: "Cleared in the period",
-    trend: [24, 31, 27, 35, 33, 39, 44, 41, 48, 52, 47, 58],
-  },
-  {
-    id: "RP-03",
-    name: "Conflict outcomes",
-    detail: "Every case closed in the period, what it was about, whose conduct it concerned, and the action applied.",
-    cadence: "Weekly · Monday",
-    updated: "3 days ago",
-    format: "CSV · PDF",
-    category: "Moderation",
-    chart: "Column chart",
-    unit: "n",
-    headline: "134",
-    headlineLabel: "Conflicts closed",
-    trend: [18, 14, 16, 11, 13, 9, 12, 10, 8, 11, 7, 9],
-  },
-  {
-    id: "RP-04",
-    name: "Conduct actions",
-    detail:
-      "Every warning, restriction, closure and police referral in the period, with the case it came from and the moderator who applied it.",
-    cadence: "Daily · 23:00 UTC",
-    updated: "9 hours ago",
-    format: "CSV · XLSX",
-    category: "Trust and safety",
-    chart: "Column chart",
-    unit: "n",
-    headline: "134",
-    headlineLabel: "Actions applied",
-    trend: [8, 11, 9, 14, 12, 10, 16, 13, 15, 12, 9, 11],
-  },
-  {
-    id: "RP-05",
-    name: "Member growth and churn",
-    detail: "Sign-ups, first-sale conversion, dormancy, restrictions and revocations.",
-    cadence: "Weekly · Monday",
-    updated: "3 days ago",
-    format: "CSV",
-    category: "Members",
-    chart: "Line chart",
-    unit: "n",
-    headline: "6,412",
-    headlineLabel: "Active members",
-    trend: [5210, 5388, 5501, 5677, 5790, 5904, 6011, 6098, 6180, 6255, 6340, 6412],
-  },
-  {
-    id: "RP-06",
-    name: "Price confidence audit",
-    detail:
-      "Listings that went live on a low-confidence valuation, with sample size and the last comparable sale date attached.",
-    cadence: "Weekly · Friday",
-    updated: "4 days ago",
-    format: "CSV",
-    category: "Marketplace",
-    chart: "Line chart",
-    unit: "n",
-    headline: "41",
-    headlineLabel: "Low-confidence listings",
-    trend: [58, 55, 61, 49, 52, 47, 44, 48, 43, 45, 40, 41],
-  },
-  {
-    id: "RP-07",
-    name: "Seller concentration",
-    detail: "Share of GMV by seller, flagged where one account exceeds 8% of the period.",
-    cadence: "Monthly",
-    updated: "12 days ago",
-    format: "XLSX",
-    category: "Marketplace",
-    chart: "Column chart",
-    unit: "%",
-    headline: "11.2%",
-    headlineLabel: "Largest seller share",
-    trend: [7.1, 7.6, 8.2, 8.0, 8.9, 9.4, 9.1, 10.0, 10.4, 10.8, 11.0, 11.2],
-  },
-  {
-    id: "RP-08",
-    name: "Moderation audit log",
-    detail: "Every admin action taken: who, what, when, and the reason recorded at the time.",
-    cadence: "On demand",
-    updated: "Live",
-    format: "CSV · JSON",
-    category: "Moderation",
-    chart: "Table",
-    unit: "n",
-    headline: "1,908",
-    headlineLabel: "Actions logged",
-    trend: [132, 148, 141, 160, 155, 171, 168, 179, 183, 190, 186, 195],
-  },
-];
-
-export const reportKpis: Stat[] = [
-  { key: "r1", label: "Verified this month", value: "284", delta: { dir: "up", text: "18%" }, foot: "of 312 submitted", tone: "navy" },
-  { key: "r2", label: "Median time to decision", value: "5h 12m", delta: { dir: "down", text: "1h 40m" }, foot: "SLA is 24h", tone: "gold" },
-  { key: "r3", label: "Rejection rate", value: "9.0%", delta: { dir: "flat", text: "0.2%" }, foot: "28 of 312" },
-  { key: "r4", label: "Conflict rate", value: "1.4%", delta: { dir: "down", text: "0.5%" }, foot: "of completed orders" },
-];
-
-export const decisionSplit = [
-  { label: "Verified", value: 284, color: "var(--ok)" },
-  { label: "Rejected", value: 28, color: "var(--bad)" },
-  { label: "Info requested", value: 41, color: "var(--warn)" },
-  { label: "Auto-cleared", value: 619, color: "var(--gold-300)" },
-];
-
-export const conflictOutcomes = [
-  { label: "Warned", value: 51 },
-  { label: "No action", value: 38 },
-  { label: "Restricted", value: 22 },
-  { label: "Account closed", value: 14 },
-  { label: "Referred to police", value: 3 },
-];
 
 /* ==========================================================================
    Support
@@ -3383,6 +3142,12 @@ export function staffNow(p: Staff): Staff {
   return revoked.has(p.id) ? { ...out, status: "revoked" as const } : out;
 }
 
+/* These three used to write to the audit log as well as to their own arrays.
+   They no longer do: the log is the API's, and the real staff change goes
+   through POST /admin/staff/:id/role, which writes its own entry. An entry
+   appended from here would exist only in this tab and would claim an action
+   the backend never saw. */
+
 export const pendingInvites = () => [...invites];
 
 export function inviteStaff(email: string, role: Role, by: string, company?: string): Invite {
@@ -3395,14 +3160,6 @@ export function inviteStaff(email: string, role: Role, by: string, company?: str
     company,
   };
   invites.unshift(inv);
-  logAudit({
-    actor: by,
-    area: "staff",
-    action: "Invited a staff account",
-    target: email,
-    detail: `${roleLabel(role)}${company ? ` · ${company}` : ""}. Nothing is created until they accept and set up 2FA.`,
-    weight: "high",
-  });
   return inv;
 }
 
@@ -3410,37 +3167,20 @@ export function inviteStaff(email: string, role: Role, by: string, company?: str
 export function setStaffRole(p: Staff, role: Role, by: string, why: string) {
   const from = staffNow(p).role;
   roleOverrides.set(p.id, role);
-  logAudit({
-    actor: by,
-    area: "staff",
-    action: "Changed a staff role",
-    target: `${p.name} · ${p.email}`,
-    detail: `${roleLabel(from)} → ${roleLabel(role)}. ${why}`,
-    weight: "high",
-  });
 }
 
 export function revokeStaff(p: Staff, by: string, why: string) {
   revoked.add(p.id);
-  logAudit({
-    actor: by,
-    area: "staff",
-    action: "Revoked a staff account",
-    target: `${p.name} · ${p.email}`,
-    detail: why,
-    weight: "high",
-  });
 }
 
 /* ==========================================================================
-   Announcements
+   Banner vocabulary
 
-   Broadcasts, banners and scheduled sends. Marked "Next" in the brief rather
-   than "Must", and built to the same shape as everything else so it does not
-   become a second comms system beside the one on the member directory.
+   All that is left of the announcements fixtures. The queue, the history and
+   the send itself are the API's — see the `announcements` table and
+   GET/POST /admin/announcements. These two are how the console words a tone,
+   which is a rendering decision and belongs on this side.
    ========================================================================== */
-
-export type AnnouncementChannel = "push" | "email" | "banner";
 
 export type BannerTone = "info" | "outage" | "policy";
 
@@ -3449,95 +3189,6 @@ export const bannerToneLabel: Record<BannerTone, string> = {
   outage: "Outage",
   policy: "Policy change",
 };
-
-export type Announcement = {
-  id: string;
-  title: string;
-  body: string;
-  channels: AnnouncementChannel[];
-  /** Segment key from `segments`, or "all". */
-  audience: string;
-  tone: BannerTone;
-  state: "draft" | "scheduled" | "sent" | "live";
-  /** ISO. When it goes, or went. */
-  at: string;
-  /** Banners only: when it comes down on its own. */
-  until?: string;
-  by: string;
-  /** Set once sent. */
-  reach?: number;
-};
-
-export const announcements: Announcement[] = [
-  {
-    id: "AN-021",
-    title: "Card scanning is slow this morning",
-    body: "Scans are taking up to 30 seconds while we work through a backlog on the image pipeline. Prices and listings are unaffected. We will update this banner when it clears.",
-    channels: ["banner"],
-    audience: "all",
-    tone: "outage",
-    state: "live",
-    at: "2026-09-03T06:15:00Z",
-    until: "2026-09-03T18:00:00Z",
-    by: "Ayna Sulaiman",
-  },
-  {
-    id: "AN-019",
-    title: "How reports and conduct cases are handled",
-    body: "We are changing what happens when one member reports another. Outcomes are now a warning, a restriction, a closed account, or a referral to police, and the reason is always written to the member's record. The full text is on the policy page.",
-    channels: ["email", "banner"],
-    audience: "all",
-    tone: "policy",
-    state: "scheduled",
-    at: "2026-09-05T23:00:00Z",
-    by: "Ayna Sulaiman",
-  },
-  {
-    id: "AN-016",
-    title: "Your watchlist moved this week",
-    body: "Three cards you follow moved more than 5% this week. Open Grail Market to see the comparable sales behind each figure.",
-    channels: ["push"],
-    audience: "all",
-    tone: "info",
-    state: "sent",
-    at: "2026-08-30T08:00:00Z",
-    by: "Marco Reyes",
-    reach: 5218,
-  },
-  {
-    id: "AN-014",
-    title: "You are at your listing limit",
-    body: "Your plan allows a set number of live listings at once. Upgrading lifts the ceiling immediately; nothing you have already listed is affected.",
-    channels: ["push", "email"],
-    audience: "billing",
-    tone: "info",
-    state: "sent",
-    at: "2026-08-27T09:00:00Z",
-    by: "Marco Reyes",
-    reach: 92,
-  },
-];
-
-const sessionAnnouncements: Announcement[] = [];
-
-export const allAnnouncements = () => [...sessionAnnouncements, ...announcements];
-
-export function scheduleAnnouncement(a: Omit<Announcement, "id">): Announcement {
-  const entry: Announcement = { ...a, id: `AN-${900 + sessionAnnouncements.length}` };
-  sessionAnnouncements.unshift(entry);
-  logAudit({
-    actor: a.by,
-    area: "settings",
-    action: a.state === "scheduled" ? "Scheduled an announcement" : "Sent an announcement",
-    target: a.title,
-    detail: `${a.channels.join(" + ")} · ${a.audience === "all" ? "everyone" : a.audience}`,
-    weight: "high",
-  });
-  return entry;
-}
-
-/** The banner currently on the app, if any. Only one runs at a time. */
-export const liveBanner = () => allAnnouncements().find((a) => a.state === "live") ?? null;
 
 /* --------------------------------------------------------------------------
    Service accounts

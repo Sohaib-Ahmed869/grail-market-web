@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { shortDate } from "../lib/data";
 import {
   ApiError,
@@ -21,15 +21,28 @@ import {
   Empty,
   Modal,
   Note,
+  FilterMenu,
   PageHead,
-  PillTabs,
   Slab,
   Toast,
 } from "../components/ui";
-import { IconAlert, IconCheck, IconRefresh, IconX } from "../components/icons";
+import { IconAlert, IconCheck, IconRefresh, IconSearch, IconX } from "../components/icons";
 import { Gate } from "../components/Gate";
 
 type Tab = "feeds" | "grades" | "outliers";
+
+/** The three things this page holds. They are different datasets, not three
+ *  views of one, so the heading always names which is on screen. */
+const SECTIONS: { key: Tab; label: string }[] = [
+  { key: "feeds", label: "Feed health" },
+  { key: "grades", label: "Grade sets" },
+  { key: "outliers", label: "Outlier review" },
+];
+
+/** Every grading company the engine holds a figure for. A grade belongs to one
+ *  of these and to no other — invariant 1 — so filtering by company is the one
+ *  cut of this table that is always meaningful. */
+const GRADERS = ["PSA", "BGS", "CGC", "SGC", "TAG", "Raw"];
 
 const FEED_TONE: Record<FeedHealth["status"], "ok" | "warn" | "bad"> = {
   healthy: "ok",
@@ -112,6 +125,11 @@ function CompRow({
 
 function PriceEnginePage() {
   const [tab, setTab] = useState<Tab>("feeds");
+  /* Secondary filters over the grade-set table. They sit in the same menu as
+     the section rather than as a second control that comes and goes. */
+  const [grader, setGrader] = useState("all");
+  const [confidence, setConfidence] = useState("all");
+  const [query, setQuery] = useState("");
 
   const [feeds, setFeeds] = useState<FeedHealth[]>([]);
   const [sets, setSets] = useState<GradeSet[]>([]);
@@ -191,6 +209,20 @@ function PriceEnginePage() {
   const unhealthy = feeds.filter((f) => f.status !== "healthy");
   const thin = sets.filter((s) => s.sampleSize < 3).length;
 
+  /* The grade-set table after its filters. Cut here rather than over the wire:
+     the whole engine arrives in one `price-engine` call, so a second round
+     trip per filter would buy nothing and could disagree with the counts in
+     the menu. */
+  const shownSets = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return sets.filter((g) => {
+      if (grader !== "all" && g.grader !== grader) return false;
+      if (confidence !== "all" && g.confidence !== confidence) return false;
+      if (!q) return true;
+      return g.card.toLowerCase().includes(q) || (g.setLine ?? "").toLowerCase().includes(q);
+    });
+  }, [sets, grader, confidence, query]);
+
   return (
     <>
       <PageHead
@@ -222,15 +254,98 @@ function PriceEnginePage() {
           </Note>
         ) : null}
 
-        <PillTabs
-          value={tab}
-          onChange={setTab}
-          options={[
-            { key: "feeds", label: "Feed health", count: feeds.length },
-            { key: "grades", label: "Grade sets", count: sets.length },
-            { key: "outliers", label: "Outlier review", count: excluded.length },
-          ]}
+        {/* One filter language, the same as the listing queue and the case
+            board: the heading names what is shown, its subtitle spells out
+            what is applied, and the control sits beside it. */}
+        <BlockHead
+          title={SECTIONS.find((x) => x.key === tab)!.label}
+          sub={
+            tab === "feeds"
+              ? `${feeds.length} source${feeds.length === 1 ? "" : "s"} behind every quoted figure`
+              : tab === "grades"
+                ? `${shownSets.length} of ${sets.length} grade pairs${
+                    thin > 0 ? ` · ${thin} priced off fewer than three sales, shown first` : ""
+                  }`
+                : `${excluded.length} sale${excluded.length === 1 ? "" : "s"} held out of a figure`
+          }
+          right={
+            <div className="gm-row" style={{ gap: 8 }}>
+              {tab === "grades" ? (
+                <div className="gm-search" style={{ width: 224 }}>
+                  <IconSearch />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Card or set…"
+                    aria-label="Search grade sets"
+                  />
+                </div>
+              ) : null}
+              <FilterMenu
+                applied={
+                  (tab === "feeds" ? 0 : 1) +
+                  (tab === "grades" && grader !== "all" ? 1 : 0) +
+                  (tab === "grades" && confidence !== "all" ? 1 : 0)
+                }
+                onClear={() => {
+                  setTab("feeds");
+                  setGrader("all");
+                  setConfidence("all");
+                  setQuery("");
+                }}
+                groups={[
+                  {
+                    key: "section",
+                    label: "What to show",
+                    value: tab,
+                    onChange: (v) => setTab(v as Tab),
+                    options: SECTIONS.map((x) => ({
+                      value: x.key,
+                      label: x.label,
+                      count:
+                        x.key === "feeds" ? feeds.length
+                        : x.key === "grades" ? sets.length
+                        : excluded.length,
+                    })),
+                  },
+                  ...(tab === "grades"
+                    ? [
+                        {
+                          key: "grader",
+                          label: "Grading company",
+                          value: grader,
+                          onChange: setGrader,
+                          options: [
+                            { value: "all", label: "Every company" },
+                            ...GRADERS.map((g) => ({
+                              value: g,
+                              label: g,
+                              count: sets.filter((x) => x.grader === g).length,
+                            })).filter((o) => o.count > 0),
+                          ],
+                        },
+                        {
+                          key: "confidence",
+                          label: "Confidence",
+                          value: confidence,
+                          onChange: setConfidence,
+                          options: [
+                            { value: "all", label: "Any" },
+                            ...["high", "medium", "low"].map((c) => ({
+                              value: c,
+                              label: c[0].toUpperCase() + c.slice(1),
+                              count: sets.filter((x) => x.confidence === c).length,
+                            })),
+                          ],
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            </div>
+          }
         />
+
 
         {/* =================================================== feeds */}
         {tab === "feeds" ? (
@@ -303,30 +418,25 @@ function PriceEnginePage() {
               would produce a price for a card nobody owns.
             </Note>
 
-            <BlockHead
-              title="Every set the engine prices"
-              sub={
-                thin > 0
-                  ? `${sets.length} grade pairs · ${thin} priced off fewer than three sales, shown first`
-                  : `${sets.length} grade pairs`
-              }
-            />
-
             {loading && sets.length === 0 ? (
               <Card>
                 <Empty icon={<IconRefresh />} title="Reading the sets…" />
               </Card>
-            ) : sets.length === 0 ? (
+            ) : shownSets.length === 0 ? (
               <Card>
                 <Empty
                   icon={<IconAlert />}
-                  title="No figure held for any grade set"
-                  body="Nothing has been priced yet. The refresh job fills this — run it on the API with npm run ingest."
+                  title={sets.length === 0 ? "No figure held for any grade set" : "Nothing matches"}
+                  body={
+                    sets.length === 0
+                      ? "Nothing has been priced yet. The refresh job fills this — run it on the API with npm run ingest."
+                      : "No grade set matches that company, confidence or search."
+                  }
                 />
               </Card>
             ) : (
               <div className="gm-stack" style={{ gap: 12 }}>
-                {sets.map((g) => {
+                {shownSets.map((g) => {
                   const k = keyOf(g);
                   const on = openSet === k;
                   const loaded = comps[k];

@@ -464,7 +464,7 @@ function ListingsPage() {
             </div>
           ) : (
             <div className="gm-tablewrap">
-              {/* Six columns, not nine.
+              {/* Seven columns, not nine.
 
                   Every row opens a record that carries the certificate, the
                   price confidence, the comps behind the figure, the seller's
@@ -476,12 +476,13 @@ function ListingsPage() {
                   What is left is what a moderator triages on: what the card is,
                   who is selling it, what state it is in, what they want for it
                   against the market, and how long it has been waiting. */}
-              <table className="gm-table" style={{ minWidth: 1000 }}>
+              <table className="gm-table" style={{ minWidth: 1060 }}>
                 <thead>
                   <tr>
                     <th>Card</th>
                     <th>Seller</th>
-                    <th>Tier · state</th>
+                    <th>Tier</th>
+                    <th>State</th>
                     <th>Ask</th>
                     <th>Activity</th>
                     <th className="gm-rowend">Action</th>
@@ -516,14 +517,16 @@ function ListingsPage() {
                             </span>
                           </div>
                         </td>
+                        {/* A column each. They read together — a grail
+                            awaiting review is a different job from a standard
+                            one — but sharing a cell meant neither could be
+                            scanned down on its own, which is what a column is
+                            for. */}
                         <td>
-                          {/* Tier and state read together — a grail awaiting
-                              review is a different job from a standard one —
-                              so they share a cell rather than a column each. */}
-                          <div className="gm-row" style={{ gap: 6 }}>
-                            <Tier tier={l.tier} />
-                            <ListingBadge status={l.status} />
-                          </div>
+                          <Tier tier={l.tier} />
+                        </td>
+                        <td>
+                          <ListingBadge status={l.status} />
                         </td>
                         <td className="gm-figure">
                           <div className="gm-strong">{money(l.askPrice)}</div>

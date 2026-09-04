@@ -1,29 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { bannerToneLabel, shortDate } from "../lib/data";
 import {
-  allAnnouncements,
-  bannerToneLabel,
-  liveBanner,
-  members,
-  operator,
-  scheduleAnnouncement,
-  segments,
-  shortDate,
+  ApiError,
+  createAnnouncement,
+  fetchAnnouncements,
+  setAnnouncementState,
+  type Announcement,
   type AnnouncementChannel,
+  type Audience,
   type BannerTone,
-} from "../lib/data";
+} from "../lib/api";
 import {
   Badge,
   BlockHead,
   Card,
   CardBody,
   CardHead,
-  DL,
   Empty,
+  FilterMenu,
   Note,
   PageHead,
-  PillTabs,
   Select,
   Toast,
   Toggle,
@@ -37,7 +35,27 @@ import {
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 
-type Tab = "compose" | "scheduled" | "history";
+type View = "compose" | "scheduled" | "history";
+
+/** The segment keys the API knows, with the words the console uses for them.
+ *  The API owns the membership rule; this owns how it reads on screen. */
+const SEGMENT_LABEL: Record<string, string> = {
+  all: "Everyone",
+  lapsed: "Lapsed",
+  "never-listed": "Never listed",
+  unverified: "Stuck in verification",
+  billing: "Billing needs attention",
+};
+
+const SEGMENT_DETAIL: Record<string, string> = {
+  all: "Every account in the directory.",
+  lapsed: "Not seen in 60 days or more, and not revoked.",
+  "never-listed": "Has never published a listing, however long they have been here.",
+  unverified: "Started the verification funnel and never came out of it.",
+  billing: "Payment failed or the subscription was cancelled.",
+};
+
+const seg = (k: string) => SEGMENT_LABEL[k] ?? k;
 
 /**
  * The handset preview.
@@ -183,7 +201,7 @@ function Handset({
 }
 
 function AnnouncementsPage() {
-  const [tab, setTab] = useState<Tab>("compose");
+  const [view, setView] = useState<View>("compose");
   const [writes, setWrites] = useState(0);
 
   const [title, setTitle] = useState("");
@@ -194,21 +212,42 @@ function AnnouncementsPage() {
   const [email, setEmail] = useState(false);
   const [banner, setBanner] = useState(false);
   const [when, setWhen] = useState("now");
-  const [at, setAt] = useState("2026-09-05T09:00");
+  const [at, setAt] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const all = useMemo(() => allAnnouncements(), [writes]);
+  /* Everything from the API. This page used to keep its history in a
+     module-level array, which meant a send vanished on reload and two tabs of
+     the console disagreed about what had gone out. */
+  const [all, setAll] = useState<Announcement[]>([]);
+  const [live, setLive] = useState<Announcement | null>(null);
+  const [segments, setSegments] = useState<Audience[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetchAnnouncements()
+      .then((r) => {
+        if (!alive) return;
+        setAll(r.announcements);
+        setLive(r.banner);
+        setSegments(r.segments);
+        setError(null);
+      })
+      .catch((e) => alive && setError(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [writes]);
+
   const scheduled = all.filter((a) => a.state === "scheduled");
   const sent = all.filter((a) => a.state === "sent" || a.state === "live");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const live = useMemo(() => liveBanner(), [writes]);
 
-  const seg = segments.find((s) => s.key === audience);
-  const reach = useMemo(
-    () => (audience === "all" ? members.length : members.filter((m) => seg?.match(m)).length),
-    [audience, seg]
-  );
+  const reach = segments.find((s) => s.key === audience)?.reach ?? null;
+  const everyone = segments.find((s) => s.key === "all")?.reach ?? null;
 
   const channels: AnnouncementChannel[] = [
     ...(push ? (["push"] as const) : []),
@@ -222,27 +261,66 @@ function AnnouncementsPage() {
 
   const ready = title.trim().length > 3 && body.trim().length > 10 && channels.length > 0;
 
-  function send() {
-    scheduleAnnouncement({
-      title: title.trim(),
-      body: body.trim(),
-      channels,
-      audience,
-      tone,
-      state: when === "now" ? (banner ? "live" : "sent") : "scheduled",
-      at: when === "now" ? new Date().toISOString() : new Date(at).toISOString(),
-      by: operator.name,
-      reach: when === "now" ? reach : undefined,
-    });
-    setToast(
-      when === "now"
-        ? `Sent to ${reach.toLocaleString("en-US")} · ${channels.join(" + ")}`
-        : `Scheduled for ${new Date(at).toLocaleString("en-GB")} · ${reach.toLocaleString("en-US")} recipients`
-    );
-    setTitle("");
-    setBody("");
-    setWrites((n) => n + 1);
+  /* A default an hour out, set on the client so it is in the operator's own
+     time zone rather than a date typed into the source a year ago. */
+  useEffect(() => {
+    if (at) return;
+    const t = new Date(Date.now() + 3_600_000);
+    t.setSeconds(0, 0);
+    setAt(new Date(t.getTime() - t.getTimezoneOffset() * 60_000).toISOString().slice(0, 16));
+  }, [at]);
+
+  const headCount = (n: number | null) => (n === null ? "an unknown number" : n.toLocaleString("en-AU"));
+
+  async function send() {
+    if (!ready || busy) return;
+    setBusy(true);
+    try {
+      const a = await createAnnouncement({
+        title: title.trim(),
+        body: body.trim(),
+        channels,
+        audience,
+        tone,
+        when: when === "now" ? "now" : "later",
+        at: when === "later" ? new Date(at).toISOString() : undefined,
+      });
+      setTitle("");
+      setBody("");
+      setWrites((n) => n + 1);
+      setView(when === "now" ? "history" : "scheduled");
+      setToast(
+        when === "now"
+          ? `Recorded against ${headCount(a.reach ?? null)} accounts · ${a.channels.join(" + ")}`
+          : `Queued for ${new Date(a.at).toLocaleString("en-GB")}`,
+      );
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function pull(a: Announcement, state: "cancelled" | "taken-down") {
+    try {
+      await setAnnouncementState(a.id, state);
+      setWrites((n) => n + 1);
+      setToast(state === "cancelled" ? `${a.title} · cancelled` : `${a.title} · banner down`);
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : String(e));
+    }
+  }
+
+  const VIEWS: { value: View; label: string; count?: number }[] = useMemo(
+    () => [
+      { value: "compose", label: "Compose" },
+      { value: "scheduled", label: "Queued", count: scheduled.length },
+      { value: "history", label: "Already out", count: sent.length },
+    ],
+    [scheduled.length, sent.length],
+  );
+
+  const heading = VIEWS.find((v) => v.value === view)!;
 
   return (
     <>
@@ -252,27 +330,73 @@ function AnnouncementsPage() {
       />
 
       <div className="gm-stack">
+        {error ? (
+          <Note tone="bad">
+            <b>Announcements could not be read.</b> {error}
+          </Note>
+        ) : null}
+
+        {/* Said once, at the top, and true of every row below it: this
+            console records a broadcast, it does not dispatch one. The page
+            claiming otherwise would be a claim that members were told
+            something they were not. */}
+        <Note tone="warn">
+          <b>Nothing is dispatched yet.</b> Push and email both need a provider that is not
+          wired, so a send here records what went to whom and raises the in-app banner. Every
+          row says whether it was actually delivered.
+        </Note>
+
         {live ? (
           <Note tone={live.tone === "outage" ? "bad" : "warn"}>
             <b>A banner is live in the app right now.</b> &ldquo;{live.title}&rdquo;, up since{" "}
             {shortDate(live.at)}
             {live.until ? `, down automatically ${shortDate(live.until)}` : ""}. Only one runs at a
-            time, so anything new replaces it.
+            time, so anything new replaces it.{" "}
+            <button
+              type="button"
+              className="gm-btn gm-btn--sm gm-btn--ghost"
+              onClick={() => pull(live, "taken-down")}
+            >
+              Take it down
+            </button>
           </Note>
         ) : null}
 
-        <PillTabs
-          value={tab}
-          onChange={setTab}
-          options={[
-            { key: "compose", label: "Compose" },
-            { key: "scheduled", label: "Scheduled", count: scheduled.length },
-            { key: "history", label: "Sent", count: sent.length },
-          ]}
+        {/* One filter language, the same as the listing queue and the case
+            board: the heading names what is shown and the control sits beside
+            it. This page used to open with a row of pills. */}
+        <BlockHead
+          title={heading.label}
+          sub={
+            view === "compose"
+              ? "Written once, shown on every channel you pick."
+              : view === "scheduled"
+                ? `${scheduled.length} waiting to go out`
+                : `${sent.length} sent or live`
+          }
+          right={
+            <FilterMenu
+              applied={view === "compose" ? 0 : 1}
+              onClear={() => setView("compose")}
+              groups={[
+                {
+                  key: "view",
+                  label: "What to show",
+                  value: view,
+                  onChange: (v) => setView(v as View),
+                  options: VIEWS.map((v) => ({
+                    value: v.value,
+                    label: v.label,
+                    count: v.count,
+                  })),
+                },
+              ]}
+            />
+          }
         />
 
         {/* ================================================= compose */}
-        {tab === "compose" ? (
+        {view === "compose" ? (
           <div className="gm-row" style={{ gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div className="gm-stack" style={{ flex: "1 1 420px", minWidth: 320 }}>
               <Card>
@@ -376,12 +500,21 @@ function AnnouncementsPage() {
                       id="an-aud"
                       value={audience}
                       onChange={setAudience}
-                      options={segments.map((x) => ({ value: x.key, label: x.label }))}
+                      options={segments.map((x) => ({ value: x.key, label: seg(x.key) }))}
                       style={{ width: "100%" }}
                     />
                     <span className="gm-hint">
-                      {seg?.detail} <b>{reach.toLocaleString("en-US")}</b> of {members.length}{" "}
-                      members.
+                      {SEGMENT_DETAIL[audience] ?? ""}{" "}
+                      {/* A count the API could not work out is not zero people. */}
+                      {reach === null ? (
+                        <b>Could not count this segment.</b>
+                      ) : (
+                        <>
+                          <b>{reach.toLocaleString("en-AU")}</b>
+                          {everyone !== null ? ` of ${everyone.toLocaleString("en-AU")}` : ""}{" "}
+                          accounts.
+                        </>
+                      )}
                     </span>
                   </div>
                 </CardBody>
@@ -424,13 +557,15 @@ function AnnouncementsPage() {
                     type="button"
                     className="gm-btn gm-btn--primary"
                     style={{ marginTop: 6 }}
-                    disabled={!ready}
+                    disabled={!ready || busy}
                     onClick={send}
                   >
                     {when === "now" ? <IconSend /> : <IconCalendar />}
-                    {when === "now"
-                      ? `Send to ${reach.toLocaleString("en-US")}`
-                      : `Schedule for ${reach.toLocaleString("en-US")}`}
+                    {busy
+                      ? "Recording…"
+                      : when === "now"
+                        ? `Send to ${headCount(reach)}`
+                        : `Schedule for ${headCount(reach)}`}
                   </button>
                 </CardBody>
               </Card>
@@ -450,56 +585,68 @@ function AnnouncementsPage() {
         ) : null}
 
         {/* =============================================== scheduled */}
-        {tab === "scheduled" ? (
-          scheduled.length === 0 ? (
+        {view === "scheduled" ? (
+          loading && all.length === 0 ? (
+            <Card>
+              <Empty icon={<IconCalendar />} title="Reading the queue…" />
+            </Card>
+          ) : scheduled.length === 0 ? (
             <Card>
               <Empty icon={<IconCalendar />} title="Nothing queued" body="Compose one to schedule it." />
             </Card>
           ) : (
-            <>
-              <BlockHead title="Queued to go out" sub={`${scheduled.length} waiting`} />
-              <div className="gm-stack" style={{ gap: 10 }}>
-                {scheduled.map((a) => (
-                  <Card key={a.id} pad>
-                    <div className="gm-row" style={{ gap: 12, flexWrap: "nowrap", alignItems: "flex-start" }}>
-                      <span className="gm-feed-ico gm-feed-ico--gold" style={{ flex: "none" }}>
-                        <IconCalendar />
+            <div className="gm-stack" style={{ gap: 10 }}>
+              {scheduled.map((a) => (
+                <Card key={a.id} pad>
+                  <div className="gm-row" style={{ gap: 12, flexWrap: "nowrap", alignItems: "flex-start" }}>
+                    <span className="gm-feed-ico gm-feed-ico--gold" style={{ flex: "none" }}>
+                      <IconCalendar />
+                    </span>
+                    <div className="gm-cell2" style={{ flex: "1 1 auto", minWidth: 0 }}>
+                      <b>{a.title}</b>
+                      <span>{a.body}</span>
+                      <span className="gm-tiny gm-dim" style={{ marginTop: 5 }}>
+                        {a.channels.join(" + ")} · {seg(a.audience)} · by {a.by}
                       </span>
-                      <div className="gm-cell2" style={{ flex: "1 1 auto", minWidth: 0 }}>
-                        <b>{a.title}</b>
-                        <span>{a.body}</span>
-                        <span className="gm-tiny gm-dim" style={{ marginTop: 5 }}>
-                          {a.channels.join(" + ")} ·{" "}
-                          {a.audience === "all" ? "everyone" : a.audience} · by {a.by}
-                        </span>
-                      </div>
-                      <div className="gm-row" style={{ gap: 7, flex: "none" }}>
-                        <Badge tone="warn">{shortDate(a.at)}</Badge>
-                        <button type="button" className="gm-btn gm-btn--sm gm-btn--ghost">
-                          Cancel
-                        </button>
-                      </div>
                     </div>
-                  </Card>
-                ))}
-              </div>
-            </>
+                    <div className="gm-row" style={{ gap: 7, flex: "none" }}>
+                      <Badge tone="warn">{shortDate(a.at)}</Badge>
+                      <button
+                        type="button"
+                        className="gm-btn gm-btn--sm gm-btn--ghost"
+                        onClick={() => pull(a, "cancelled")}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           )
         ) : null}
 
         {/* ================================================= history */}
-        {tab === "history" ? (
-          <>
-            <BlockHead title="Already out" sub={`${sent.length} sent or live`} />
-            <Card>
+        {view === "history" ? (
+          <Card>
+            {loading && all.length === 0 ? (
+              <Empty icon={<IconSend />} title="Reading the history…" />
+            ) : sent.length === 0 ? (
+              <Empty
+                icon={<IconSend />}
+                title="Nothing has gone out"
+                body="Broadcasts appear here once they are sent or the banner is raised."
+              />
+            ) : (
               <div className="gm-tablewrap">
-                <table className="gm-table" style={{ minWidth: 820 }}>
+                <table className="gm-table" style={{ minWidth: 900 }}>
                   <thead>
                     <tr>
                       <th>Announcement</th>
                       <th>Channels</th>
                       <th>Audience</th>
-                      <th>Reach</th>
+                      <th>Addressed to</th>
+                      <th>Delivered</th>
                       <th className="gm-nowrap">When</th>
                     </tr>
                   </thead>
@@ -509,7 +656,9 @@ function AnnouncementsPage() {
                         <td>
                           <div className="gm-cell2">
                             <b>{a.title}</b>
-                            <span>{bannerToneLabel[a.tone]}</span>
+                            <span>
+                              {bannerToneLabel[a.tone]} · by {a.by}
+                            </span>
                           </div>
                         </td>
                         <td className="gm-sm gm-muted">
@@ -522,11 +671,22 @@ function AnnouncementsPage() {
                             ))}
                           </div>
                         </td>
-                        <td className="gm-sm gm-muted">
-                          {a.audience === "all" ? "Everyone" : a.audience}
-                        </td>
+                        <td className="gm-sm gm-muted">{seg(a.audience)}</td>
                         <td className="gm-sm gm-mono gm-nowrap">
-                          {a.reach ? a.reach.toLocaleString("en-US") : "None"}
+                          {a.reach === undefined ? "—" : a.reach.toLocaleString("en-AU")}
+                        </td>
+                        <td>
+                          {/* The column that stops this table implying more
+                              than happened. A banner genuinely is up; a push
+                              recorded against 5,000 accounts is not a push
+                              5,000 people received. */}
+                          {a.delivered ? (
+                            <Badge tone="ok">Delivered</Badge>
+                          ) : a.state === "live" ? (
+                            <Badge tone="ok">Banner is up</Badge>
+                          ) : (
+                            <Badge tone="warn">Recorded only</Badge>
+                          )}
                         </td>
                         <td className="gm-sm gm-muted gm-nowrap">
                           {a.state === "live" ? <Badge tone="ok">Live now</Badge> : shortDate(a.at)}
@@ -536,8 +696,8 @@ function AnnouncementsPage() {
                   </tbody>
                 </table>
               </div>
-            </Card>
-          </>
+            )}
+          </Card>
         ) : null}
       </div>
 

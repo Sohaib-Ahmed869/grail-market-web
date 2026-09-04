@@ -25,8 +25,8 @@ import {
   Empty,
   Modal,
   Note,
+  FilterMenu,
   PageHead,
-  PillTabs,
   Toast,
 } from "../components/ui";
 import {
@@ -40,6 +40,25 @@ import {
 import { Gate } from "../components/Gate";
 
 type Tab = "plans" | "boosts" | "billing";
+
+/** The three things this page holds. They are different datasets, not three
+ *  views of one, so the heading always names which is on screen. */
+const SECTIONS: { key: Tab; label: string }[] = [
+  { key: "plans", label: "Plans" },
+  { key: "boosts", label: "Boosts" },
+  { key: "billing", label: "Billing" },
+];
+
+/** Stripe's event kinds, in the order they matter to somebody chasing money. */
+const BILLING_KINDS: BillingEventKind[] = [
+  "payment-failed",
+  "abandoned",
+  "cancelled",
+  "refunded",
+  "subscribed",
+  "paid",
+  "plan-changed",
+];
 
 const BOOST_STATE_LABEL: Record<BoostState, string> = {
   active: "Running",
@@ -71,6 +90,10 @@ const EVENT_TONE: Record<BillingEventKind, "ok" | "warn" | "bad" | "idle" | "gol
 
 function PricingPage() {
   const [tab, setTab] = useState<Tab>("plans");
+  /* Secondary filters, one per section. They live beside the section itself in
+     one menu rather than as a second control that appears and disappears. */
+  const [boostState, setBoostState] = useState("all");
+  const [eventKind, setEventKind] = useState("all");
 
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [boosts, setBoosts] = useState<AdminBoost[]>([]);
@@ -115,6 +138,18 @@ function PricingPage() {
   /* A plan with no Stripe price behind it cannot be sold, whatever the page
      says it costs. Said once, at the top, rather than three times. */
   const unpriced = plans.filter((p) => !p.stripePriceId);
+
+  /* What the two ledgers actually draw, after the filter. Both are read from
+     one `commerce` call and cut here — the API answers the whole page in one
+     round trip, so filtering a second time over the wire would buy nothing. */
+  const shownBoosts = useMemo(
+    () => (boostState === "all" ? boosts : boosts.filter((b) => b.state === boostState)),
+    [boosts, boostState],
+  );
+  const shownBilling = useMemo(
+    () => (eventKind === "all" ? billing : billing.filter((e) => e.kind === eventKind)),
+    [billing, eventKind],
+  );
 
   async function run(what: () => Promise<string>) {
     setBusy(true);
@@ -174,14 +209,92 @@ function PricingPage() {
           </Note>
         ) : null}
 
-        <PillTabs
-          value={tab}
-          onChange={setTab}
-          options={[
-            { key: "plans", label: "Plans", count: plans.length },
-            { key: "boosts", label: "Boosts", count: boosts.length },
-            { key: "billing", label: "Billing", count: billing.length },
-          ]}
+        {/* One filter language, the same as the listing queue and the case
+            board: the heading names what is shown, its subtitle spells out
+            what is applied, and the control sits beside it.
+
+            The secondary filter belongs in the same menu rather than as a
+            second control that appears when you switch section — one place to
+            look, and the groups on offer say what this section can be cut by. */}
+        <BlockHead
+          title={SECTIONS.find((x) => x.key === tab)!.label}
+          sub={
+            tab === "plans"
+              ? `${plans.length} plan${plans.length === 1 ? "" : "s"}, priced in Stripe`
+              : tab === "boosts"
+                ? `${shownBoosts.length} of ${boosts.length} on record${
+                    boostState === "all" ? "" : ` · ${BOOST_STATE_LABEL[boostState as BoostState]}`
+                  }`
+                : `${shownBilling.length} of ${billing.length} events${
+                    eventKind === "all" ? "" : ` · ${eventKind.replace("-", " ")}`
+                  }`
+          }
+          right={
+            <FilterMenu
+              applied={
+                (tab === "plans" ? 0 : 1) +
+                (tab === "boosts" && boostState !== "all" ? 1 : 0) +
+                (tab === "billing" && eventKind !== "all" ? 1 : 0)
+              }
+              onClear={() => {
+                setTab("plans");
+                setBoostState("all");
+                setEventKind("all");
+              }}
+              groups={[
+                {
+                  key: "section",
+                  label: "What to show",
+                  value: tab,
+                  onChange: (v) => setTab(v as Tab),
+                  options: SECTIONS.map((x) => ({
+                    value: x.key,
+                    label: x.label,
+                    count:
+                      x.key === "plans" ? plans.length
+                      : x.key === "boosts" ? boosts.length
+                      : billing.length,
+                  })),
+                },
+                ...(tab === "boosts"
+                  ? [
+                      {
+                        key: "boost-state",
+                        label: "Boost state",
+                        value: boostState,
+                        onChange: setBoostState,
+                        options: [
+                          { value: "all", label: "Any state" },
+                          ...(Object.keys(BOOST_STATE_LABEL) as BoostState[]).map((k) => ({
+                            value: k,
+                            label: BOOST_STATE_LABEL[k],
+                            count: boosts.filter((b) => b.state === k).length,
+                          })),
+                        ],
+                      },
+                    ]
+                  : []),
+                ...(tab === "billing"
+                  ? [
+                      {
+                        key: "event-kind",
+                        label: "Event",
+                        value: eventKind,
+                        onChange: setEventKind,
+                        options: [
+                          { value: "all", label: "Everything" },
+                          ...BILLING_KINDS.map((k) => ({
+                            value: k,
+                            label: k.replace("-", " "),
+                            count: billing.filter((e) => e.kind === k).length,
+                          })),
+                        ],
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          }
         />
 
         {/* ==================================================== plans */}
@@ -312,23 +425,25 @@ function PricingPage() {
               </Note>
             ) : null}
 
-            <BlockHead title="Boost ledger" sub={`${boosts.length} on record`} />
-
             {loading && boosts.length === 0 ? (
               <Card>
                 <Empty icon={<IconSparkle />} title="Reading the ledger…" />
               </Card>
-            ) : boosts.length === 0 ? (
+            ) : shownBoosts.length === 0 ? (
               <Card>
                 <Empty
                   icon={<IconSparkle />}
-                  title="No boost has been bought yet"
-                  body="Nothing has been charged for a featured listing. The three products above are live; this fills as they sell."
+                  title={boosts.length === 0 ? "No boost has been bought yet" : "Nothing in that state"}
+                  body={
+                    boosts.length === 0
+                      ? "Nothing has been charged for a featured listing. The three products above are live; this fills as they sell."
+                      : "No boost currently sits in that state. Clear the filter to see the whole ledger."
+                  }
                 />
               </Card>
             ) : (
               <div className="gm-stack" style={{ gap: 9 }}>
-                {boosts.map((b) => {
+                {shownBoosts.map((b) => {
                   const broken = b.state === "paid-not-applied";
                   return (
                     <Card key={b.id} pad>
@@ -438,14 +553,16 @@ function PricingPage() {
               </CardBody>
             </Card>
 
-            <BlockHead title="Billing events" sub={`${billing.length} worth reading`} />
-
-            {billing.length === 0 ? (
+            {shownBilling.length === 0 ? (
               <Card>
                 <Empty
                   icon={<IconInfo />}
-                  title="Nothing to chase"
-                  body="No subscription, payment or cancellation has come back from Stripe yet."
+                  title={billing.length === 0 ? "Nothing to chase" : "Nothing of that kind"}
+                  body={
+                    billing.length === 0
+                      ? "No subscription, payment or cancellation has come back from Stripe yet."
+                      : "No event of that kind in the period. Clear the filter to see them all."
+                  }
                 />
               </Card>
             ) : (
@@ -462,7 +579,7 @@ function PricingPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {billing.map((e) => (
+                      {shownBilling.map((e) => (
                         <tr key={e.id}>
                           <td>
                             <Badge tone={EVENT_TONE[e.kind]}>{EVENT_LABEL[e.kind]}</Badge>
