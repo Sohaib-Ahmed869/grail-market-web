@@ -19,7 +19,8 @@ import {
   CardBody,
   CardHead,
   Empty,
-  FilterMenu,
+  SectionTabs,
+  Loading,
   Note,
   PageHead,
   Select,
@@ -362,9 +363,14 @@ function AnnouncementsPage() {
           </Note>
         ) : null}
 
-        {/* One filter language, the same as the listing queue and the case
-            board: the heading names what is shown and the control sits beside
-            it. This page used to open with a row of pills. */}
+{/* Composing, the queue and the history are three different things
+            with no "everything" between them, so the switch stays on screen. */}
+        <SectionTabs
+          value={view}
+          onChange={setView}
+          options={VIEWS.map((v) => ({ key: v.value, label: v.label, count: v.count }))}
+        />
+
         <BlockHead
           title={heading.label}
           sub={
@@ -373,25 +379,6 @@ function AnnouncementsPage() {
               : view === "scheduled"
                 ? `${scheduled.length} waiting to go out`
                 : `${sent.length} sent or live`
-          }
-          right={
-            <FilterMenu
-              applied={view === "compose" ? 0 : 1}
-              onClear={() => setView("compose")}
-              groups={[
-                {
-                  key: "view",
-                  label: "What to show",
-                  value: view,
-                  onChange: (v) => setView(v as View),
-                  options: VIEWS.map((v) => ({
-                    value: v.value,
-                    label: v.label,
-                    count: v.count,
-                  })),
-                },
-              ]}
-            />
           }
         />
 
@@ -588,7 +575,7 @@ function AnnouncementsPage() {
         {view === "scheduled" ? (
           loading && all.length === 0 ? (
             <Card>
-              <Empty icon={<IconCalendar />} title="Reading the queue…" />
+              <Loading label="Reading the queue…" />
             </Card>
           ) : scheduled.length === 0 ? (
             <Card>
@@ -630,7 +617,7 @@ function AnnouncementsPage() {
         {view === "history" ? (
           <Card>
             {loading && all.length === 0 ? (
-              <Empty icon={<IconSend />} title="Reading the history…" />
+              <Loading label="Reading the history…" />
             ) : sent.length === 0 ? (
               <Empty
                 icon={<IconSend />}
@@ -673,7 +660,7 @@ function AnnouncementsPage() {
                         </td>
                         <td className="gm-sm gm-muted">{seg(a.audience)}</td>
                         <td className="gm-sm gm-mono gm-nowrap">
-                          {a.reach === undefined ? "—" : a.reach.toLocaleString("en-AU")}
+                          {a.reach === undefined ? "Not counted" : a.reach.toLocaleString("en-AU")}
                         </td>
                         <td>
                           {/* The column that stops this table implying more

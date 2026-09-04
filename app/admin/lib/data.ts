@@ -433,7 +433,6 @@ export const ROUTE_CAPABILITY: { path: string; param?: [string, string]; cap: Ca
   { path: "/admin/members", param: ["scope", "team"], cap: "team.read" },
   { path: "/admin/members", cap: "members.read" },
   { path: "/admin/pricing", cap: "billing.read" },
-  { path: "/admin/price-engine", cap: "pricing.read" },
   { path: "/admin/audit", cap: "audit.read" },
   { path: "/admin/announcements", cap: "announce.write" },
   { path: "/admin/reports", cap: "reports.read" },
@@ -447,12 +446,10 @@ export const homeFor = (role: Role): { href: string; label: string } =>
     ? { href: "/admin", label: "Dashboard" }
     : { href: "/admin/support", label: "your support queue" };
 
-export const operator = {
-  name: "Ayna Sulaiman",
-  email: "ayna.sulaiman@calcite.live",
-  role: "owner" as Role,
-  initials: "AS",
-};
+/* `operator` is gone. It was a hardcoded name and address that pages printed
+   as "the person taking this decision" — on a database where nobody is called
+   that. Whoever is signed in comes from `useRole().me`, which is the API's
+   answer, and there is now exactly one place a page can learn who it is. */
 
 /* ==========================================================================
    Dashboard
@@ -3239,7 +3236,6 @@ export const scopesOf = (role: Role): string[] => {
   if (can(role, "members.read")) out.push("Members");
   if (can(role, "id.exceptions")) out.push("ID exceptions");
   if (can(role, "billing.read")) out.push("Billing");
-  if (can(role, "pricing.read")) out.push("Price engine");
   if (can(role, "audit.read")) out.push("Audit log");
   if (can(role, "announce.write")) out.push("Announcements");
   if (can(role, "reports.read")) out.push("Reports");

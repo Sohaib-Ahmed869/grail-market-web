@@ -31,7 +31,45 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
  * If the host is missing the overlay renders in place rather than vanishing:
  * mispositioned beats invisible.
  */
-function OverlayPortal({ children }: { children: ReactNode }) {
+/**
+ * The console's UI scale, as a number.
+ *
+ * Large screens set `zoom` on the root so the whole console grows rather than
+ * sitting at 14px in the middle of a 4K panel. `zoom` is the right tool for
+ * that — it reflows, unlike `transform: scale` — but it splits the two
+ * coordinate systems that JS positioning relies on:
+ *
+ *   - `getBoundingClientRect()` and `event.clientX` come back in VISUAL
+ *     pixels, already multiplied by the zoom;
+ *   - a `position: fixed` `left`/`top`, and anything measured against an SVG's
+ *     own viewBox, are in LOCAL pixels, and get multiplied again when painted.
+ *
+ * So a rect fed straight back into a style is scaled twice, and a panel opens
+ * a third of a screen away from the button it belongs to. Divide by this and
+ * both sides are in local pixels again. It reads 1 when nothing is zoomed,
+ * which is every screen under 1600px.
+ */
+export function uiScale(): number {
+  if (typeof window === "undefined") return 1;
+  const z = Number(getComputedStyle(document.documentElement).zoom);
+  return Number.isFinite(z) && z > 0 ? z : 1;
+}
+
+/** A rect in local pixels, whatever the root zoom is. */
+export function localRect(el: Element): DOMRect {
+  const r = el.getBoundingClientRect();
+  const k = uiScale();
+  if (k === 1) return r;
+  return new DOMRect(r.left / k, r.top / k, r.width / k, r.height / k);
+}
+
+/** The viewport in local pixels, to compare against a local rect. */
+export function localViewport() {
+  const k = uiScale();
+  return { w: window.innerWidth / k, h: window.innerHeight / k };
+}
+
+export function OverlayPortal({ children }: { children: ReactNode }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -560,6 +598,41 @@ export function Empty({
   );
 }
 
+/**
+ * Waiting, with the brand mark on it.
+ *
+ * Every "Reading the queue…" on this console used to be an `Empty` — the same
+ * grey box a page shows when there is genuinely nothing there, with different
+ * words in it. Those are opposite states: one says come back later, the other
+ * says wait a moment, and drawing them identically meant an empty queue and a
+ * slow one were indistinguishable until the text was read.
+ *
+ * The mark itself cannot be stroke-animated — it is two filled paths, not an
+ * outline — so the motion is a gold arc sweeping around it, with the mark
+ * breathing underneath. Both stop dead under `prefers-reduced-motion`, where
+ * what is left is a static logo above the label, which still says waiting.
+ */
+export function Loading({ label, small }: { label?: string; small?: boolean }) {
+  return (
+    <div className={`gm-loading${small ? " gm-loading--sm" : ""}`} role="status" aria-live="polite">
+      <span className="gm-loading-mark">
+        <svg className="gm-loading-ring" viewBox="0 0 52 52" aria-hidden="true">
+          <circle className="gm-loading-track" cx="26" cy="26" r="24" />
+          <circle className="gm-loading-arc" cx="26" cy="26" r="24" />
+        </svg>
+        {/* Two files, not one recoloured: the mark is navy and gold, and navy
+            disappears on a dark panel. `mark-onnavy.svg` is the same mark with
+            its navy strokes turned white. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="gm-mark-light" src="/brand/mark.svg" alt="" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="gm-mark-dark" src="/brand/mark-onnavy.svg" alt="" />
+      </span>
+      {label ? <b>{label}</b> : null}
+    </div>
+  );
+}
+
 /* ==========================================================================
    Dialog — the detail surface behind every row
 
@@ -753,15 +826,18 @@ export function Select({
   const place = useCallback(() => {
     const el = btn.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
+    /* Local pixels, so the fixed coordinates written below are not multiplied
+       by the root zoom a second time. */
+    const r = localRect(el);
+    const vp = localViewport();
     /* enough room below for the list, or does it have to open upward? */
     const wanted = Math.min(opts.length * 36 + 12, 300);
-    const up = r.bottom + wanted + 12 > window.innerHeight && r.top > wanted + 12;
+    const up = r.bottom + wanted + 12 > vp.h && r.top > wanted + 12;
     /* the list is at least MIN_W wide even when its trigger is narrower, so
        align it to the trigger but pull it back inside the viewport */
     const width = Math.max(r.width, MIN_W);
     setBox({
-      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 10)),
+      left: Math.max(8, Math.min(r.left, vp.w - width - 10)),
       top: up ? r.top - 6 : r.bottom + 6,
       width,
       up,
@@ -897,30 +973,6 @@ export function Select({
   );
 }
 
-/**
- * A labelled cell in the filter bar. The label sits on the bar's top edge
- * rather than above the value inside it — same information, one line of
- * height instead of two.
- */
-export function FilterField({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="gm-filterfield">
-      <label className="gm-filterfield-label" htmlFor={htmlFor}>
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
 /* ==========================================================================
    Charts — small, dependency-free SVG
    ========================================================================== */
@@ -944,7 +996,9 @@ function useWidth<T extends HTMLElement>() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const set = () => setW(Math.round(el.getBoundingClientRect().width));
+    /* Local pixels: this width becomes an SVG viewBox, which is drawn in the
+       zoomed context and would otherwise be scaled twice. */
+    const set = () => setW(Math.round(localRect(el).width));
     set();
     const ro = new ResizeObserver(set);
     ro.observe(el);
@@ -1085,8 +1139,11 @@ export function AreaChart({
   const labelEvery = step < 44 ? 2 : 1;
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
-    const box = e.currentTarget.getBoundingClientRect();
-    const i = Math.round((e.clientX - box.left - padL) / (step || 1));
+    /* `clientX` and the rect are both visual pixels; the step it is divided by
+       is in the SVG's own units. Local pixels put the two back on one scale. */
+    const box = localRect(e.currentTarget);
+    const k = uiScale();
+    const i = Math.round((e.clientX / k - box.left - padL) / (step || 1));
     setHover(Math.min(data.length - 1, Math.max(0, i)));
   }
 
@@ -1279,8 +1336,11 @@ export function VolumeChart({
   const labelEvery = slot < 44 ? 2 : 1;
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
-    const box = e.currentTarget.getBoundingClientRect();
-    const i = Math.floor((e.clientX - box.left - padL) / (slot || 1));
+    /* `clientX` and the rect are both visual pixels; the step it is divided by
+       is in the SVG's own units. Local pixels put the two back on one scale. */
+    const box = localRect(e.currentTarget);
+    const k = uiScale();
+    const i = Math.floor((e.clientX / k - box.left - padL) / (slot || 1));
     setHover(Math.min(data.length - 1, Math.max(0, i)));
   }
 
@@ -1852,8 +1912,11 @@ export function TrendChart({
   const labelEvery = step < 44 ? 2 : 1;
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
-    const box = e.currentTarget.getBoundingClientRect();
-    const i = Math.round((e.clientX - box.left - padL) / (step || 1));
+    /* `clientX` and the rect are both visual pixels; the step it is divided by
+       is in the SVG's own units. Local pixels put the two back on one scale. */
+    const box = localRect(e.currentTarget);
+    const k = uiScale();
+    const i = Math.round((e.clientX / k - box.left - padL) / (step || 1));
     setHover(Math.min(values.length - 1, Math.max(0, i)));
   }
 
@@ -2148,19 +2211,51 @@ export function FilterMenu({
   const btn = useRef<HTMLButtonElement | null>(null);
   const panel = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [box, setBox] = useState<{ left: number; top: number } | null>(null);
+  const [box, setBox] = useState<{
+    left: number;
+    /** One of the two is set; the other is null. Flipped panels are pinned by
+     *  their foot so they grow upward. */
+    top: number | null;
+    bottom: number | null;
+    max: number;
+  } | null>(null);
 
+  /**
+   * Where the panel goes, and how tall it may be.
+   *
+   * Horizontally it is right-aligned to the trigger then pulled back inside
+   * the viewport — this button lives at the end of a toolbar, so opening
+   * leftward is the only way it stays on screen.
+   *
+   * Vertically it is capped to the room actually left, and flips above the
+   * button when there is more space up there. Without the cap a panel with
+   * several groups in it simply ran off the bottom of the window and the last
+   * groups could not be reached at all: nothing scrolled, because the panel
+   * was fixed-positioned and as tall as it liked.
+   */
   const place = useCallback(() => {
     const el = btn.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
+    /* Local pixels, or the fixed coordinates below are multiplied by the root
+       zoom a second time and the panel opens a screen away from its button. */
+    const r = localRect(el);
+    const vp = localViewport();
     const w = 268;
-    /* right-aligned to the trigger, then pulled back inside the viewport —
-       this button lives at the end of a toolbar, so opening leftward is the
-       only way it stays on screen */
+    const gap = 6;
+    const edge = 12;
+
+    const below = vp.h - r.bottom - gap - edge;
+    const above = r.top - gap - edge;
+    /* Flip only when below is genuinely too tight AND above is roomier —
+       a panel that jumps upward for the sake of twenty pixels is worse than
+       one that scrolls. */
+    const flip = below < 260 && above > below;
+
     setBox({
-      left: Math.max(8, Math.min(r.right - w, window.innerWidth - w - 10)),
-      top: r.bottom + 6,
+      left: Math.max(8, Math.min(r.right - w, vp.w - w - 10)),
+      top: flip ? null : r.bottom + gap,
+      bottom: flip ? vp.h - r.top + gap : null,
+      max: Math.max(180, flip ? above : below),
     });
   }, []);
 
@@ -2177,9 +2272,33 @@ export function FilterMenu({
         btn.current?.focus();
       }
     }
-    /* reposition rather than follow: a panel pinned to a stale rect after the
-       page scrolls is worse than one that closes */
-    const onScroll = () => setOpen(false);
+    /**
+     * Scrolling the page moves the panel with its button. Scrolling the panel
+     * does nothing at all.
+     *
+     * This listener is on `window` in the CAPTURE phase, which means it sees
+     * every scroll anywhere in the document — including the panel's own list.
+     * It used to close on all of them, so a menu with more groups than fit
+     * shut itself the moment anyone tried to scroll to the rest of them: the
+     * taller the menu, the less usable it was.
+     *
+     * Closing on a page scroll was the old answer to a stale position. It does
+     * not need to be: `place()` is cheap and re-reads the button's rect, so
+     * the panel simply follows. It closes only when the button it belongs to
+     * has left the screen, at which point there is nothing to be anchored to.
+     */
+    function onScroll(e: Event) {
+      const t = e.target as Node | null;
+      if (t && panel.current?.contains(t)) return;
+
+      const r = btn.current ? localRect(btn.current) : null;
+      if (!r || r.bottom < 0 || r.top > localViewport().h) {
+        setOpen(false);
+        return;
+      }
+      place();
+    }
+
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, true);
@@ -2191,6 +2310,11 @@ export function FilterMenu({
       window.removeEventListener("resize", place);
     };
   }, [open, place]);
+
+  /* Nothing to filter by, nothing to click. Pages whose sections carry
+     different secondary filters end up here on the ones that carry none, and
+     a Filter button that opens an empty panel is worse than no button. */
+  if (groups.length === 0) return null;
 
   return (
     <>
@@ -2218,8 +2342,16 @@ export function FilterMenu({
             className="gm-menu gm-filterpanel"
             role="dialog"
             aria-label="Filters"
-            style={{ position: "fixed", left: box.left, top: box.top }}
+            style={
+              {
+                position: "fixed",
+                left: box.left,
+                ...(box.top === null ? { bottom: box.bottom } : { top: box.top }),
+                "--gm-filter-max": `${box.max}px`,
+              } as unknown as React.CSSProperties
+            }
           >
+            <div className="gm-filterscroll">
             {groups.map((g) => (
               <div key={g.key} className="gm-filtergroup">
                 <div className="gm-label">{g.label}</div>
@@ -2245,6 +2377,7 @@ export function FilterMenu({
                 </div>
               </div>
             ))}
+            </div>
 
             {onClear ? (
               <div className="gm-filterfoot">
@@ -2266,14 +2399,20 @@ export function FilterMenu({
 }
 
 /**
- * The filter row: a label and a count.
+ * A segmented switch between the sections of a page.
  *
- * Each of these used to carry an outlined icon as well. Five filters meant
- * five glyphs a moderator had to learn in order to read words that were
- * already there — a shield for "needs a decision", an eye for "on the market".
- * The word is the control; the icon was decoration with a border around it.
+ * Not a filter, and that distinction is the whole reason this exists beside
+ * `FilterMenu`. A filter narrows one list and has an "everything" to go back
+ * to, so hiding it behind a button costs nothing — the heading says what is
+ * applied. A section switch has no "all": Plans, Boosts and Billing are three
+ * different tables, and putting them in a dropdown hides two thirds of a page
+ * behind a control labelled "Filter".
+ *
+ * One container rather than separate buttons, because the choice is between
+ * these options and no others. The selected one is filled and carries the
+ * same corner radius as every button in the console.
  */
-export function PillTabs<T extends string>({
+export function SectionTabs<T extends string>({
   value,
   onChange,
   options,
@@ -2283,18 +2422,18 @@ export function PillTabs<T extends string>({
   options: { key: T; label: string; count?: number }[];
 }) {
   return (
-    <div className="gm-pillrow" role="tablist">
+    <div className="gm-segmented" role="tablist">
       {options.map((o) => (
         <button
           key={o.key}
           type="button"
           role="tab"
           aria-selected={value === o.key}
-          className={`gm-pill${value === o.key ? " is-active" : ""}`}
+          className={`gm-segment${value === o.key ? " is-active" : ""}`}
           onClick={() => onChange(o.key)}
         >
           <span>{o.label}</span>
-          {typeof o.count === "number" ? <span className="gm-pill-n">{o.count}</span> : null}
+          {typeof o.count === "number" ? <span className="gm-segment-n">{o.count}</span> : null}
         </button>
       ))}
     </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { roleLabel, ROLES } from "../lib/data";
 import { useRole } from "./RoleContext";
-import { IconLogout, IconSettings } from "./icons";
+import { IconLogout, IconSettings, IconUsers } from "./icons";
 
 /**
  * The signed-in operator, as an avatar in the topbar with a menu under it.
@@ -17,14 +17,23 @@ import { IconLogout, IconSettings } from "./icons";
 export default function AccountMenu() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
-  const { role, me, previewing, setPreview, signOut } = useRole();
+  const { role, me, previewing, setPreview, signOut, loading } = useRole();
 
   /* Until the sign-in screen lands, the API answers with its development
      operator; `me` is that operator either way, so the topbar shows whoever
      the server says is acting rather than a name compiled into the bundle. */
-  const name = me?.name ?? "Signed out";
+  const name = me?.name ?? (loading ? "" : "Signed out");
   const email = me?.email || (me?.devAuth ? "development operator" : "not signed in");
-  const initials = (name.trim().split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase();
+
+  /* A dash while we do not know yet, not initials.
+  
+     `"Signed out"` initialled to "SO", so every page load and every full
+     navigation flashed an avatar that read as somebody's initials — a person
+     called SO who does not exist. An em dash is unmistakably "not yet". */
+  const initials =
+    name.trim() === ""
+      ? ""
+      : (name.trim().split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase();
   const ownRole = me?.role ?? null;
 
   /* close on a click outside, and on Escape — a menu that only closes by
@@ -129,6 +138,20 @@ export default function AccountMenu() {
           ) : null}
 
           <div className="gm-menu-sep" />
+
+          {/* Your own account first, then the marketplace's. They are
+              different things and used to be one page: Settings is rules an
+              owner sets for everybody, this is one person's name and
+              password — and most roles cannot open Settings at all. */}
+          <Link
+            href="/admin/profile"
+            className="gm-menu-item"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            <IconUsers />
+            Your profile
+          </Link>
 
           <Link
             href="/admin/settings"

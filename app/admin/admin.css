@@ -274,6 +274,12 @@
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   background: var(--paper);
   isolation: isolate;
+  /* Folding used to be a jump cut: 280px of nav became 76px between one frame
+     and the next, and the whole page shifted sideways with it. The column
+     width is the only thing animated — the panel and the rail still swap
+     instantly, which is right, because they are two different things rather
+     than one thing changing shape. */
+  transition: grid-template-columns 0.24s cubic-bezier(0.22, 0.9, 0.34, 1);
 }
 
 /* The gradient field: the same warm bloom top-right and cool haze bottom-left,
@@ -345,6 +351,22 @@
   border-right: 1px solid rgba(211, 219, 228, 0.75);
   box-shadow: 14px 0 34px -22px rgba(21, 33, 47, 0.28);
   z-index: 30;
+
+  /* Colour only, and only here: the theme switch repaints the whole console
+     at once, and the three biggest surfaces snapping between two palettes is
+     what made it feel like a reload rather than a setting. Everything smaller
+     already carries its own hover transition and must not be slowed down. */
+  transition: background-color 0.22s ease, border-color 0.22s ease;
+
+  /* Rounded on the right only. The left edge is the edge of the screen, so
+     there is no corner there to round — a radius on that side would show a
+     sliver of paper in the gap and read as a misalignment rather than as a
+     card. Everything else in the console is a rounded box; the nav being the
+     one square-cornered surface was the odd one out. */
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  /* The gradient is painted on this element, so it has to be told to stop at
+     the rounded corners rather than filling the square behind them. */
+  overflow: hidden;
 }
 
 /* Folded, the rail is a card standing off the page — so the strip it used to
@@ -358,6 +380,11 @@
   backdrop-filter: none;
   border-right: 0;
   box-shadow: none;
+  /* Both of these belong to the open panel. Folded, the rail card is the only
+     thing here and it casts its own shadow past this box — clipping to a
+     rounded rectangle would cut it square all over again. */
+  border-radius: 0;
+  overflow: visible;
 }
 
 /* ------------------------------------------------------------------ rail */
@@ -749,13 +776,42 @@
    miss, and the line says these belong to the pill above. The current one is
    a raised white box, so it reads as the thing you are looking at without
    competing with the solid pill of its parent. */
+/* Opened by a click and closed by navigating away, so this is the animation
+   in the console that gets seen most, and it has to work both ways.
+
+   `grid-template-rows: 0fr -> 1fr` is the trick that makes it possible: it
+   animates to the content's own height without anybody having to measure it
+   first. The rows used to be unmounted when closed, and an unmount happens
+   between two frames — so opening slid and closing simply vanished. */
+.gm-nav-kidswrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.24s cubic-bezier(0.22, 0.9, 0.34, 1),
+    opacity 0.18s ease;
+}
+
+.gm-nav-kidswrap.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
 .gm-nav-kids {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 5px 0 7px;
   padding-left: 22px;
+  /* the row is what collapses, so its content must be allowed to be clipped */
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The spacing lives on the open state, or a closed group would still reserve
+   twelve pixels under its heading. */
+.gm-nav-kidswrap.is-open .gm-nav-kids {
+  margin: 5px 0 7px;
 }
 
 .gm-nav-kids::before {
@@ -873,19 +929,30 @@
    bar running edge to edge sits awkwardly beside a rail that does not.
    ========================================================================== */
 
+/* A card, in both states.
+
+   It used to be a card only when the sidebar was folded, and a flush bar with
+   a bottom border when the sidebar was open — so the console had a rounded
+   nav, rounded content cards and one square rule across the top of it. Now it
+   is the same box either way and only the left inset changes, because beside
+   the open panel there is no floating rail to line up with. */
 .gm-top {
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 20;
-  height: var(--topbar-h);
+  height: calc(var(--topbar-h) - 12px);
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 30px;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.7));
+  margin: 12px 16px 0 12px;
+  padding: 0 18px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.78));
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(226, 232, 239, 0.9);
-  box-shadow: 0 10px 26px -22px rgba(21, 33, 47, 0.5);
+  box-shadow: var(--sh-2), var(--edge);
+  transition: background-color 0.22s ease, border-color 0.22s ease,
+    margin-left 0.24s cubic-bezier(0.22, 0.9, 0.34, 1);
 }
 
 /* the operator's controls, pushed to the trailing edge */
@@ -894,23 +961,6 @@
   display: flex;
   align-items: center;
   gap: 9px;
-}
-
-:root[data-gm-rail="1"] .gm-top {
-  top: 12px;
-  height: calc(var(--topbar-h) - 12px);
-  /* inset to the same 12px the rail card uses, and padded so its content
-     lines up with the page heading underneath it */
-  margin: 12px 16px 0 12px;
-  padding: 0 18px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: linear-gradient(
-    120deg,
-    rgba(255, 255, 255, 0.9),
-    rgba(248, 250, 252, 0.82)
-  );
-  box-shadow: var(--sh-2), var(--edge);
 }
 
 .gm-search {
@@ -1553,6 +1603,103 @@
   white-space: nowrap;
 }
 
+/* Every column ranged left, for a table read across rather than down.
+
+   `gm-num` and `gm-actions` range right so a column of figures lines up on
+   its decimal and the row's controls sit at the edge — right for the listing
+   queue, where you scan one column at a time. The dashboard's four-row
+   extract is read the other way: one row at a time, left to right, deciding
+   as you go. Right-aligning two columns there only opened a gap in the middle
+   of each line. */
+.gm-table--left th,
+.gm-table--left td,
+.gm-table--left .gm-num,
+.gm-table--left .gm-actions {
+  text-align: left;
+}
+
+/* ---------------------------------------------------------------- tight
+
+   For a table inside a column rather than across the page. The dashboard's
+   queue extract sits beside the standings rail with about 825px to work in,
+   and six columns at the full table's padding needed 920 — so it grew a
+   sideways scrollbar in the middle of the page, which is the one place a
+   dashboard should never ask you to scroll to read a number.
+
+   Everything here buys width back: the first column stops reserving 260px it
+   does not need, the padding comes in, and the row's own buttons shrink. */
+.gm-table--tight td:first-child {
+  min-width: 0;
+}
+
+.gm-table--tight thead th,
+.gm-table--tight tbody td {
+  padding: 9px 10px;
+}
+
+.gm-table--tight tbody td {
+  font-size: 12.5px;
+}
+
+.gm-table--tight .gm-cell2 b {
+  font-size: 12.8px;
+}
+
+.gm-table--tight .gm-cell2 span {
+  font-size: 11.4px;
+}
+
+.gm-table--tight .gm-btn--sm {
+  height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.gm-table--tight .gm-btn--sm svg {
+  width: 13px;
+  height: 13px;
+}
+
+.gm-table--tight .gm-badge {
+  font-size: 10.6px;
+  padding: 2px 7px;
+}
+
+/* the slab is decoration at this size, so it gives up the most */
+.gm-table--tight .gm-slab {
+  transform: scale(0.82);
+  transform-origin: left center;
+  margin-right: -8px;
+}
+
+/* Long lines give way before the table does. The card's set line is the one
+   piece of text here with no natural ceiling. */
+.gm-table--tight .gm-cell2 {
+  min-width: 0;
+}
+
+.gm-table--tight .gm-cell2 > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On a genuinely small screen the buttons lose their words rather than the
+   table losing a column: a tick and a cross beside a row are legible, and
+   dropping "Ask" or "Time left" would take away the two figures the decision
+   is actually made on. Above this the rail has already stacked, so the table
+   has the full width and the words stay. */
+@media (max-width: 900px) {
+  .gm-table--tight .gm-rowact .gm-btn--sm {
+    padding: 0 8px;
+    gap: 0;
+  }
+
+  .gm-table--tight .gm-rowact .gm-btn--sm span {
+    display: none;
+  }
+}
+
 /* The row's own controls, at the end of it.
  *
  * `gm-actions` right-aligns its heading along with its buttons, which left one
@@ -1725,6 +1872,18 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+
+/* A field stacked on another needs air between them, and a button that
+   follows one needs more — it was sitting flush against the input above it,
+   which reads as part of the field rather than as the thing that submits it. */
+.gm-field + .gm-field {
+  margin-top: 14px;
+}
+
+.gm-field + .gm-btn,
+.gm-field + .gm-row {
+  margin-top: 16px;
 }
 
 .gm-label {
@@ -2873,5 +3032,113 @@
   .gm *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ==========================================================================
+   REDUCED MOTION
+
+   One guard for the whole console. Everything above animates for the sake of
+   continuity — a fold that slides, a heading that opens, a dialog that rises —
+   and none of it carries meaning that is lost when it is turned off. For
+   somebody who has asked the operating system for less movement, an admin
+   console is exactly the wrong place to argue.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .gm *,
+  .gm *::before,
+  .gm *::after,
+  #gm-overlays *,
+  #gm-overlays *::before,
+  #gm-overlays *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   LARGE SCREENS, AND SMALL ONES
+
+   The console is drawn in fixed pixels around a 1440-wide desktop. That is
+   right at 1440 and wrong at both ends: on a 4K panel every control sits at
+   its 1440 size in the middle of a screen nearly twice as wide, so the text is
+   tiny and two thirds of the width is empty; at 1024 the 280px nav takes a
+   quarter of the screen and the content is squeezed into what is left.
+
+   Two different fixes, because they are two different problems.
+
+   1. ABOVE 1600 — scale the whole console with `zoom`.
+
+      `zoom` reflows, which `transform: scale` does not, so the layout stays
+      real rather than becoming a blown-up picture of itself. It is applied
+      only above 1600 on purpose: every layout breakpoint in this file is at
+      1560 or below, so there is nothing up here for a scaled viewport to
+      disagree with. Media queries measure the true viewport and are unaffected.
+
+      JS that positions an overlay has to divide by this — see `uiScale()` in
+      ui.tsx. Without it a menu opens a third of a screen from its button.
+
+   2. BELOW 1360 — fold the nav to its icon rail.
+
+      Scaling down instead would make 14px text read at 11px, which fixes the
+      proportion by making it unreadable. Folding gives the content back the
+      188px the labelled nav was taking, so it stays near the 1143 it has at
+      1440 instead of falling to 915 at 1024. The rail still reaches every
+      page, and the fold button reopens the panel.
+
+      1360 rather than 1200 because of where the squeeze actually bit: at 1262
+      the content had 983px while at 1182 — a narrower screen — the fold gave
+      it 1091. A smaller window was showing more, which is the wrong way round.
+      Folding at 1360 keeps the expanded band above 1030px of content.
+   ========================================================================== */
+
+@media (min-width: 1600px) {
+  :root {
+    zoom: 1.1;
+  }
+}
+
+@media (min-width: 1900px) {
+  :root {
+    zoom: 1.25;
+  }
+}
+
+@media (min-width: 2300px) {
+  :root {
+    zoom: 1.45;
+  }
+}
+
+@media (max-width: 1360px) {
+  /* The same state the fold button produces, without touching the operator's
+     stored preference — they can still fold and unfold from here. */
+  .gm {
+    --sidebar-w: var(--rail-w);
+  }
+
+  .gm-rail {
+    display: block;
+  }
+
+  .gm-panel {
+    display: none;
+  }
+
+  .gm-side {
+    background: none;
+    backdrop-filter: none;
+    border-right: 0;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .gm-top {
+    margin-left: 12px;
   }
 }

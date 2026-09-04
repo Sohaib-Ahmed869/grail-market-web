@@ -1,7 +1,8 @@
 "use client";
 
 import AccountMenu from "./AccountMenu";
-import { IconBell, IconSearch, IconExternal } from "./icons";
+import Bell from "./Bell";
+import { IconSearch, IconExternal } from "./icons";
 
 /**
  * Search on the left, the operator's controls on the right.
@@ -36,14 +37,9 @@ export default function Topbar() {
           <IconExternal />
         </a>
 
-        <button
-          type="button"
-          className="gm-iconbtn gm-iconbtn--dot"
-          aria-label="Notifications: 3 unread"
-          title="Notifications"
-        >
-          <IconBell />
-        </button>
+        {/* Was an icon with "3 unread" written into its aria-label and no
+            handler — a control announcing a count it had never counted. */}
+        <Bell />
 
         <AccountMenu />
       </div>

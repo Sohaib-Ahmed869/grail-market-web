@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -9,7 +10,6 @@ import {
   knownTags,
   LAPSED_DAYS,
   money,
-  operator,
   planLabel,
   planQuota,
   billingLabel,
@@ -28,6 +28,7 @@ import {
   fetchMember,
   fetchMembers,
   fetchStaff,
+  messageMembers,
   setMemberStanding,
   type AdminStaff,
   type TimelineEntry,
@@ -46,11 +47,13 @@ import {
   Empty,
   MemberBadge,
   Modal,
+  Loading,
   Note,
   PageHead,
   Rating,
   Select,
-  FilterField,
+  BlockHead,
+  FilterMenu,
   Toast,
   Toggle,
 } from "../components/ui";
@@ -63,9 +66,9 @@ import {
   IconLock,
   IconMail,
   IconNote,
-  IconChevronDown,
   IconRefresh,
   IconSend,
+  IconSearch,
   IconShield,
   IconTag,
   IconUsers,
@@ -83,6 +86,9 @@ type Action =
 
 /** Actions that stand on their own reason rather than the revoke list. */
 const REASON_FREE: Action[] = ["reset-verification", "change-plan"];
+
+/** What a console role can reach, in the words the team cards use. */
+const TEAM_SCOPES = ["Verification", "Conflicts", "Members", "Pricing", "Support", "Settings"];
 
 const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls: string }> = {
   revoke: {
@@ -105,7 +111,7 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
   },
   "reset-verification": {
     title: "Reset verification",
-    sub: "Sends the account back to the start of the funnel. They cannot trade until it clears again.",
+    sub: "Their ID check starts again. They cannot buy or sell until it passes.",
     cta: "Reset verification",
     cls: "gm-btn--gold",
   },
@@ -168,15 +174,10 @@ function MembersPage() {
   const [activity, setActivity] = useState("all");
   const [segment, setSegment] = useState("all");
   const [query, setQuery] = useState(seededQuery);
-  /* The segment row is folded away until it is wanted. Seven dropdowns on
-     screen at once is most of a page of chrome above a list nobody has looked
-     at yet — and four of the seven are only reached when someone is building
-     an audience, not when they are looking a member up. */
-  const [moreOpen, setMoreOpen] = useState(false);
 
   /* "No billing, no ID" is the moderator's line in the roles table, and it
      is a rule about fields on a record they are otherwise allowed to open. */
-  const { role: viewerRole } = useRole();
+  const { role: viewerRole, me } = useRole();
   const seeBilling = can(viewerRole, "billing.read");
   const seeId = can(viewerRole, "id.exceptions");
   const canAct = can(viewerRole, "members.act");
@@ -188,7 +189,7 @@ function MembersPage() {
   const [reasonNote, setReasonNote] = useState("");
   const [freezeListings, setFreezeListings] = useState(true);
   const [retireHandle, setRetireHandle] = useState(true);
-  const [toast, setToast] = useState<string | { title: string; body: string } | null>(null);
+  const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
 
   /* The plan a change-plan action moves to, and the level a reset drops to. */
   const [nextPlan, setNextPlan] = useState<PlanKey>("collector");
@@ -202,8 +203,6 @@ function MembersPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [composing, setComposing] = useState(false);
   const [template, setTemplate] = useState(commsTemplates[0].key);
-  const [viaPush, setViaPush] = useState(true);
-  const [viaEmail, setViaEmail] = useState(true);
   const [subject, setSubject] = useState(commsTemplates[0].subject);
   const [body, setBody] = useState(commsTemplates[0].body);
 
@@ -278,6 +277,48 @@ function MembersPage() {
     [marketRows, picked]
   );
   const audience = chosen.length > 0 ? chosen : marketRows;
+  const [sending, setSending] = useState(false);
+
+  /**
+   * Actually write to them.
+   *
+   * This used to close the dialog and show a toast. Nothing was sent, and the
+   * toast said it had been — the worst shape a control can have, because it
+   * looks like it worked. It goes through the API now, and the toast reports
+   * what the API says happened rather than what was asked for.
+   */
+  async function sendToAudience() {
+    if (sending || audience.length === 0) return;
+    setSending(true);
+    try {
+      const r = await messageMembers(
+        audience.map((m) => m.id),
+        subject.trim(),
+        body.trim(),
+      );
+      setComposing(false);
+      setPicked(new Set());
+      setToast({
+        title: `Written to ${r.delivered} of ${r.of}`,
+        /* Said apart, because they are different facts. Nobody has a device
+           registered in development, so "0 pushed" is the normal answer and
+           must not read as a failure. */
+        body:
+          `${r.delivered} will see it in the app. ` +
+          (r.pushed > 0
+            ? `${r.pushed} had a device to push to.`
+            : "None had a device registered, so none was pushed.") +
+          (r.failed > 0 ? ` ${r.failed} could not be written to.` : ""),
+      });
+    } catch (e) {
+      setToast({
+        title: "Nothing was sent",
+        body: e instanceof ApiError ? e.message : String(e),
+      });
+    } finally {
+      setSending(false);
+    }
+  }
 
   function togglePick(handle: string) {
     setPicked((prev) => {
@@ -347,34 +388,36 @@ function MembersPage() {
 
   /* What is on, in the words the dropdowns use, so a folded row can still be
      read at a glance and cleared without opening it. */
-  const applied = useMemo(() => {
-    const out: { label: string; clear: () => void }[] = [];
-    if (plan !== "all")
-      out.push({ label: `Plan: ${planLabel[plan as PlanKey]}`, clear: () => setPlanFilter("all") });
-    if (verif !== "all")
-      out.push({
-        label: `Verification: ${verificationLabel[verif as VerificationLevel]}`,
-        clear: () => setVerif("all"),
-      });
-    if (activity !== "all")
-      out.push({
-        label: `Activity: ${
-          activity === "7" ? "Seen this week" : activity === "30" ? "Seen this month" : `Dormant ${LAPSED_DAYS}d+`
-        }`,
-        clear: () => setActivity("all"),
-      });
-    if (segment !== "all")
-      out.push({
-        label: `Cohort: ${segments.find((x) => x.key === segment)?.label ?? segment}`,
-        clear: () => setSegment("all"),
-      });
-    return out;
-  }, [plan, verif, activity, segment]);
+  /* How many filters are away from their default, per list. The chips this
+     replaced existed so a folded-away filter could not be silently on; the
+     count in the heading does the same job, and the dot on the button says
+     it again without needing a row of its own. */
+  const teamApplied =
+    (teamRole === "all" ? 0 : 1) + (teamScope === "all" ? 0 : 1) + (teamStatus === "all" ? 0 : 1);
+
+  const marketApplied =
+    (status === "all" ? 0 : 1) +
+    (role === "all" ? 0 : 1) +
+    (plan === "all" ? 0 : 1) +
+    (verif === "all" ? 0 : 1) +
+    (activity === "all" ? 0 : 1) +
+    (segment === "all" ? 0 : 1) +
+    (country === "all" ? 0 : 1);
+
+  function clearMarketFilters() {
+    setStatus("all");
+    setRole("all");
+    setPlanFilter("all");
+    setVerif("all");
+    setActivity("all");
+    setSegment("all");
+    setCountry("all");
+  }
 
   /* Only real answers. The store holds no country per member yet, so the
      filter offers nothing rather than one option that means "unknown". */
   const countries = useMemo(
-    () => Array.from(new Set(people.map((m) => m.country))).filter((c) => c && c !== "—").sort(),
+    () => Array.from(new Set(people.map((m) => m.country))).filter((c) => c && c !== "Unknown").sort(),
     [people]
   );
   const titles = useMemo(() => Array.from(new Set(team.map((p) => p.title))).sort(), [team]);
@@ -409,7 +452,10 @@ function MembersPage() {
     if (!action) return;
 
     if (openStaff || !live) {
-      setToast(target);
+      setToast({
+        title: "Not done",
+        body: `${target} is a staff account. Change what they can reach under Settings, Team and access.`,
+      });
       setAction(null);
       setOpenStaff(null);
       return;
@@ -427,8 +473,8 @@ function MembersPage() {
         title: "Not wired up yet",
         body:
           action === "change-plan"
-            ? "A plan change has to go through Stripe. The subscription endpoints are not connected to the console yet."
-            : "Verification is the provider's decision against the DVS. Resetting it needs their API, which the console does not call yet.",
+            ? "A plan change has to be made in Stripe. The console cannot do it yet."
+            : "The company that checks IDs makes this decision, and the console cannot reach them yet.",
       });
       setAction(null);
       return;
@@ -443,7 +489,15 @@ function MembersPage() {
       const updated = await setMemberStanding(live.id, standing, reason);
       setLive(updated);
       setWrites((n) => n + 1);
-      setToast(target);
+      setToast({
+        title:
+          standing === "revoked"
+            ? "Account closed"
+            : standing === "restricted"
+              ? "Account restricted"
+              : "Access returned",
+        body: `${target} · the reason is on their record`,
+      });
     } catch (e) {
       setToast({
         title: "That did not go through",
@@ -461,8 +515,6 @@ function MembersPage() {
     setTemplate(key);
     setSubject(t.subject);
     setBody(t.body);
-    setViaPush(t.channels.includes("push"));
-    setViaEmail(t.channels.includes("email"));
   }
 
   return (
@@ -517,10 +569,14 @@ function MembersPage() {
                them all live together under Settings. This directory is for
                reading a colleague's record, so it points there rather than
                carrying a second copy of the same three buttons. */
-            <a className="gm-btn" href="/admin/settings">
+            /* `Link`, not `<a href>`. A bare anchor is a full page load: the
+               whole console boots again and you watch an empty shell assemble
+               before the page you asked for appears. It also names the
+               section, so it lands on the team rather than on thresholds. */
+            <Link className="gm-btn" href="/admin/settings?section=team">
               <IconLock />
               Manage access
-            </a>
+            </Link>
           )
         }
       />
@@ -534,59 +590,73 @@ function MembersPage() {
         {/* ================================================== admin team */}
         {scope === "team" ? (
           <>
-            <div className="gm-filterbar">
-              <FilterField label="Role" htmlFor="gm-teamrole">
-                <Select
-                  id="gm-teamrole"
-                  variant="bare"
-                  value={teamRole}
-                  onChange={setTeamRole}
-                  ariaLabel="Filter the team by role"
-                  options={[
-                    { value: "all", label: "All roles" },
-                    ...titles.map((t) => ({ value: t, label: t })),
+            {/* One filter language, the same as every other page: the heading
+                names what is shown, its subtitle spells out what is applied,
+                and the control sits beside it. Three bare dropdowns in a bar
+                of their own was the last idiom left in the console. */}
+            <BlockHead
+              title="Admin team"
+              sub={
+                loading && teamRows.length === 0
+                  ? "Reading the team…"
+                  : `${teamRows.length} of ${team.length} account${team.length === 1 ? "" : "s"}${
+                      teamApplied === 0 ? "" : ` · ${teamApplied} filter${teamApplied === 1 ? "" : "s"}`
+                    }`
+              }
+              right={
+                <FilterMenu
+                  applied={teamApplied}
+                  onClear={() => {
+                    setTeamRole("all");
+                    setTeamScope("all");
+                    setTeamStatus("all");
+                  }}
+                  groups={[
+                    {
+                      key: "team-role",
+                      label: "Role",
+                      value: teamRole,
+                      onChange: setTeamRole,
+                      options: [
+                        { value: "all", label: "All roles" },
+                        ...titles.map((t) => ({
+                          value: t,
+                          label: t,
+                          count: team.filter((x) => x.title === t).length,
+                        })),
+                      ],
+                    },
+                    {
+                      key: "team-scope",
+                      label: "Scope",
+                      value: teamScope,
+                      onChange: setTeamScope,
+                      options: [
+                        { value: "all", label: "Any scope" },
+                        ...TEAM_SCOPES.map((x) => ({ value: x, label: x })),
+                      ],
+                    },
+                    {
+                      key: "team-status",
+                      label: "Status",
+                      value: teamStatus,
+                      onChange: setTeamStatus,
+                      options: [
+                        { value: "all", label: "Any status" },
+                        { value: "active", label: "Active" },
+                        { value: "restricted", label: "Restricted" },
+                        { value: "revoked", label: "Revoked" },
+                      ],
+                    },
                   ]}
                 />
-              </FilterField>
-              <FilterField label="Scope" htmlFor="gm-teamscope">
-                <Select
-                  id="gm-teamscope"
-                  variant="bare"
-                  value={teamScope}
-                  onChange={setTeamScope}
-                  ariaLabel="Filter the team by scope"
-                  options={[
-                    { value: "all", label: "Any scope" },
-                    "Verification",
-                    "Conflicts",
-                    "Members",
-                    "Pricing",
-                    "Support",
-                    "Settings",
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Status" htmlFor="gm-teamstatus">
-                <Select
-                  id="gm-teamstatus"
-                  variant="bare"
-                  value={teamStatus}
-                  onChange={setTeamStatus}
-                  ariaLabel="Filter the team by status"
-                  options={[
-                    { value: "all", label: "Any status" },
-                    { value: "active", label: "Active" },
-                    { value: "restricted", label: "Restricted" },
-                    { value: "revoked", label: "Revoked" },
-                  ]}
-                />
-              </FilterField>
-            </div>
+              }
+            />
 
             <div>
               {loading && teamRows.length === 0 ? (
                 <Card>
-                  <Empty icon={<IconShield />} title="Reading the team…" />
+                  <Loading label="Reading the team…" />
                 </Card>
               ) : teamRows.length === 0 ? (
                 <Card>
@@ -594,11 +664,6 @@ function MembersPage() {
                 </Card>
               ) : (
                 <>
-                <p className="gm-sm gm-muted" style={{ margin: "0 0 2px" }}>
-                  {teamRows.length === team.length
-                    ? `${team.length} accounts`
-                    : `${teamRows.length} of ${team.length} accounts`}
-                </p>
                 <div className="gm-people">
                   {teamRows.map((p) => (
                     <article key={p.id} className="gm-person">
@@ -655,166 +720,132 @@ function MembersPage() {
         ) : (
           /* =========================================== marketplace members */
           <>
-            <div className="gm-filterbar">
-              <FilterField label="Status" htmlFor="gm-mstatus">
-                <Select
-                  id="gm-mstatus"
-                  variant="bare"
-                  value={status}
-                  onChange={setStatus}
-                  ariaLabel="Filter members by status"
-                  options={[
-                    { value: "all", label: "Any status" },
-                    { value: "active", label: "Active" },
-                    { value: "restricted", label: "Restricted" },
-                    { value: "revoked", label: "Revoked" },
-                    { value: "pending", label: "Pending" },
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Role" htmlFor="gm-mrole">
-                <Select
-                  id="gm-mrole"
-                  variant="bare"
-                  value={role}
-                  onChange={setRole}
-                  ariaLabel="Filter members by role"
-                  options={[
-                    { value: "all", label: "Any role" },
-                    { value: "buyer", label: "Buyer" },
-                    { value: "seller", label: "Seller" },
-                    { value: "buyer-seller", label: "Buyer & seller" },
-                    { value: "consignor", label: "Consignor" },
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Country" htmlFor="gm-mcountry">
-                <Select
-                  id="gm-mcountry"
-                  variant="bare"
-                  value={country}
-                  onChange={setCountry}
-                  ariaLabel="Filter members by country"
-                  options={[{ value: "all", label: "Anywhere" }, ...countries]}
-                />
-              </FilterField>
-              <FilterField label="Search" htmlFor="gm-mq">
-                <input
-                  id="gm-mq"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Name, handle or tag"
-                />
-              </FilterField>
-              {/* Opens the segment row. Sits in the bar rather than above it
-                  so the default state is one row and nothing else. */}
-              <button
-                type="button"
-                className={`gm-filtermore${moreOpen ? " is-open" : ""}`}
-                onClick={() => setMoreOpen((v) => !v)}
-                aria-expanded={moreOpen}
-              >
-                More filters
-                {applied.length > 0 ? (
-                  <span className="gm-filtermore-count">{applied.length}</span>
-                ) : null}
-                <IconChevronDown className={moreOpen ? "gm-filtermore-caret is-open" : "gm-filtermore-caret"} />
-              </button>
-            </div>
-
-            {/* The four that cut an audience out of the directory. Folded by
-                default; whatever is on shows as a chip below either way, so
-                closing this can never hide an active filter. */}
-            {moreOpen ? (
-            <div className="gm-filterbar">
-              <FilterField label="Plan" htmlFor="gm-mplan">
-                <Select
-                  id="gm-mplan"
-                  variant="bare"
-                  value={plan}
-                  onChange={setPlanFilter}
-                  ariaLabel="Filter members by plan"
-                  options={[
-                    { value: "all", label: "Any plan" },
-                    { value: "dealer", label: "Dealer" },
-                    { value: "collector", label: "Collector" },
-                    { value: "starter", label: "Starter" },
-                    { value: "none", label: "No plan" },
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Verification" htmlFor="gm-mverif">
-                <Select
-                  id="gm-mverif"
-                  variant="bare"
-                  value={verif}
-                  onChange={setVerif}
-                  ariaLabel="Filter members by verification level"
-                  options={[
-                    { value: "all", label: "Any level" },
-                    { value: "id-verified", label: "ID verified" },
-                    { value: "id-submitted", label: "ID submitted" },
-                    { value: "mobile", label: "Mobile confirmed" },
-                    { value: "none", label: "Unverified" },
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Activity" htmlFor="gm-mact">
-                <Select
-                  id="gm-mact"
-                  variant="bare"
-                  value={activity}
-                  onChange={setActivity}
-                  ariaLabel="Filter members by activity"
-                  options={[
-                    { value: "all", label: "Any time" },
-                    { value: "7", label: "Seen this week" },
-                    { value: "30", label: "Seen this month" },
-                    { value: "dormant", label: `Dormant ${LAPSED_DAYS}d+` },
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Cohort" htmlFor="gm-mseg">
-                <Select
-                  id="gm-mseg"
-                  variant="bare"
-                  value={segment}
-                  onChange={setSegment}
-                  ariaLabel="Filter members by cohort"
-                  options={segments.map((x) => ({ value: x.key, label: x.label }))}
-                />
-              </FilterField>
-            </div>
-            ) : null}
-
-            {applied.length > 0 ? (
-              <div className="gm-row" style={{ gap: 7 }}>
-                {applied.map((a) => (
-                  <button
-                    key={a.label}
-                    type="button"
-                    className="gm-filterchip"
-                    onClick={a.clear}
-                    title="Remove this filter"
-                  >
-                    {a.label}
-                    <IconX />
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--sm gm-btn--ghost"
-                  onClick={() => {
-                    setPlanFilter("all");
-                    setVerif("all");
-                    setActivity("all");
-                    setSegment("all");
-                  }}
-                >
-                  Clear all
-                </button>
-              </div>
-            ) : null}
+            {/* One filter language, the same as every other page. This was
+                the last of three idioms in the console: a bar of four bare
+                dropdowns, a "More filters" fold hiding four more, and a row
+                of removable chips underneath to undo what the fold had hidden.
+                All eight are groups in one menu now, and the subtitle says how
+                many are on — so nothing can be applied without being visible,
+                which is what the chips were there to guarantee. */}
+            <BlockHead
+              title="Marketplace members"
+              sub={
+                loading && marketRows.length === 0
+                  ? "Reading the directory…"
+                  : `${marketRows.length} of ${people.length} member${people.length === 1 ? "" : "s"}${
+                      marketApplied === 0
+                        ? ""
+                        : ` · ${marketApplied} filter${marketApplied === 1 ? "" : "s"}`
+                    }`
+              }
+              right={
+                <div className="gm-row" style={{ gap: 8 }}>
+                  <div className="gm-search" style={{ width: 224 }}>
+                    <IconSearch />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Name, handle or tag"
+                      aria-label="Search members"
+                    />
+                  </div>
+                  <FilterMenu
+                    applied={marketApplied}
+                    onClear={clearMarketFilters}
+                    groups={[
+                      {
+                        key: "status",
+                        label: "Standing",
+                        value: status,
+                        onChange: setStatus,
+                        options: [
+                          { value: "all", label: "Any standing" },
+                          { value: "active", label: "Active" },
+                          { value: "restricted", label: "Restricted" },
+                          { value: "revoked", label: "Revoked" },
+                          { value: "pending", label: "Pending" },
+                        ],
+                      },
+                      {
+                        key: "role",
+                        label: "Role",
+                        value: role,
+                        onChange: setRole,
+                        options: [
+                          { value: "all", label: "Any role" },
+                          { value: "buyer", label: "Buyer" },
+                          { value: "seller", label: "Seller" },
+                          { value: "buyer-seller", label: "Buyer & seller" },
+                          { value: "consignor", label: "Consignor" },
+                        ],
+                      },
+                      {
+                        key: "plan",
+                        label: "Plan",
+                        value: plan,
+                        onChange: setPlanFilter,
+                        options: [
+                          { value: "all", label: "Any plan" },
+                          { value: "dealer", label: "Dealer" },
+                          { value: "collector", label: "Collector" },
+                          { value: "starter", label: "Starter" },
+                          { value: "none", label: "No plan" },
+                        ],
+                      },
+                      {
+                        key: "verification",
+                        label: "Verification",
+                        value: verif,
+                        onChange: setVerif,
+                        options: [
+                          { value: "all", label: "Any level" },
+                          { value: "id-verified", label: "ID verified" },
+                          { value: "id-submitted", label: "ID submitted" },
+                          { value: "mobile", label: "Mobile confirmed" },
+                          { value: "none", label: "Unverified" },
+                        ],
+                      },
+                      {
+                        key: "activity",
+                        label: "Activity",
+                        value: activity,
+                        onChange: setActivity,
+                        options: [
+                          { value: "all", label: "Any time" },
+                          { value: "7", label: "Seen this week" },
+                          { value: "30", label: "Seen this month" },
+                          { value: "dormant", label: `Dormant ${LAPSED_DAYS}d+` },
+                        ],
+                      },
+                      {
+                        key: "segment",
+                        label: "Cohort",
+                        value: segment,
+                        onChange: setSegment,
+                        options: segments.map((x) => ({ value: x.key, label: x.label })),
+                      },
+                      /* Only offered when the store actually holds one. A
+                         country filter with nothing in it is a control that
+                         cannot be wrong because it cannot be used. */
+                      ...(countries.length > 0
+                        ? [
+                            {
+                              key: "country",
+                              label: "Country",
+                              value: country,
+                              onChange: setCountry,
+                              options: [
+                                { value: "all", label: "Anywhere" },
+                                ...countries.map((c) => ({ value: c, label: c })),
+                              ],
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                </div>
+              }
+            />
 
             {/* What the cohort means, and the handle on the whole selection.
                 A segment nobody can read the definition of gets used wrong. */}
@@ -851,7 +882,7 @@ function MembersPage() {
             <div>
               {loading && marketRows.length === 0 ? (
                 <Card>
-                  <Empty icon={<IconUsers />} title="Reading the directory…" />
+                  <Loading label="Reading the directory…" />
                 </Card>
               ) : marketRows.length === 0 ? (
                 <Card>
@@ -863,13 +894,6 @@ function MembersPage() {
                 </Card>
               ) : (
                 <>
-                <p className="gm-sm gm-muted" style={{ margin: "0 0 2px" }}>
-                  {loading
-                    ? "Reading the directory…"
-                    : marketRows.length === people.length
-                      ? `${people.length} members`
-                      : `${marketRows.length} of ${people.length} members`}
-                </p>
                 <div className="gm-people">
                   {marketRows.map((m) => {
                     return (
@@ -898,7 +922,7 @@ function MembersPage() {
                       </div>
 
                       <div className="gm-person-facts">
-                        {m.country && m.country !== "—" ? (
+                        {m.country && m.country !== "Unknown" ? (
                           <span className="gm-person-fact">{m.country}</span>
                         ) : null}
                         <span className="gm-person-fact">
@@ -973,7 +997,7 @@ function MembersPage() {
         open={!!openStaff}
         onClose={() => setOpenStaff(null)}
         title={openStaff ? openStaff.name : ""}
-        sub={openStaff ? `${openStaff.title} · ${openStaff.id}` : ""}
+        sub={openStaff ? openStaff.title : ""}
         footer={
           openStaff ? (
             openStaff.status === "active" ? (
@@ -1008,11 +1032,10 @@ function MembersPage() {
               <CardBody>
                 <DL
                   rows={[
-                    ["Account id", <span className="gm-mono">{openStaff.id}</span>],
                     ["Role", openStaff.title],
                     ["Email", openStaff.email],
                     ["On the team since", dateOnly(openStaff.since)],
-                    ["Scoped by", openStaff.grantedBy ?? "—"],
+                    ["Scoped by", openStaff.grantedBy ?? "Not recorded"],
                   ]}
                 />
               </CardBody>
@@ -1040,7 +1063,7 @@ function MembersPage() {
         open={!!openMember}
         onClose={() => setOpenMember(null)}
         title={openMember ? openMember.name : ""}
-        sub={openMember ? `${openMember.handle} · ${openMember.id}` : ""}
+        sub={openMember ? openMember.handle : ""}
         footer={
           /* Reading a record and changing someone's standing are different
              permissions. A moderator gets the first and not the second. */
@@ -1139,7 +1162,6 @@ function MembersPage() {
               <CardBody>
                 <DL
                   rows={[
-                    ["Member id", <span className="gm-mono">{live.id}</span>],
                     ["Role", ROLE_LABEL[live.role]],
                     ...(seeBilling
                       ? ([
@@ -1314,7 +1336,7 @@ function MembersPage() {
                     File note
                   </button>
                   <span className="gm-spacer gm-tiny gm-dim">
-                    Internal only · stamped {operator.name}
+                    Internal only · stamped {me?.name ?? "you"}
                   </span>
                 </div>
               </div>
@@ -1339,14 +1361,22 @@ function MembersPage() {
               </CardBody>
             </Card>
 
+            {/* Both of these had no handler at all. */}
             <div className="gm-row" style={{ gap: 8 }}>
-              <button type="button" className="gm-btn gm-btn--sm">
+              <button
+                type="button"
+                className="gm-btn gm-btn--sm"
+                onClick={() => {
+                  /* The same composer the segment uses, aimed at one person.
+                     A second message dialog would be a second thing to keep
+                     in step with what sending actually does. */
+                  setPicked(new Set([live.handle]));
+                  setOpenMember(null);
+                  setComposing(true);
+                }}
+              >
                 <IconMail />
                 Message
-              </button>
-              <button type="button" className="gm-btn gm-btn--sm">
-                <IconExternal />
-                Their listings
               </button>
             </div>
           </>
@@ -1405,10 +1435,12 @@ function MembersPage() {
           </Note>
         ) : action === "reset-verification" ? (
           <Note tone="warn">
-            <b>Back to mobile confirmed.</b> ID has to be resubmitted to the provider and pass the
-            DVS again before they can list or trade. We hold no documents, so nothing is deleted
-            here. Only the outcome we were given is withdrawn. Use it when identity is in doubt
-            rather than as a punishment, since a restriction covers that.
+            <b>They will have to prove who they are again.</b> Their ID check is set back to the
+            start, and they cannot buy or sell until it passes. We never held a copy of their
+            documents, so nothing of theirs is deleted here.
+            <br />
+            Use this when you doubt who the person is. If the problem is how they have behaved,
+            restrict the account instead.
           </Note>
         ) : action === "change-plan" ? (
           <Note tone={overQuota ? "warn" : "gold"}>
@@ -1530,19 +1562,11 @@ function MembersPage() {
             <button
               type="button"
               className="gm-btn gm-btn--primary"
-              disabled={(!viaPush && !viaEmail) || !subject.trim() || !body.trim()}
-              onClick={() => {
-                setComposing(false);
-                setToast(
-                  `${audience.length} member${audience.length === 1 ? "" : "s"} · ${
-                    [viaPush ? "push" : null, viaEmail ? "email" : null].filter(Boolean).join(" + ")
-                  }`
-                );
-                setPicked(new Set());
-              }}
+              disabled={sending || !subject.trim() || body.trim().length < 10 || audience.length === 0}
+              onClick={sendToAudience}
             >
               <IconSend />
-              Send to {audience.length}
+              {sending ? "Sending…" : `Send to ${audience.length}`}
             </button>
             <button
               type="button"
@@ -1588,31 +1612,15 @@ function MembersPage() {
           </span>
         </div>
 
-        <Card pad>
-          <div className="gm-setrow">
-            <div className="gm-setrow-main">
-              <b>Push notification</b>
-              <span>Arrives now, and is gone once it is swiped away.</span>
-            </div>
-            <div className="gm-setrow-ctl">
-              <Toggle
-                checked={viaPush}
-                onChange={setViaPush}
-                label="Send as push"
-                disabled={!commsTemplates.find((t) => t.key === template)?.channels.includes("push")}
-              />
-            </div>
-          </div>
-          <div className="gm-setrow">
-            <div className="gm-setrow-main">
-              <b>Email</b>
-              <span>Readable later. The only channel that counts as having told someone.</span>
-            </div>
-            <div className="gm-setrow-ctl">
-              <Toggle checked={viaEmail} onChange={setViaEmail} label="Send as email" />
-            </div>
-          </div>
-        </Card>
+        {/* These were two channel toggles. They controlled nothing — the same
+            fault as the send button above them, one level down — so they say
+            what happens instead of pretending to choose it. */}
+        <Note>
+          <b>Where this goes.</b> Every recipient gets it in the app, and a push
+          as well wherever they have a device registered. Email is not wired: no
+          provider is configured, so nothing here reaches an inbox. The toast
+          reports how many of each actually went.
+        </Note>
 
         <div className="gm-field">
           <label className="gm-label" htmlFor="gm-subject">
@@ -1649,7 +1657,7 @@ function MembersPage() {
       </Modal>
 
       {toast ? (
-        <Toast title="Access updated" body={`${toast} · written to the audit log`} onDone={() => setToast(null)} />
+        <Toast title={toast.title} body={toast.body} onDone={() => setToast(null)} />
       ) : null}
     </>
   );

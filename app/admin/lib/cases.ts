@@ -29,7 +29,7 @@ export function toConflict(c: AdminCase, thread: CaseMessage[] = []): Conflict {
     handle: p.handle,
     name: p.name,
     initials: p.initials,
-    joined: p.joined ? p.joined.slice(0, 10) : "—",
+    joined: p.joined ? p.joined.slice(0, 10) : "Unknown",
     /* Counted by the API over `disputes`, this case excluded. The board raises
        a warning above four, so this must be a real number or the warning is. */
     disputes: p.priorCases,
@@ -50,7 +50,7 @@ export function toConflict(c: AdminCase, thread: CaseMessage[] = []): Conflict {
     amount: c.amount,
     against: raiserIsBuyer ? "seller" : "buyer",
     listing: {
-      id: c.listing?.id ?? "—",
+      id: c.listing?.id ?? "",
       card: c.listing?.card ?? "Listing removed",
       setLine: c.listing?.setLine ?? "",
       grader: (GRADERS.find((g) => g === c.listing?.grader) ?? "Raw") as Grader,

@@ -1,33 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { aud, money } from "./lib/data";
 import {
-  aud,
-  conflicts,
-  DECIDABLE,
-  flagsFor,
-  gmvSeries,
-  IN_QUEUE,
-  listings,
-  money,
-  mrrOf,
-  operator,
-  priorMrr,
-  queueMix,
-  subscriptionRevenue,
-  subscriptionTiers,
-  totalMrr,
-  totalSubscribers,
-  verificationFunnel,
-  writeToRecord,
-  type Listing,
-} from "./lib/data";
+  ApiError,
+  decideListing,
+  fetchDashboard,
+  useListings,
+  type AdminListing,
+  type Dashboard,
+} from "./lib/api";
 import {
   Card,
   Empty,
   Funnel,
   LinkStat,
+  Loading,
   Modal,
   Note,
   RingChart,
@@ -41,13 +30,12 @@ import {
 import {
   IconArrowRight,
   IconCheck,
-  IconDownload,
-  IconExternal,
   IconInbox,
   IconShield,
   IconXCircle,
 } from "./components/icons";
 import { Gate } from "./components/Gate";
+import { useRole } from "./components/RoleContext";
 
 /* The greeting, the money, the funnel and the queue stack in the left column;
    the rail runs the full height beside them rather than sitting under a chart.
@@ -58,6 +46,11 @@ import { Gate } from "./components/Gate";
    control. The one table on this page is the exception, and it earns it by
    being worked here: its rows are decided in place rather than handed off. */
 const SLA_ROWS = 4;
+
+/* The plan colours, here rather than on the API: which colour a plan is drawn
+   in is a rendering decision and Stripe has no opinion about it. Indexed by
+   position, so a fourth plan gets one without anybody adding it. */
+const PLAN_COLOUR = ["var(--gold)", "var(--navy-500)", "var(--ink-4)", "var(--ok)"];
 
 /* `DECIDABLE` is awaiting + in-review — the rows waiting on us. A listing in
    `info-requested` is waiting on the seller with its clock stopped, so a
@@ -76,84 +69,168 @@ const TRAIL: { grader: string; grade: string; art: string; fan: string }[] = [
   { grader: "PSA", grade: "10", art: "pokemon-umbreon", fan: "15deg" },
 ];
 
-type Decision = "approved" | "rejected";
-
 function DashboardPage() {
-  /* Decisions taken on this screen, by submission id. Front-end only until
-     the admin API lands, but the queue has to behave like a queue while you
-     work it: a row you have dealt with leaves, and the next one moves up. */
-  const [decided, setDecided] = useState<Record<string, Decision>>({});
-  const [rejecting, setRejecting] = useState<Listing | null>(null);
+  const [rejecting, setRejecting] = useState<AdminListing | null>(null);
   const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
 
-  const pending = useMemo(
-    () => listings.filter((l) => IN_QUEUE.includes(l.status) && !decided[l.id]),
-    [decided]
-  );
+  /* Everything on this page, from the API.
 
+     It was the last one drawing sample money, and the figure it invented was
+     one another page already knew: it printed ~4,900 subscribers while
+     /admin/pricing read the real number off the database. Two pages of one
+     console disagreeing about the same number is worse than either being
+     wrong on its own. */
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  /* The queue is the listing queue, read through the same hook the queue page
+     uses — the rows are worked here, so they must be the same rows. */
+  const { data: queueData, loading: queueLoading, reload } = useListings({
+    view: "queue",
+    search: "",
+    tier: "all",
+  });
   const queue = useMemo(
-    () =>
-      listings
-        .filter((l) => DECIDABLE.includes(l.status) && !decided[l.id])
-        .sort((a, b) => a.slaHours - b.slaHours),
-    [decided]
+    () => [...(queueData?.listings ?? [])].sort((a, b) => a.slaHours - b.slaHours),
+    [queueData],
   );
 
-  const breached = pending.filter((s) => s.slaHours < 0).length;
+  const [writes, setWrites] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    fetchDashboard()
+      .then((r) => {
+        if (!live) return;
+        setData(r);
+        setLoadError(null);
+      })
+      .catch((e) => live && setLoadError(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [writes]);
 
-  /* The four figures the feature set asks for, and only those: subscribers,
-     live listings, queue depth, open reports. Each is a count of a thing a
-     page owns, so each one can link to that page. */
-  const liveListings = listings.filter((l) => l.status === "live").length;
-  const openReports = conflicts.filter((c) => c.status !== "resolved").length;
+  const stats = data?.stats;
+  const moneyIn = data?.money;
+  const breached = stats?.breached ?? 0;
+  const funnel = data?.funnel ?? [];
+  const queueMix = data?.queueMix ?? [];
 
-  const mrrGrowth = priorMrr > 0 ? ((totalMrr - priorMrr) / priorMrr) * 100 : 0;
+  /* How much of the intake came out the far end. Null rather than 0% when
+     nobody signed up in the period: no cohort is not a cohort that failed. */
+  const funnelEnd =
+    funnel.length > 1 && funnel[0].value > 0
+      ? Math.round((funnel[funnel.length - 1].value / funnel[0].value) * 100)
+      : null;
 
-  function approve(l: Listing) {
-    setDecided((d) => ({ ...d, [l.id]: "approved" }));
-    const entry = writeToRecord({
-      handle: l.seller.handle,
-      kind: "listing-approved",
-      title: `Listing approved: ${l.card}`,
-      by: operator.name,
-      ref: l.id,
-    });
-    setToast({
-      title: "Published to the market",
-      body: `${l.card} · filed on ${l.seller.handle}'s record as ${entry.id}`,
-    });
+  const { me } = useRole();
+  const firstName = (me?.name ?? "there").split(" ")[0];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
+
+  /* Movement, from the series itself rather than from a constant. The header
+     used to carry "+11.4%" and "+8.2%" written into the markup — figures that
+     were not computed from anything and could not go down. */
+  const gmv = data?.gmv ?? [];
+  const gmvGrowth = (() => {
+    if (gmv.length < 2) return null;
+    const last = gmv[gmv.length - 1].gmv;
+    const prev = gmv[gmv.length - 2].gmv;
+    if (prev <= 0) return null;
+    return ((last - prev) / prev) * 100;
+  })();
+
+  /* Both decisions go through the same endpoint the queue page uses, so a
+     decision taken here is a decision — it moves the listing, notifies the
+     seller and writes to the audit log. It used to append to an in-memory
+     array and show a toast saying the seller had been told. */
+  async function approve(l: AdminListing) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { listing, decidedBy } = await decideListing(l.id, "approve", "");
+      reload();
+      setWrites((n) => n + 1);
+      setToast({
+        title: "Published to the market",
+        body: `${listing.card} · by ${decidedBy} · the seller has been notified`,
+      });
+    } catch (e) {
+      setToast({
+        title: "That did not go through",
+        body: e instanceof ApiError ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function confirmReject() {
-    if (!rejecting) return;
-    setDecided((d) => ({ ...d, [rejecting.id]: "rejected" }));
-    const entry = writeToRecord({
-      handle: rejecting.seller.handle,
-      kind: "listing-rejected",
-      title: `Listing rejected: ${rejecting.card}`,
-      detail: reason.trim(),
-      by: operator.name,
-      ref: rejecting.id,
-    });
-    setToast({
-      title: "Rejected and the seller told",
-      body: `${rejecting.card} · filed on ${rejecting.seller.handle}'s record as ${entry.id}`,
-    });
-    setRejecting(null);
-    setReason("");
+  async function confirmReject() {
+    if (!rejecting || busy) return;
+    setBusy(true);
+    try {
+      const { listing, decidedBy } = await decideListing(rejecting.id, "reject", reason.trim());
+      setRejecting(null);
+      setReason("");
+      reload();
+      setWrites((n) => n + 1);
+      setToast({
+        title: "Rejected and the seller told",
+        body: `${listing.card} · by ${decidedBy} · the reason is on ${listing.seller.handle}'s record`,
+      });
+    } catch (e) {
+      setToast({
+        title: "That did not go through",
+        body: e instanceof ApiError ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* The whole page waits. Its panels are four aggregates of one moment, and
+     showing some of them against a spinner in the others would be four
+     different moments on one screen. */
+  if (loading && !data) {
+    return (
+      <div className="gm-well">
+        <Loading label="Reading the marketplace…" />
+      </div>
+    );
   }
 
   return (
     <div className="gm-dash">
       {/* ==================================================== left column */}
       <div className="gm-dash-main">
+        {/* A console that cannot reach its API must say so. An empty
+            marketplace and a broken connection look identical otherwise. */}
+        {loadError ? (
+          <Note tone="bad">
+            <b>The marketplace could not be read.</b> {loadError}
+          </Note>
+        ) : null}
+
         <section className="gm-hero">
           <div className="gm-hero-copy">
-            <div className="gm-hero-eyebrow">Sunday · 1 September</div>
+            {/* The date, and the greeting, from the clock rather than
+                written into the markup — it said "Sunday · 1 September" on
+                every day of the year. */}
+            <div className="gm-hero-eyebrow">
+              {new Date().toLocaleDateString("en-GB", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </div>
             <h2>
-              Morning, {operator.name.split(" ")[0]}. <em>{pending.length} cards</em> are waiting
-              on you.
+              {greeting}, {firstName}. <em>{queue.length} card{queue.length === 1 ? "" : "s"}</em>{" "}
+              {queue.length === 1 ? "is" : "are"} waiting on you.
             </h2>
             <p>
               {breached > 0
@@ -166,10 +243,10 @@ function DashboardPage() {
                 <IconShield />
                 Open the queue
               </Link>
-              <button type="button" className="gm-btn">
-                <IconDownload />
-                Export
-              </button>
+              {/* No Export here. The queue page owns the queue and exports
+                  it with the filters applied; a second button on the greeting
+                  exporting the same rows unfiltered is a second answer to the
+                  same question. */}
             </div>
           </div>
 
@@ -188,46 +265,47 @@ function DashboardPage() {
             <div className="gm-blockhead">
               <h3>Subscription revenue</h3>
               <p>Recurring, by plan</p>
-              <span
-                className={`gm-spacer gm-badge ${
-                  mrrGrowth >= 0 ? "gm-badge--gold" : "gm-badge--bad"
-                }`}
-              >
-                {mrrGrowth >= 0 ? "+" : ""}
-                {mrrGrowth.toFixed(1)}%
-              </span>
+              {/* No growth badge. It needs last month's MRR, which nothing
+                  records — the figure it used to show came from a constant
+                  beside the one above it and could not go down. */}
             </div>
 
             <div className="gm-well">
               <div className="gm-money">
-                <span className="gm-money-value">{aud(totalMrr)}</span>
+                <span className="gm-money-value">{aud(moneyIn?.mrr ?? 0)}</span>
                 <span className="gm-money-unit">
-                  MRR · {totalSubscribers.toLocaleString("en-US")} subscribers
+                  MRR · {(moneyIn?.subscribers ?? 0).toLocaleString("en-AU")} subscriber
+                  {moneyIn?.subscribers === 1 ? "" : "s"}
                 </span>
               </div>
 
               <StackBar
-                parts={subscriptionTiers.map((t) => ({
+                parts={(moneyIn?.tiers ?? []).map((t, i) => ({
                   label: t.name,
-                  value: mrrOf(t),
-                  color: t.color,
+                  value: t.mrr,
+                  color: PLAN_COLOUR[i % PLAN_COLOUR.length],
                 }))}
               />
 
               <div>
-                {subscriptionTiers.map((t) => (
-                  <div key={t.key} className="gm-planline">
-                    <span className="gm-planline-key" style={{ background: t.color }} />
+                {(moneyIn?.tiers ?? []).map((t, i) => (
+                  <div key={t.id} className="gm-planline">
+                    <span
+                      className="gm-planline-key"
+                      style={{ background: PLAN_COLOUR[i % PLAN_COLOUR.length] }}
+                    />
                     <span className="gm-planline-name">
                       <b>{t.name}</b>
                       <span>
                         {aud(t.price)} a month ·{" "}
-                        {t.quota === null ? "unlimited listings" : `${t.quota} listing${t.quota > 1 ? "s" : ""}`}
+                        {t.quota === null
+                          ? "unlimited listings"
+                          : `${t.quota} listing${t.quota > 1 ? "s" : ""}`}
                       </span>
                     </span>
                     <span className="gm-planline-num">
-                      <b>{aud(mrrOf(t))}</b>
-                      <span>{t.subscribers.toLocaleString("en-US")} on plan</span>
+                      <b>{aud(t.mrr)}</b>
+                      <span>{t.subscribers.toLocaleString("en-AU")} on plan</span>
                     </span>
                   </div>
                 ))}
@@ -236,11 +314,14 @@ function DashboardPage() {
               {/* Collected is not MRR, and the difference is the dunning pile —
                   saying only one of the two hides a real queue of work. */}
               <p className="gm-sm gm-muted" style={{ marginTop: 14 }}>
-                <b className="gm-strong">{aud(subscriptionRevenue.collected)}</b> collected this
+                <b className="gm-strong">{aud(moneyIn?.collected ?? 0)}</b> collected this
                 month.{" "}
                 <span className="gm-dim">
-                  {aud(subscriptionRevenue.failed)} failed across{" "}
-                  {subscriptionRevenue.failedAccounts} accounts.
+                  {(moneyIn?.failed ?? 0) > 0
+                    ? `${aud(moneyIn!.failed)} failed across ${moneyIn!.failedAccounts} account${
+                        moneyIn!.failedAccounts === 1 ? "" : "s"
+                      }.`
+                    : "Nothing failed."}
                 </span>
               </p>
             </div>
@@ -250,18 +331,13 @@ function DashboardPage() {
             <div className="gm-blockhead">
               <h3>Verification funnel</h3>
               <p>New accounts, last 30 days</p>
-              <span className="gm-spacer gm-badge gm-badge--gold">
-                {Math.round(
-                  (verificationFunnel[verificationFunnel.length - 1].value /
-                    verificationFunnel[0].value) *
-                    100
-                )}
-                % end to end
-              </span>
+              {funnelEnd !== null ? (
+                <span className="gm-spacer gm-badge gm-badge--gold">{funnelEnd}% end to end</span>
+              ) : null}
             </div>
 
             <div className="gm-well">
-              <Funnel stages={verificationFunnel} />
+              <Funnel stages={funnel} />
               <p className="gm-tiny gm-dim" style={{ marginTop: 14 }}>
                 The last two steps are the provider&rsquo;s decision against the DVS. We hold the
                 outcome only. No documents reach this database.
@@ -282,7 +358,9 @@ function DashboardPage() {
           </div>
 
           <div className="gm-well gm-well--flush">
-            {queue.length === 0 ? (
+            {queueLoading && queue.length === 0 ? (
+              <Loading label="Reading the queue…" />
+            ) : queue.length === 0 ? (
               <Empty
                 icon={<IconInbox />}
                 title="The queue is clear"
@@ -290,14 +368,24 @@ function DashboardPage() {
               />
             ) : (
               <div className="gm-tablewrap">
-                <table className="gm-table" style={{ minWidth: 860 }}>
+                {/* No `minWidth`, so it fits the column it is in rather than
+                    forcing a sideways scrollbar into the middle of the
+                    dashboard. `--tight` buys the room back: smaller slab,
+                    less padding, smaller buttons.
+
+                    `--left` ranges every column left. These figures are read
+                    across the row rather than compared down the column, so
+                    right-aligning two of them only opened a gap in each
+                    line. */}
+                <table className="gm-table gm-table--left gm-table--tight">
                   <thead>
                     <tr>
                       <th>Card</th>
-                      <th>Tier · state</th>
-                      <th className="gm-num">Ask</th>
-                      <th className="gm-num">Time left</th>
-                      <th className="gm-actions">Decision</th>
+                      <th>Tier</th>
+                      <th>State</th>
+                      <th>Ask</th>
+                      <th>Time left</th>
+                      <th>Decision</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -318,13 +406,13 @@ function DashboardPage() {
                           </div>
                         </td>
                         <td>
-                          <div className="gm-row" style={{ gap: 6 }}>
-                            <Tier tier={s.tier} />
-                            <ListingBadge status={s.status} />
-                          </div>
+                          <Tier tier={s.tier} />
                         </td>
-                        <td className="gm-num gm-strong">{money(s.askPrice)}</td>
-                        <td className="gm-num">
+                        <td>
+                          <ListingBadge status={s.status} />
+                        </td>
+                        <td className="gm-strong gm-nowrap">{money(s.askPrice)}</td>
+                        <td className="gm-nowrap">
                           {s.slaHours < 0 ? (
                             <span className="gm-badge gm-badge--bad">
                               {Math.abs(s.slaHours)}h over
@@ -335,15 +423,17 @@ function DashboardPage() {
                             <span className="gm-muted gm-mono">{s.slaHours}h</span>
                           )}
                         </td>
-                        <td className="gm-actions">
+                        <td>
                           <div className="gm-rowact">
                             <button
                               type="button"
                               className="gm-btn gm-btn--sm gm-btn--primary"
                               onClick={() => approve(s)}
+                              title={`Approve ${s.card}`}
+                              aria-label={`Approve ${s.card}`}
                             >
                               <IconCheck />
-                              Approve
+                              <span>Approve</span>
                             </button>
                             <button
                               type="button"
@@ -352,19 +442,12 @@ function DashboardPage() {
                                 setReason("");
                                 setRejecting(s);
                               }}
+                              title={`Reject ${s.card}`}
+                              aria-label={`Reject ${s.card}`}
                             >
-                              Reject
+                              <IconXCircle />
+                              <span>Reject</span>
                             </button>
-                            {/* the way out to the full record, for the rows a
-                                pair of buttons is not enough to settle */}
-                            <Link
-                              href="/admin/listings"
-                              className="gm-btn gm-btn--sm gm-btn--icon"
-                              aria-label={`Open the full record for ${s.card}`}
-                              title="Open the full record"
-                            >
-                              <IconExternal />
-                            </Link>
                           </div>
                         </td>
                       </tr>
@@ -380,10 +463,19 @@ function DashboardPage() {
           <div className="gm-blockhead">
             <h3>Marketplace volume</h3>
             <p>Twelve weeks · GMV against verifications cleared</p>
-            <span className="gm-spacer gm-badge gm-badge--gold">+11.4%</span>
+            {gmvGrowth !== null ? (
+              <span
+                className={`gm-spacer gm-badge ${
+                  gmvGrowth >= 0 ? "gm-badge--gold" : "gm-badge--bad"
+                }`}
+              >
+                {gmvGrowth >= 0 ? "+" : ""}
+                {gmvGrowth.toFixed(1)}% on last week
+              </span>
+            ) : null}
           </div>
           <div className="gm-well">
-            <VolumeChart data={gmvSeries} height={168} />
+            <VolumeChart data={gmv} height={168} />
           </div>
         </section>
       </div>
@@ -399,29 +491,41 @@ function DashboardPage() {
             <LinkStat
               href="/admin/members?scope=market"
               label="Active subscribers"
-              value={totalSubscribers.toLocaleString("en-US")}
+              value={(moneyIn?.subscribers ?? 0).toLocaleString("en-AU")}
             />
             <LinkStat
-              href="/admin/listings"
+              href="/admin/listings?view=market"
               label="Live listings"
-              value={liveListings.toLocaleString("en-US")}
+              value={(stats?.liveListings ?? 0).toLocaleString("en-AU")}
             />
             <LinkStat
-              href="/admin/listings"
+              href="/admin/listings?view=queue"
               label="In the review queue"
-              value={String(pending.length)}
+              value={String(stats?.queueDepth ?? 0)}
             />
-            <LinkStat href="/admin/conflicts" label="Open reports" value={String(openReports)} />
+            <LinkStat
+              href="/admin/conflicts"
+              label="Open reports"
+              value={String(stats?.openReports ?? 0)}
+            />
           </div>
         </section>
 
         <section>
           <div className="gm-blockhead">
             <h3>Review mix</h3>
-            <p>161 in flight, by tier</p>
+            <p>
+              {stats?.queueDepth ?? 0} in flight, by tier
+            </p>
           </div>
           <div className="gm-well">
-            <RingChart rings={queueMix} />
+            {queueMix.length === 0 ? (
+              <p className="gm-sm gm-muted" style={{ margin: 0 }}>
+                Nothing is waiting on a decision.
+              </p>
+            ) : (
+              <RingChart rings={queueMix} />
+            )}
           </div>
         </section>
       </aside>

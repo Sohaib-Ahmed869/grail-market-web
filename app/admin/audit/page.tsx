@@ -15,6 +15,7 @@ import {
   CardHead,
   Empty,
   FilterMenu,
+  Loading,
   Note,
   PageHead,
 } from "../components/ui";
@@ -40,7 +41,7 @@ const AREA_LABEL: Record<AuditArea, string> = {
   conduct: "Reports & conduct",
   support: "Support",
   billing: "Billing",
-  pricing: "Price engine",
+  pricing: "Prices",
   settings: "Settings",
   staff: "Staff",
 };
@@ -155,12 +156,6 @@ function AuditPage() {
           </Note>
         ) : null}
 
-        <Note tone="gold">
-          <b>Entries can be added and read here, but not changed.</b> There is no edit and no
-          delete — not on this page and not on the API behind it. This is the record that gets
-          checked when somebody challenges a decision.
-        </Note>
-
         <Card>
           {/* One filter language, the same as the listing queue and the case
               board: the heading names what is shown, its subtitle spells out
@@ -231,8 +226,8 @@ function AuditPage() {
           {/* Loading and empty are different answers and must not share a
               screen: "Nothing matches" while the request is still in flight
               tells an auditor their filter is wrong when it is not. */}
-          {loading && rows.length === 0 ? (
-            <Empty icon={<IconSearch />} title="Reading the log…" />
+          {loading ? (
+            <Loading label="Reading the log…" />
           ) : rows.length === 0 ? (
             <Empty
               icon={<IconSearch />}
@@ -265,7 +260,7 @@ function AuditPage() {
                       <span className="gm-scope" style={{ marginRight: 6 }}>
                         {AREA_LABEL[e.area]}
                       </span>
-                      {e.actor} · {shortDate(e.at)} · <span className="gm-mono">{e.id}</span>
+                      {e.actor} · {shortDate(e.at)}
                     </div>
                   </div>
                 </div>

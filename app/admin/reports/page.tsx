@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   fetchReports,
@@ -16,6 +16,7 @@ import {
   ColumnChart,
   Empty,
   Gauge,
+  Loading,
   Note,
   PageHead,
   RingChart,
@@ -31,22 +32,29 @@ import {
   IconRefresh,
   IconReport,
   IconScale,
-  IconSearch,
   IconTrend,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 import { exportCsv } from "../lib/csv";
 
-/* The catalogue drives the page: pick a report on the left and the panels on
-   the right belong to it. The four headline figures sit at the foot rather
-   than the head — they are the summary you check on the way out, and putting
-   them first pushed the charts, which are the reason to open this page, below
-   the fold.
-
-   Every figure now comes from GET /admin/reports, computed over the selected
-   period. Nothing on this page is a constant any more, which is why the period
-   dropdown had to start doing something: it used to change a caption while the
-   numbers underneath it stayed exactly where they were. */
+/**
+ * Reports — one screen, no clicking through.
+ *
+ * This was a catalogue down the left and a panel on the right that changed
+ * when you picked a row: nine reports, one visible at a time, and the eight
+ * you were not looking at reduced to a name and a sparkline. Reading the
+ * marketplace meant clicking nine times and holding the first eight in your
+ * head.
+ *
+ * So the page shows the figures instead of a way to reach them. What is on
+ * screen is what somebody opening this page came for — the four headline
+ * numbers, where the money came from, whether the queue is keeping up, and
+ * where conflicts landed — with the rest of the catalogue as one compact
+ * table at the foot rather than as a navigation column.
+ *
+ * Nothing here is behind an interaction except the period, which changes
+ * everything at once.
+ */
 
 const KPI_ICONS: Record<string, React.ReactNode> = {
   r1: <IconCheckCircle />,
@@ -70,94 +78,12 @@ function formatterFor(unit: ReportSeries["unit"]) {
   return (n: number) => n.toLocaleString("en-AU");
 }
 
-/**
- * The selected report, drawn the way its catalogue caption says it draws.
- *
- * A report the API could not build is not drawn at all. An empty chart and a
- * chart of zeroes look identical, and one of them means "nothing happened"
- * while the other means "we could not find out".
- */
-function ReportPanel({ report }: { report: ReportSeries }) {
-  const fmt = formatterFor(report.unit);
-
-  if (!report.available || report.trend.length === 0) {
-    return (
-      <Empty
-        icon={<IconReport />}
-        title="No figures for this one"
-        body={report.unavailable ?? "Nothing was recorded in this period."}
-      />
-    );
-  }
-
-  if (report.chart === "Table") {
-    const rows = report.trend
-      .map((v, i) => ({ bucket: report.labels[i] ?? `#${i + 1}`, value: v }))
-      .reverse();
-    return (
-      <div className="gm-tablewrap gm-tablewrap--panel" style={{ height: 244 }}>
-        <table className="gm-table gm-table--compact">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th className="gm-num">{report.headlineLabel}</th>
-              <th className="gm-num">Change</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const prev = rows[i + 1]?.value;
-              const change = prev === undefined ? null : r.value - prev;
-              return (
-                <tr key={r.bucket}>
-                  <td className="gm-strong">{r.bucket}</td>
-                  <td className="gm-num gm-strong">{fmt(r.value)}</td>
-                  <td className="gm-num">
-                    {change === null ? (
-                      <span className="gm-dim">None</span>
-                    ) : (
-                      <span className={`gm-delta gm-delta--${change >= 0 ? "up" : "down"}`}>
-                        {change >= 0 ? "+" : ""}
-                        {change.toLocaleString("en-AU")}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  if (report.chart === "Column chart") {
-    return (
-      <ColumnChart
-        data={report.trend.map((v, i) => ({ label: report.labels[i] ?? "", value: v }))}
-        height={216}
-        color="var(--grad-navy)"
-        format={fmt}
-      />
-    );
-  }
-
-  return (
-    <TrendChart
-      labels={report.labels}
-      values={report.trend}
-      height={216}
-      fill={report.chart === "Area chart"}
-      format={fmt}
-      seriesLabel={report.headlineLabel}
-    />
-  );
-}
+/** A series is only worth drawing if the API could build it and it has more
+ *  than one point. One point is a dot, not a trend. */
+const drawable = (r?: ReportSeries) => Boolean(r?.available && r.trend.length > 1);
 
 function ReportsPage() {
   const [period, setPeriod] = useState("30d");
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
 
   const [data, setData] = useState<ReportsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,44 +112,38 @@ function ReportsPage() {
   }, [period, tick]);
 
   const reports = data?.reports ?? [];
+  const byId = (id: string) => reports.find((r) => r.id === id);
 
-  const catalogue = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return reports;
-    return reports.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q) ||
-        r.detail.toLowerCase().includes(q),
-    );
-  }, [query, reports]);
-
-  /* The selection survives a period change — the same report over a different
-     span is the whole reason to change the span. It only falls back when the
-     report itself is gone from the catalogue. */
-  const active = reports.find((r) => r.id === selected) ?? reports[0] ?? null;
+  /* The three drawn in full. They are the three questions this page is opened
+     with: what came in, whether we kept up, and who is joining. */
+  const gmv = byId("RP-01");
+  const throughput = byId("RP-02");
+  const growth = byId("RP-05");
 
   const decisionSplit = data?.decisionSplit ?? [];
   const totalDecisions = decisionSplit.reduce((s, d) => s + d.value, 0);
   const gameSplit = data?.gameSplit ?? [];
   const conflictOutcomes = data?.conflictOutcomes ?? [];
-  const throughput = data?.throughput;
+  const sla = data?.throughput;
 
-  /** The selected report's series, as a spreadsheet. What is on screen, not
-   *  the whole catalogue — exporting everything is a different, unasked-for
-   *  answer, the same rule the listing queue's export follows. */
-  function exportActive() {
-    if (!active) return;
-    exportCsv(
-      `grailmarket-${active.id.toLowerCase()}-${period}`,
-      active.trend.map((value, i) => ({ bucket: active.labels[i] ?? `#${i + 1}`, value })),
-      [
-        { header: "Report", value: () => active.name },
-        { header: "Period", value: () => data?.period.label ?? "" },
-        { header: "Bucket", value: (r) => r.bucket },
-        { header: active.headlineLabel || "Value", value: (r) => r.value },
-      ],
+  /** Every series on screen, as one spreadsheet. The period applies. */
+  function exportAll() {
+    if (!data) return;
+    const rows = reports.flatMap((r) =>
+      r.trend.map((value, i) => ({
+        report: r.name,
+        category: r.category,
+        bucket: r.labels[i] ?? `#${i + 1}`,
+        value,
+      })),
     );
+    exportCsv(`grailmarket-reports-${period}`, rows, [
+      { header: "Report", value: (r) => r.report },
+      { header: "Category", value: (r) => r.category },
+      { header: "Period", value: () => data.period.label },
+      { header: "Bucket", value: (r) => r.bucket },
+      { header: "Value", value: (r) => r.value },
+    ]);
   }
 
   return (
@@ -256,8 +176,8 @@ function ReportsPage() {
             <button
               type="button"
               className="gm-btn gm-btn--primary"
-              onClick={exportActive}
-              disabled={!active?.available}
+              onClick={exportAll}
+              disabled={!data || reports.every((r) => !r.available)}
             >
               <IconDownload />
               Export
@@ -267,108 +187,66 @@ function ReportsPage() {
       />
 
       <div className="gm-stack">
-        {/* A console that cannot reach its API must say so. An empty report
-            and a broken connection look identical otherwise. */}
         {error ? (
           <Note tone="bad">
             <b>The figures could not be read.</b> {error}
           </Note>
         ) : null}
 
-        <div className="gm-reports">
-          {/* ------------------------------------------------- the catalogue */}
-          <aside className="gm-catalogue">
-            <div className="gm-catalogue-head">
-              <div>
-                <b>Report catalogue</b>
-                <span>
-                  {reports.length} report{reports.length === 1 ? "" : "s"}
-                </span>
-              </div>
-            </div>
+        {loading ? (
+          <Card>
+            <Loading label="Reading the figures…" />
+          </Card>
+        ) : (
+          <>
+            {/* ------------------------------------------ the period, in four
 
-            <div className="gm-catalogue-search">
-              <IconSearch />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search reports"
-                aria-label="Search the report catalogue"
-              />
-            </div>
-
-            {loading && reports.length === 0 ? (
-              <Empty icon={<IconReport />} title="Reading the figures…" />
-            ) : catalogue.length === 0 ? (
-              <Empty icon={<IconReport />} title="Nothing matches that" />
-            ) : (
-              <div className="gm-catalogue-list" role="list">
-                {catalogue.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    role="listitem"
-                    className={`gm-catalogue-row${r.id === active?.id ? " is-active" : ""}`}
-                    onClick={() => setSelected(r.id)}
-                    aria-current={r.id === active?.id ? "true" : undefined}
-                  >
-                    <span className="gm-catalogue-copy">
-                      <b>{r.name}</b>
-                      <span>{r.available ? r.headline : "No figures"}</span>
-                    </span>
-                    {/* No sparkline on a report with nothing behind it. A flat
-                        line at the baseline reads as a real, quiet series. */}
-                    {r.available && r.trend.length > 1 ? (
-                      <Spark points={r.trend} width={54} height={24} color={CHART_TONE[r.chart]} />
-                    ) : null}
-                  </button>
+                At the top rather than the foot. They are the summary the page
+                is opened for; underneath the charts they were the thing you
+                scrolled past twice. */}
+            {data && data.kpis.length > 0 ? (
+              <div className="gm-grid gm-grid--4">
+                {data.kpis.map((k) => (
+                  <StatTile
+                    key={k.key}
+                    label={k.label}
+                    value={k.value}
+                    delta={k.delta ?? undefined}
+                    foot={k.foot}
+                    tone={k.tone}
+                    icon={KPI_ICONS[k.key]}
+                  />
                 ))}
               </div>
-            )}
-          </aside>
+            ) : null}
 
-          {/* ------------------------------------------------------ the panels */}
-          <div className="gm-reports-main">
+            {/* ------------------------------------------ money, and decisions */}
             <div className="gm-grid gm-grid--2a">
               <Card>
                 <CardHead
-                  title={active?.name ?? "Reports"}
-                  sub={active ? `${active.category} · ${active.headlineLabel}` : ""}
+                  title={gmv?.name ?? "GMV"}
+                  sub={gmv ? `${gmv.headline} · ${gmv.headlineLabel}` : ""}
                 />
                 <CardBody>
-                  {active ? (
-                    <ReportPanel report={active} />
+                  {drawable(gmv) ? (
+                    <TrendChart
+                      labels={gmv!.labels}
+                      values={gmv!.trend}
+                      height={210}
+                      fill
+                      format={formatterFor(gmv!.unit)}
+                      seriesLabel={gmv!.headlineLabel}
+                    />
                   ) : (
-                    <Empty icon={<IconReport />} title="Reading the figures…" />
-                  )}
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardHead title="GMV by game" sub="Share of the period, largest first" />
-                <CardBody>
-                  {gameSplit.length === 0 ? (
                     <Empty
                       icon={<IconTrend />}
                       title="No completed sales"
-                      body="Nothing sold in this period, so there is no value to split."
-                    />
-                  ) : (
-                    <ColumnChart
-                      data={gameSplit.map((g) => ({ label: g.label, value: g.value }))}
-                      height={216}
-                      color="var(--gold)"
-                      format={(n) => `${n}%`}
+                      body={gmv?.unavailable ?? "Nothing sold in this period."}
                     />
                   )}
                 </CardBody>
               </Card>
-            </div>
 
-            {/* Four panels of the same height, each filling it. `gm-panels`
-                spreads the contents rather than letting the shortest card
-                trail a block of white under its last line. */}
-            <div className="gm-grid gm-grid--4 gm-panels">
               <Card>
                 <CardHead
                   title="Decisions"
@@ -382,14 +260,33 @@ function ReportsPage() {
                   )}
                 </CardBody>
               </Card>
+            </div>
+
+            {/* --------------------------------------------- the three panels */}
+            <div className="gm-grid gm-grid--3 gm-panels">
+              <Card>
+                <CardHead title="GMV by game" sub="Share of the period, largest first" />
+                <CardBody>
+                  {gameSplit.length === 0 ? (
+                    <Empty icon={<IconTrend />} title="No completed sales" />
+                  ) : (
+                    <ColumnChart
+                      data={gameSplit.map((g) => ({ label: g.label, value: g.value }))}
+                      height={196}
+                      color="var(--gold)"
+                      format={(n) => `${n}%`}
+                    />
+                  )}
+                </CardBody>
+              </Card>
 
               <Card>
                 <CardHead title="Inside the target" sub="Decided within 24h" />
                 <CardBody>
                   {/* A percentage of nothing is not zero per cent — it is no
-                      answer, and a gauge sitting at the bottom of its arc
-                      says the desk missed every one of them. */}
-                  {!throughput || throughput.onTime === null ? (
+                      answer, and a gauge at the bottom of its arc says the
+                      desk missed every one of them. */}
+                  {!sla || sla.onTime === null ? (
                     <Empty
                       icon={<IconClock />}
                       title="Nothing to measure"
@@ -399,22 +296,21 @@ function ReportsPage() {
                     <>
                       <div className="gm-panel-figure">
                         <Gauge
-                          value={throughput.onTime}
-                          label={`${throughput.onTime}%`}
+                          value={sla.onTime}
+                          label={`${sla.onTime}%`}
                           caption="on time"
-                          size={138}
+                          size={128}
                           thickness={12}
                         />
                       </div>
-
                       <div className="gm-factstrip">
                         <span>
                           <i>Median</i>
-                          <b>{throughput.medianLabel}</b>
+                          <b>{sla.medianLabel}</b>
                         </span>
                         <span>
                           <i>Breached</i>
-                          <b>{throughput.breached}</b>
+                          <b>{sla.breached}</b>
                         </span>
                       </div>
                     </>
@@ -426,85 +322,107 @@ function ReportsPage() {
                 <CardHead title="Conflict outcomes" sub="Where cases landed" />
                 <CardBody>
                   {conflictOutcomes.every((o) => o.value === 0) ? (
-                    <Empty
-                      icon={<IconScale />}
-                      title="No case closed"
-                      body="Nothing was decided on the conduct board in this period."
-                    />
+                    <Empty icon={<IconScale />} title="No case closed" />
                   ) : (
                     <BarList rows={conflictOutcomes} fill />
                   )}
                 </CardBody>
               </Card>
-
-              {/* the selected report's paperwork, beside the chart above */}
-              <Card>
-                <CardHead
-                  title="Report detail"
-                  sub={active ? `${active.id} · ${active.category}` : ""}
-                />
-                <CardBody>
-                  {active ? (
-                    <>
-                      <div className="gm-report-headline">
-                        <b>{active.headline}</b>
-                        <span>{active.headlineLabel}</span>
-                        {active.available && active.trend.length > 1 ? (
-                          <Spark
-                            points={active.trend}
-                            width={140}
-                            height={38}
-                            color={CHART_TONE[active.chart]}
-                          />
-                        ) : null}
-                      </div>
-
-                      <div className="gm-report-facts">
-                        <span>
-                          <i>Period</i>
-                          {data?.period.label ?? "—"}
-                        </span>
-                        <span>
-                          <i>Source</i>
-                          {active.available ? (
-                            <b className="gm-badge gm-badge--ok">Live</b>
-                          ) : (
-                            <b className="gm-badge gm-badge--bad">Unavailable</b>
-                          )}
-                        </span>
-                        <span>
-                          <i>Formats</i>
-                          {active.format}
-                        </span>
-                      </div>
-
-                      <p className="gm-sm gm-muted" style={{ margin: "10px 0 0" }}>
-                        {active.detail}
-                      </p>
-                    </>
-                  ) : null}
-                </CardBody>
-              </Card>
             </div>
-          </div>
-        </div>
 
-        {/* --------------------------------------------- the period in figures */}
-        {data && data.kpis.length > 0 ? (
-          <div className="gm-grid gm-grid--4">
-            {data.kpis.map((k) => (
-              <StatTile
-                key={k.key}
-                label={k.label}
-                value={k.value}
-                delta={k.delta ?? undefined}
-                foot={k.foot}
-                tone={k.tone}
-                icon={KPI_ICONS[k.key]}
+            {/* ---------------------------------------- throughput and growth */}
+            <div className="gm-grid gm-grid--2">
+              {[throughput, growth].map((r, i) =>
+                r ? (
+                  <Card key={r.id}>
+                    <CardHead title={r.name} sub={`${r.headline} · ${r.headlineLabel}`} />
+                    <CardBody>
+                      {drawable(r) ? (
+                        <TrendChart
+                          labels={r.labels}
+                          values={r.trend}
+                          height={180}
+                          format={formatterFor(r.unit)}
+                          seriesLabel={r.headlineLabel}
+                        />
+                      ) : (
+                        <Empty
+                          icon={<IconReport />}
+                          title="No figures"
+                          body={r.unavailable ?? "Nothing recorded in this period."}
+                        />
+                      )}
+                    </CardBody>
+                  </Card>
+                ) : (
+                  <Card key={i}>
+                    <Empty icon={<IconReport />} title="Not available" />
+                  </Card>
+                ),
+              )}
+            </div>
+
+            {/* --------------------------------------------- everything else
+
+                The catalogue, as a table rather than a column you click
+                through. Every report, its headline for the period and its
+                shape, all readable at once — which is exactly what the
+                nine-row sidebar was standing in the way of. */}
+            <Card>
+              <CardHead
+                title="Every report"
+                sub={`${reports.length} computed over ${
+                  data?.period.label.toLowerCase() ?? "the period"
+                }`}
               />
-            ))}
-          </div>
-        ) : null}
+              <div className="gm-tablewrap">
+                <table className="gm-table" style={{ minWidth: 860 }}>
+                  <thead>
+                    <tr>
+                      <th>Report</th>
+                      <th>Category</th>
+                      <th>Measures</th>
+                      <th className="gm-num">Headline</th>
+                      <th className="gm-rowend">Shape</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reports.map((r) => (
+                      <tr key={r.id}>
+                        <td>
+                          <div className="gm-cell2">
+                            <b>{r.name}</b>
+                            <span>{r.detail}</span>
+                          </div>
+                        </td>
+                        <td className="gm-sm gm-muted gm-nowrap">{r.category}</td>
+                        <td className="gm-sm gm-muted">{r.headlineLabel || "Nothing measured"}</td>
+                        <td className="gm-num gm-strong gm-nowrap">
+                          {r.available ? r.headline : <span className="gm-dim">Unavailable</span>}
+                        </td>
+                        <td className="gm-rowend">
+                          {/* No sparkline on a report with nothing behind it:
+                              a flat line at the baseline reads as a real,
+                              quiet series rather than as an absent one. */}
+                          {drawable(r) ? (
+                            <Spark
+                              points={r.trend}
+                              width={92}
+                              height={26}
+                              color={CHART_TONE[r.chart]}
+                            />
+                          ) : (
+                            <span className="gm-tiny gm-dim">{r.unavailable ?? "No data"}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </>
+        )}
       </div>
     </>
   );

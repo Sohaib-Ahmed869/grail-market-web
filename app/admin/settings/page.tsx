@@ -1,24 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  ApiError,
+  fetchSettings,
+  fetchStaff,
+  grantStaff,
+  revokeStaff,
+  saveSettings,
+  setStaffRole as apiSetStaffRole,
+  type AdminStaff,
+  type Settings,
+} from "../lib/api";
+import { useRole } from "../components/RoleContext";
 import {
   bannedTerms,
   categories,
   interceptActionLabel,
   interceptTerms,
   listingFees,
-  inviteStaff,
-  operator,
-  pendingInvites,
-  revokeStaff,
   ROLES,
   roleLabel,
   scopesOf,
-  serviceAccounts,
-  setStaffRole,
   shortDate,
-  staff,
-  staffNow,
   type InterceptAction,
   type Role,
   type Staff,
@@ -26,15 +31,18 @@ import {
 } from "../lib/data";
 import {
   Badge,
+  BlockHead,
+  FilterMenu,
   Card,
   CardBody,
   CardHead,
   Modal,
+  Loading,
   Note,
   PageHead,
   Select,
   SettingRow,
-  PillTabs,
+  SectionTabs,
   Toast,
   Toggle,
 } from "../components/ui";
@@ -50,36 +58,151 @@ import {
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 
-type Section = "thresholds" | "policy" | "rules" | "fees" | "team" | "notifications";
+/** What a setting falls back to when nothing is stored and nothing is typed.
+ *  Mirrors the API's own defaults — see settings.store.ts. */
+const DEFAULTS: Settings = {
+  grailFloor: 10000,
+  highValueFloor: 2000,
+  autoClear: false,
+  autoClearHours: 24,
+  sampleRate: 5,
+  requireCert: true,
+  blockLowConfidence: true,
+  minPhotos: 4,
+  sessionHours: 8,
+  pauseOnReport: true,
+  reportWindowDays: 14,
+  autoEscalateHours: 72,
+  strikeLimit: 3,
+  allowRaw: false,
+  interceptOn: true,
+};
 
+type Section = "thresholds" | "policy" | "rules" | "fees" | "team";
+
+/** What each section is for, in the subtitle under its heading. */
+const SECTION_SUB: Record<Section, string> = {
+  thresholds: "What goes to a person, and what a submission must carry",
+  policy: "What happens on its own when one member reports another",
+  rules: "Categories, banned terms, and the off-platform chat interceptor",
+  fees: "What a seller is charged to list, and what is free",
+  team: "Who holds a console role, and what it reaches",
+};
+
+/* Five, and every one of them is something the brief asks for or something
+   the API actually stores. "Your account" moved to /admin/profile — it is one
+   person's name and password, not a rule the marketplace runs on, and most
+   roles cannot open this page at all. "Notifications" was a card of per-account
+   toggles that were never stored and are not in the brief. */
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "thresholds", label: "Review thresholds" },
   { key: "policy", label: "Marketplace policy" },
   { key: "rules", label: "Categories & word lists" },
   { key: "fees", label: "Listing fees" },
   { key: "team", label: "Team & access" },
-  { key: "notifications", label: "Notifications" },
 ];
 
 function SettingsPage() {
-  const [section, setSection] = useState<Section>("thresholds");
+  /* Which section, from the query. The members page links here to change
+     somebody's access, and landing them on review thresholds means the page
+     they asked for is one more click away and not obviously present. */
+  const params = useSearchParams();
+  const wanted = params.get("section");
+  const fromUrl = (SECTIONS.some((x) => x.key === wanted) ? wanted : "thresholds") as Section;
 
-  /* Local state only — nothing persists until the backend exists. */
-  const [grailFloor, setGrailFloor] = useState("5000");
-  const [highFloor, setHighFloor] = useState("1000");
-  const [autoClear, setAutoClear] = useState(true);
-  const [autoClearHours, setAutoClearHours] = useState("24");
-  const [sampleRate, setSampleRate] = useState("5");
-  const [requireCert, setRequireCert] = useState(true);
-  const [blockLowConfidence, setBlockLowConfidence] = useState(true);
-  const [minPhotos, setMinPhotos] = useState("4");
+  const [section, setSection] = useState<Section>(fromUrl);
+  useEffect(() => setSection(fromUrl), [fromUrl]);
+
+  /* ------------------------------------------------------ from the API
+
+     These were `useState` with a literal in it: typed into a form, applied to
+     nothing, and gone on reload. They are read and written now. `dirty` is
+     what has been touched since the last load, so Save sends the changes
+     rather than the whole form and the audit entry can name them. */
+  const [saved, setSaved] = useState<Settings | null>(null);
+  const [dirty, setDirty] = useState<Partial<Settings>>({});
+  const [canEdit, setCanEdit] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveToast, setSaveToast] = useState<{ title: string; body: string } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    fetchSettings()
+      .then((r) => {
+        if (!live) return;
+        setSaved(r.settings);
+        setCanEdit(r.canEdit);
+        setDirty({});
+        setLoadError(null);
+      })
+      .catch((e) => live && setLoadError(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /** The value on screen: what you have typed, else what is stored. */
+  function val<K extends keyof Settings>(k: K): Settings[K] {
+    return (dirty[k] ?? saved?.[k] ?? DEFAULTS[k]) as Settings[K];
+  }
+  const set = <K extends keyof Settings>(k: K, v: Settings[K]) =>
+    setDirty((d) => ({ ...d, [k]: v }));
+
+  const changes = Object.keys(dirty).length;
+
+  async function save() {
+    if (!changes || saving) return;
+    setSaving(true);
+    try {
+      const r = await saveSettings(dirty);
+      setSaved(r.settings);
+      setDirty({});
+      setSaveToast({
+        title: r.changed.length ? `${r.changed.length} setting${r.changed.length === 1 ? "" : "s"} saved` : "Nothing changed",
+        body: r.changed.length
+          ? `${r.changed.join(", ")} · written to the audit log`
+          : "Every value already matched what is stored.",
+      });
+    } catch (e) {
+      setSaveToast({
+        title: "Nothing was saved",
+        body: e instanceof ApiError ? e.message : String(e),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
+  /* The stored settings, under the names the form below already uses. A form
+     field is a string and a setting is a number, and this is the one place
+     that knows it. */
+  const numField = (k: keyof Settings) =>
+    [String(val(k)), (v: string) => set(k, (Number(v) || 0) as never)] as const;
+  const boolField = (k: keyof Settings) =>
+    [Boolean(val(k)), (v: boolean) => set(k, v as never)] as const;
+
+  const [grailFloor, setGrailFloor] = numField("grailFloor");
+  const [highFloor, setHighFloor] = numField("highValueFloor");
+  const [autoClear, setAutoClear] = boolField("autoClear");
+  const [autoClearHours, setAutoClearHours] = numField("autoClearHours");
+  const [sampleRate, setSampleRate] = numField("sampleRate");
+  const [requireCert, setRequireCert] = boolField("requireCert");
+  const [blockLowConfidence, setBlockLowConfidence] = boolField("blockLowConfidence");
+  const [minPhotos, setMinPhotos] = numField("minPhotos");
+  /* Not stored: the session length is the token's own lifetime and belongs to
+     the auth module, not to a form here. */
   const [sessionLength, setSessionLength] = useState("8 hours");
 
-  const [pauseOnReport, setPauseOnReport] = useState(true);
-  const [reportWindow, setReportWindow] = useState("14");
-  const [autoEscalate, setAutoEscalate] = useState("72");
-  const [strikeLimit, setStrikeLimit] = useState("3");
-  const [allowRaw, setAllowRaw] = useState(false);
+  const [pauseOnReport, setPauseOnReport] = boolField("pauseOnReport");
+  const [reportWindow, setReportWindow] = numField("reportWindowDays");
+  const [autoEscalate, setAutoEscalate] = numField("autoEscalateHours");
+  const [strikeLimit, setStrikeLimit] = numField("strikeLimit");
+  const [allowRaw, setAllowRaw] = boolField("allowRaw");
 
   /* Categories, and the two word lists. Local, like the rest of this page. */
   const [cats, setCats] = useState(() =>
@@ -89,7 +212,7 @@ function SettingsPage() {
   const [intercept, setIntercept] = useState(() => interceptTerms.map((t) => ({ ...t })));
   const [newBanned, setNewBanned] = useState("");
   const [newIntercept, setNewIntercept] = useState("");
-  const [interceptOn, setInterceptOn] = useState(true);
+  const [interceptOn, setInterceptOn] = boolField("interceptOn");
 
   /* Fees. Off until they are agreed — see the note beside them. */
   /* Team changes. Session-local, and every one of them writes to the log. */
@@ -98,11 +221,52 @@ function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("tier-1");
   const [inviteCompany, setInviteCompany] = useState("");
-  const [scoping, setScoping] = useState<Staff | null>(null);
+  const [scoping, setScoping] = useState<AdminStaff | null>(null);
   const [scopeRole, setScopeRole] = useState<Role>("tier-1");
-  const [revoking, setRevoking] = useState<Staff | null>(null);
+  const [revoking, setRevoking] = useState<AdminStaff | null>(null);
   const [teamWhy, setTeamWhy] = useState("");
   const [teamToast, setTeamToast] = useState<string | null>(null);
+  const [teamBusy, setTeamBusy] = useState(false);
+
+  /* The real team, from the API.
+
+     This section used to read a fixture: five invented people with invented
+     titles, one of whom was called "Ayna Sulaiman" on a database where nobody
+     is. Granting, scoping and revoking all went to functions that wrote to a
+     module-level array. */
+  const [team, setTeam] = useState<AdminStaff[]>([]);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [teamError, setTeamError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setTeamLoading(true);
+    fetchStaff()
+      .then((r) => live && setTeam(r))
+      .catch((e) => live && setTeamError(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => live && setTeamLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [writes]);
+
+  async function runTeam(work: () => Promise<AdminStaff[]>, said: string) {
+    if (teamBusy) return;
+    setTeamBusy(true);
+    try {
+      setTeam(await work());
+      setTeamToast(said);
+      setScoping(null);
+      setRevoking(null);
+      setInviting(false);
+      setTeamWhy("");
+      setInviteEmail("");
+    } catch (e) {
+      setTeamToast(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setTeamBusy(false);
+    }
+  }
 
   const [feesLive, setFeesLive] = useState(listingFees.agreed);
   const [perListing, setPerListing] = useState(String(listingFees.perListing));
@@ -122,22 +286,52 @@ function SettingsPage() {
         sub="What the marketplace does on its own, and what it holds back for a person."
         right={
           <>
-            <button type="button" className="gm-btn">
+            <button
+              type="button"
+              className="gm-btn"
+              disabled={!changes || saving}
+              onClick={() => setDirty({})}
+            >
               <IconRefresh />
-              Discard changes
+              Discard {changes > 0 ? changes : ""}
             </button>
-            <button type="button" className="gm-btn gm-btn--primary">
+            <button
+              type="button"
+              className="gm-btn gm-btn--primary"
+              disabled={!changes || saving || !canEdit}
+              onClick={save}
+              title={canEdit ? undefined : "Your role cannot change settings."}
+            >
               <IconCheck />
-              Save changes
+              {saving ? "Saving…" : changes > 0 ? `Save ${changes}` : "Save changes"}
             </button>
           </>
         }
       />
 
       <div className="gm-stack">
-        <div className="gm-row">
-          <PillTabs value={section} onChange={setSection} options={SECTIONS} />
-        </div>
+{/* A section switch, not a filter. These are five different sets of
+            settings with no "everything" between them, so the choice stays on
+            screen — behind a Filter button, four of the five would be hidden
+            under a control that says it narrows a list. */}
+        <SectionTabs value={section} onChange={setSection} options={SECTIONS} />
+
+        <BlockHead title={SECTIONS.find((x) => x.key === section)!.label} sub={SECTION_SUB[section]} />
+
+        {/* A console that cannot reach its API must say so, rather than
+            showing the defaults as if they were what is stored. */}
+        {loadError ? (
+          <Note tone="bad">
+            <b>Settings could not be read.</b> {loadError} Everything below is the fallback the
+            API uses when nothing is set, not what is stored.
+          </Note>
+        ) : null}
+
+        {!loading && !canEdit ? (
+          <Note>
+            <b>You can read these but not change them.</b> Editing settings needs an owner.
+          </Note>
+        ) : null}
 
         {/* ================================================== thresholds */}
         {section === "thresholds" ? (
@@ -690,18 +884,6 @@ function SettingsPage() {
               </CardBody>
             </Card>
 
-            <Card>
-              <CardHead title="What this is not" />
-              <CardBody>
-                <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                  There is no commission and no take rate. Grail Market is not in the middle of a
-                  sale, since the two members settle it between themselves, so there is no
-                  percentage to take and nothing to hold back. Everything the platform earns is a
-                  subscription, a boost, or a listing fee, all of which are charged to the seller
-                  directly and none of which touch the trade.
-                </p>
-              </CardBody>
-            </Card>
           </div>
         ) : null}
 
@@ -726,7 +908,7 @@ function SettingsPage() {
                   </thead>
                   <tbody>
                     {ROLES.map((r) => {
-                      const held = staff.filter((p) => p.role === r.key);
+                      const held = team.filter((p) => p.role === r.key);
                       return (
                         <tr key={r.key}>
                           <td>
@@ -770,7 +952,11 @@ function SettingsPage() {
             <Card>
               <CardHead
                 title="Who has admin access"
-                sub={`${staff.length} people, each on one of the five roles`}
+                sub={
+                  teamLoading
+                    ? "Reading the team…"
+                    : `${team.length} account${team.length === 1 ? "" : "s"} hold a console role`
+                }
                 right={
                   <button
                     type="button"
@@ -783,7 +969,7 @@ function SettingsPage() {
                     }}
                   >
                     <IconMail />
-                    Invite
+                    Grant access
                   </button>
                 }
               />
@@ -794,15 +980,13 @@ function SettingsPage() {
                       <th>Account</th>
                       <th>Role</th>
                       <th>Scopes</th>
-                      <th>Last active</th>
+                      <th>Granted</th>
                       <th className="gm-actions">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {staff.map((raw) => {
-                      const p = staffNow(raw);
-                      return (
-                      <tr key={p.email} style={p.status === "revoked" ? { opacity: 0.5 } : undefined}>
+                    {team.map((p) => (
+                      <tr key={p.id}>
                         <td>
                           <div className="gm-cell-user">
                             <div className="gm-cell2">
@@ -817,138 +1001,35 @@ function SettingsPage() {
                           ) : (
                             <Badge tone="idle">{roleLabel(p.role)}</Badge>
                           )}
-                          {p.outsourced ? (
-                            <span className="gm-scope" style={{ marginLeft: 6 }}>
-                              Outsourced
-                            </span>
-                          ) : null}
                         </td>
                         <td className="gm-sm gm-muted">{scopesOf(p.role).join(" · ")}</td>
-                        <td className="gm-sm gm-muted gm-nowrap">{p.lastActive}</td>
+                        <td className="gm-sm gm-muted gm-nowrap">
+                          {p.grantedBy ? `by ${p.grantedBy}` : "Not recorded"}
+                        </td>
                         <td className="gm-actions">
-                          {p.status === "revoked" ? (
-                            <Badge tone="bad">Revoked</Badge>
-                          ) : (
-                            <div className="gm-row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                              <button
-                                type="button"
-                                className="gm-btn gm-btn--sm"
-                                onClick={() => {
-                                  setScoping(raw);
-                                  setScopeRole(p.role);
-                                  setTeamWhy("");
-                                }}
-                              >
-                                Scope
-                              </button>
-                              <button
-                                type="button"
-                                className="gm-btn gm-btn--sm gm-btn--danger"
-                                onClick={() => {
-                                  setRevoking(raw);
-                                  setTeamWhy("");
-                                }}
-                              >
-                                Revoke
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-
-            {pendingInvites().length > 0 ? (
-              <Card>
-                <CardHead
-                  title="Invited, not yet accepted"
-                  sub="An invite is not an account. It becomes one when they accept and set up 2FA."
-                />
-                <div className="gm-tablewrap">
-                  <table className="gm-table" style={{ minWidth: 720 }}>
-                    <thead>
-                      <tr>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Invited by</th>
-                        <th className="gm-nowrap">When</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingInvites().map((i) => (
-                        <tr key={i.id}>
-                          <td className="gm-mono gm-sm">{i.email}</td>
-                          <td>
-                            <Badge tone="idle">{roleLabel(i.role)}</Badge>
-                            {i.company ? (
-                              <span className="gm-scope" style={{ marginLeft: 6 }}>
-                                {i.company}
-                              </span>
-                            ) : null}
-                          </td>
-                          <td className="gm-sm gm-muted">{i.invitedBy}</td>
-                          <td className="gm-sm gm-muted gm-nowrap">{shortDate(i.at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            ) : null}
-
-            {/* ------------------------------------------- service accounts
-
-                Kept apart from the table above on purpose. These hold a key,
-                not a role, and folding them in meant giving one of the five
-                to a machine — which is how a reporting bot ends up counted
-                as an Owner.
-            */}
-            <Card>
-              <CardHead
-                title="Service accounts"
-                sub="Machines. No role, no sign-in, and a scope written out rather than inherited."
-              />
-              <div className="gm-tablewrap">
-                <table className="gm-table" style={{ minWidth: 820 }}>
-                  <thead>
-                    <tr>
-                      <th>Account</th>
-                      <th>Purpose</th>
-                      <th>Scope</th>
-                      <th>Last used</th>
-                      <th className="gm-actions">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {serviceAccounts.map((a) => (
-                      <tr key={a.id}>
-                        <td>
-                          <div className="gm-cell-user">
-                            <div className="gm-cell2">
-                              <b>{a.name}</b>
-                              <span>{a.email}</span>
-                            </div>
+                          <div className="gm-row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              className="gm-btn gm-btn--sm"
+                              onClick={() => {
+                                setScoping(p);
+                                setScopeRole(p.role);
+                                setTeamWhy("");
+                              }}
+                            >
+                              Scope
+                            </button>
+                            <button
+                              type="button"
+                              className="gm-btn gm-btn--sm gm-btn--danger"
+                              onClick={() => {
+                                setRevoking(p);
+                                setTeamWhy("");
+                              }}
+                            >
+                              Revoke
+                            </button>
                           </div>
-                        </td>
-                        <td className="gm-sm gm-muted">{a.purpose}</td>
-                        <td>
-                          <div className="gm-person-tags">
-                            {a.scopes.map((sc) => (
-                              <span key={sc} className="gm-scope">
-                                {sc}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="gm-sm gm-muted gm-nowrap">{a.lastActive}</td>
-                        <td className="gm-actions">
-                          <button type="button" className="gm-btn gm-btn--sm gm-btn--danger">
-                            Revoke key
-                          </button>
                         </td>
                       </tr>
                     ))}
@@ -957,125 +1038,42 @@ function SettingsPage() {
               </div>
             </Card>
 
-            <Card>
-              <CardHead title="Session security" sub="Applies to every admin account" />
-              <CardBody>
-                <SettingRow
-                  title="Two-factor authentication"
-                  hint="Required. This cannot be turned off from here."
-                  control={
-                    <span className="gm-badge gm-badge--ok">
-                      <IconShield style={{ width: 12, height: 12 }} />
-                      Enforced
-                    </span>
-                  }
-                />
-                <SettingRow
-                  title="Session length"
-                  hint="An idle admin session ends and has to sign in again."
-                  control={
-                    <Select
-                      width={150}
-                      value={sessionLength}
-                      onChange={setSessionLength}
-                      ariaLabel="Session length"
-                      options={["2 hours", "8 hours", "24 hours"]}
-                    />
-                  }
-                />
-                <SettingRow
-                  title="IP allowlist"
-                  hint="Restrict the console to known office and VPN ranges."
-                  control={
-                    <button type="button" className="gm-btn gm-btn--sm">
-                      <IconKey />
-                      Manage ranges
-                    </button>
-                  }
-                />
-              </CardBody>
-            </Card>
+
+            {/* ------------------------------------------- service accounts
+
+                Kept apart from the table above on purpose. These hold a key,
+                not a role, and folding them in meant giving one of the five
+                to a machine — which is how a reporting bot ends up counted
+                as an Owner.
+            */}
+
           </div>
         ) : null}
 
-        {/* =============================================== notifications */}
-        {section === "notifications" ? (
-          <Card>
-            <CardHead title="What reaches you" sub="Per-account. Other moderators set their own." />
-            <CardBody>
-              <SettingRow
-                title="SLA about to breach"
-                hint="Four hours before a submission goes over its 24-hour target."
-                control={<Toggle checked={notifySla} onChange={setNotifySla} label="SLA warnings" />}
-              />
-              <SettingRow
-                title="New grail-tier submission"
-                hint="Anything at or above the grail floor, the moment it is filed."
-                control={<Toggle checked={notifyGrail} onChange={setNotifyGrail} label="Grail submissions" />}
-              />
-              <SettingRow
-                title="Conflict escalated to you"
-                hint="A case that has passed the auto-escalate window and landed on your queue."
-                control={
-                  <Toggle checked={notifyEscalation} onChange={setNotifyEscalation} label="Escalations" />
-                }
-              />
-              <SettingRow
-                title="Daily digest"
-                hint="One email at 08:00 with what is open, what breached, and what closed."
-                control={<Toggle checked={notifyDigest} onChange={setNotifyDigest} label="Daily digest" />}
-              />
-            </CardBody>
-          </Card>
-        ) : null}
 
-        <Card pad>
-          <div className="gm-row" style={{ gap: 10 }}>
-            <IconSettings style={{ width: 16, height: 16, color: "var(--ink-4)" }} />
-            <span className="gm-sm gm-muted">
-              Nothing on this page is saved yet. It takes effect once the admin system behind it
-              is built.
-            </span>
-            <span className="gm-spacer gm-row" style={{ gap: 8 }}>
-              <a className="gm-btn" href="/admin/audit">
-                <IconUsers />
-                Audit log
-              </a>
-              <button type="button" className="gm-btn gm-btn--primary">
-                <IconCheck />
-                Save changes
-              </button>
-            </span>
-          </div>
-        </Card>
       </div>
 
       {/* ===================================================== invite */}
       <Modal
         open={inviting}
         onClose={() => setInviting(false)}
-        title="Invite a staff account"
-        sub="They get an email. The account exists once they accept and set up two-factor, not before."
+        title="Give an account console access"
+        sub="They need to have signed up already. The console cannot create an account, only give a role to one that exists."
         footer={
           <>
             <button
               type="button"
               className="gm-btn gm-btn--primary"
-              disabled={!inviteEmail.includes("@")}
-              onClick={() => {
-                inviteStaff(
-                  inviteEmail.trim(),
-                  inviteRole,
-                  operator.name,
-                  inviteCompany.trim() || undefined
-                );
-                setInviting(false);
-                setWrites((n) => n + 1);
-                setTeamToast(`Invite sent to ${inviteEmail.trim()}`);
-              }}
+              disabled={teamBusy || !inviteEmail.includes("@")}
+              onClick={() =>
+                void runTeam(
+                  () => grantStaff(inviteEmail.trim(), inviteRole, inviteCompany.trim()),
+                  `${inviteEmail.trim()} is now ${roleLabel(inviteRole)}`,
+                )
+              }
             >
               <IconMail />
-              Send invite
+              {teamBusy ? "Granting…" : "Grant access"}
             </button>
             <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setInviting(false)}>
               Cancel
@@ -1146,13 +1144,16 @@ function SettingsPage() {
             <button
               type="button"
               className="gm-btn gm-btn--primary"
-              disabled={!scoping || teamWhy.trim().length < 6 || scopeRole === staffNow(scoping).role}
+              disabled={
+                !scoping || teamBusy || teamWhy.trim().length < 6 || scopeRole === scoping.role
+              }
               onClick={() => {
                 if (!scoping) return;
-                setStaffRole(scoping, scopeRole, operator.name, teamWhy.trim());
-                setTeamToast(`${scoping.name} is now ${roleLabel(scopeRole)}`);
-                setScoping(null);
-                setWrites((n) => n + 1);
+                const who = scoping;
+                void runTeam(
+                  () => apiSetStaffRole(who.id, scopeRole),
+                  `${who.name} is now ${roleLabel(scopeRole)}`,
+                );
               }}
             >
               <IconCheck />
@@ -1220,13 +1221,17 @@ function SettingsPage() {
             <button
               type="button"
               className="gm-btn gm-btn--danger"
-              disabled={teamWhy.trim().length < 6}
+              disabled={teamBusy || teamWhy.trim().length < 6}
               onClick={() => {
                 if (!revoking) return;
-                revokeStaff(revoking, operator.name, teamWhy.trim());
-                setTeamToast(`${revoking.name} revoked`);
-                setRevoking(null);
-                setWrites((n) => n + 1);
+                const who = revoking;
+                /* Revoking IS setting the role back to `member`. There is no
+                   separate staff record to delete — a member is a staff member
+                   with a role on them, which is why this is one write. */
+                void runTeam(
+                  () => revokeStaff(who.id),
+                  `${who.name} no longer holds a console role`,
+                );
               }}
             >
               <IconLock />
@@ -1268,12 +1273,22 @@ function SettingsPage() {
   );
 }
 
+/* `useSearchParams` opts its subtree out of the static shell, so it gets a
+   boundary of its own rather than the whole route being client-rendered. */
+function SettingsRoute() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsPage />
+    </Suspense>
+  );
+}
+
 /* Access is decided before the page renders, not inside it — see the
    warning in RoleContext about what this gate is and is not. */
 export default function GatedSettingsPage() {
   return (
     <Gate need="settings.write">
-      <SettingsPage />
+      <SettingsRoute />
     </Gate>
   );
 }

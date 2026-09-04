@@ -5,8 +5,8 @@ import { aud, DUNNING_LADDER, shortDate } from "../lib/data";
 import {
   ApiError,
   applyBoost,
-  compBoost,
-  compPlan,
+  editPlan,
+  syncPlans,
   fetchCommerce,
   type AdminBillingEvent,
   type AdminBoost,
@@ -24,8 +24,10 @@ import {
   DL,
   Empty,
   Modal,
+  Loading,
   Note,
   FilterMenu,
+  SectionTabs,
   PageHead,
   Toast,
 } from "../components/ui";
@@ -35,6 +37,8 @@ import {
   IconClock,
   IconExternal,
   IconInfo,
+  IconRefresh,
+  IconTag,
   IconSparkle,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
@@ -93,21 +97,28 @@ function PricingPage() {
   /* Secondary filters, one per section. They live beside the section itself in
      one menu rather than as a second control that appears and disappears. */
   const [boostState, setBoostState] = useState("all");
+  /* The plan open in the editor, and the draft of it. A draft rather than an
+     edit in place: a price is the one figure here that costs real money to
+     get wrong, so it is typed, read back, and confirmed before it is sent. */
+  const [editing, setEditing] = useState<AdminPlan | null>(null);
+  const [draft, setDraft] = useState({ name: "", blurb: "", price: "" });
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [eventKind, setEventKind] = useState("all");
 
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [boosts, setBoosts] = useState<AdminBoost[]>([]);
   const [billing, setBilling] = useState<AdminBillingEvent[]>([]);
   const [tiers, setTiers] = useState<AdminBoostTier[]>([]);
+  /* Whether Stripe is reachable, and whether this operator may write to it.
+     Both come from the API — the console keeps a copy of the capability table
+     so it can hide controls, but the answer is the API's. */
+  const [stripe, setStripe] = useState({ configured: false, canEdit: false });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [writes, setWrites] = useState(0);
 
   /* Comping, and fixing a boost that was charged for and never ran. */
-  const [comping, setComping] = useState<AdminBoost | null>(null);
-  const [compingPlan, setCompingPlan] = useState<AdminPlan | null>(null);
-  const [compMember, setCompMember] = useState("");
-  const [why, setWhy] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -121,6 +132,7 @@ function PricingPage() {
         setBoosts(r.boosts);
         setBilling(r.billing);
         setTiers(r.boostTiers);
+        setStripe(r.stripe);
         setLoadError(null);
       })
       .catch((e) => live && setLoadError(e instanceof ApiError ? e.message : String(e)))
@@ -138,6 +150,67 @@ function PricingPage() {
   /* A plan with no Stripe price behind it cannot be sold, whatever the page
      says it costs. Said once, at the top, rather than three times. */
   const unpriced = plans.filter((p) => !p.stripePriceId);
+  const stripeReady = stripe.configured;
+  const canEditPlans = stripe.configured && stripe.canEdit;
+  /* A plan Stripe has never confirmed. What is on screen for it is the API's
+     own fallback figure, which is not necessarily what anybody is charged —
+     worth saying, because the two are indistinguishable otherwise. */
+  const unsynced = plans.filter((p) => !p.syncedAt);
+
+  function startEdit(p: AdminPlan) {
+    setEditing(p);
+    setDraft({ name: p.name, blurb: p.blurb, price: String(p.price) });
+  }
+
+  const priceChanged =
+    editing !== null && draft.price.trim() !== "" && Number(draft.price) !== editing.price;
+
+  const draftValid =
+    draft.name.trim().length >= 2 &&
+    draft.price.trim() !== "" &&
+    Number.isFinite(Number(draft.price)) &&
+    Number(draft.price) >= 0;
+
+  async function savePlan() {
+    if (!editing || !draftValid || saving) return;
+    setSaving(true);
+    try {
+      const next = await editPlan(editing.id, {
+        name: draft.name.trim(),
+        blurb: draft.blurb.trim(),
+        price: Number(draft.price),
+      });
+      setPlans(next);
+      setEditing(null);
+      setToast(
+        priceChanged
+          ? `${draft.name.trim()} is now ${aud(Number(draft.price))} a month at Stripe. Existing subscribers keep their current price.`
+          : `${draft.name.trim()} updated at Stripe.`,
+      );
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resync() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const r = await syncPlans();
+      setPlans(r.plans);
+      setToast(
+        r.problems.length > 0
+          ? r.problems.join(" · ")
+          : "Read back from Stripe.",
+      );
+    } catch (e) {
+      setToast(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   /* What the two ledgers actually draw, after the filter. Both are read from
      one `commerce` call and cut here — the API answers the whole page in one
@@ -175,10 +248,22 @@ function PricingPage() {
               }. Plans and boosts are our own income, billed through Stripe, and separate from a trade between two members where no money passes through us.`
         }
         right={
-          <a className="gm-btn" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
-            <IconExternal />
-            Stripe
-          </a>
+          <>
+            <button
+              type="button"
+              className="gm-btn"
+              onClick={resync}
+              disabled={syncing || !stripeReady}
+              title={stripeReady ? undefined : "STRIPE_SECRET_KEY is not set on the API"}
+            >
+              <IconRefresh />
+              {syncing ? "Reading…" : "Read from Stripe"}
+            </button>
+            <a className="gm-btn" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
+              <IconExternal />
+              Stripe
+            </a>
+          </>
         }
       />
 
@@ -205,17 +290,24 @@ function PricingPage() {
               {pastDue} subscription{pastDue === 1 ? "" : "s"} {pastDue === 1 ? "is" : "are"} on a
               failed card.
             </b>{" "}
-            Access is unchanged while a charge is retrying — see Billing.
+            Access is unchanged while a charge is retrying. See Billing.
           </Note>
         ) : null}
 
-        {/* One filter language, the same as the listing queue and the case
-            board: the heading names what is shown, its subtitle spells out
-            what is applied, and the control sits beside it.
+{/* Plans, boosts and billing are three different tables, not three
+            views of one, so the switch between them stays on screen. The
+            filter beside it cuts whichever table is showing. */}
+        <SectionTabs
+          value={tab}
+          onChange={setTab}
+          options={SECTIONS.map((x) => ({
+            key: x.key,
+            label: x.label,
+            count:
+              x.key === "plans" ? plans.length : x.key === "boosts" ? boosts.length : billing.length,
+          }))}
+        />
 
-            The secondary filter belongs in the same menu rather than as a
-            second control that appears when you switch section — one place to
-            look, and the groups on offer say what this section can be cut by. */}
         <BlockHead
           title={SECTIONS.find((x) => x.key === tab)!.label}
           sub={
@@ -231,31 +323,17 @@ function PricingPage() {
           }
           right={
             <FilterMenu
+              /* The section is not a filter any more, so it is not counted
+                 as one. What is applied is whatever cuts the table showing. */
               applied={
-                (tab === "plans" ? 0 : 1) +
                 (tab === "boosts" && boostState !== "all" ? 1 : 0) +
                 (tab === "billing" && eventKind !== "all" ? 1 : 0)
               }
               onClear={() => {
-                setTab("plans");
                 setBoostState("all");
                 setEventKind("all");
               }}
               groups={[
-                {
-                  key: "section",
-                  label: "What to show",
-                  value: tab,
-                  onChange: (v) => setTab(v as Tab),
-                  options: SECTIONS.map((x) => ({
-                    value: x.key,
-                    label: x.label,
-                    count:
-                      x.key === "plans" ? plans.length
-                      : x.key === "boosts" ? boosts.length
-                      : billing.length,
-                  })),
-                },
                 ...(tab === "boosts"
                   ? [
                       {
@@ -300,6 +378,18 @@ function PricingPage() {
         {/* ==================================================== plans */}
         {tab === "plans" ? (
           <>
+            {unsynced.length > 0 ? (
+              <Note tone="warn">
+                <b>
+                  {unsynced.length} plan{unsynced.length === 1 ? " has" : "s have"} never been read
+                  back from Stripe.
+                </b>{" "}
+                {unsynced.map((x) => x.name).join(", ")} {unsynced.length === 1 ? "shows" : "show"}{" "}
+                the API&rsquo;s fallback figure, which is not necessarily what is charged. Read
+                them back to be sure.
+              </Note>
+            ) : null}
+
             {unpriced.length > 0 ? (
               <Note tone="warn">
                 <b>
@@ -312,7 +402,24 @@ function PricingPage() {
               </Note>
             ) : null}
 
-            <div className="gm-grid gm-grid--3">
+            {/* `gm-plans` is what lines the buttons up. The cards hold
+                different numbers of perks, so without it each action row sat
+                wherever its own content ended and the three were at three
+                different heights. */}
+            {loading && plans.length === 0 ? (
+              <Card>
+                <Loading label="Reading the plans…" />
+              </Card>
+            ) : plans.length === 0 ? (
+              <Card>
+                <Empty
+                  icon={<IconTag />}
+                  title="No plans configured"
+                  body="The API returned no plan. Check STRIPE_PRICE_* and read from Stripe."
+                />
+              </Card>
+            ) : (
+            <div className="gm-grid gm-grid--3 gm-plans">
               {plans.map((p) => (
                 <Card key={p.id}>
                   <CardHead
@@ -327,9 +434,19 @@ function PricingPage() {
                     }
                   />
                   <CardBody>
-                    <div className="gm-row" style={{ gap: 8, marginBottom: 12, alignItems: "baseline" }}>
+                    <div className="gm-row" style={{ gap: 8, marginBottom: 4, alignItems: "baseline" }}>
                       <b style={{ fontSize: 26, letterSpacing: "-0.02em" }}>{aud(p.price)}</b>
-                      <span className="gm-muted">a month</span>
+                      <span className="gm-muted">
+                        {p.currency !== "AUD" ? `${p.currency} ` : ""}a {p.interval}
+                      </span>
+                    </div>
+                    {/* Where the figure above came from. A price Stripe has
+                        confirmed and one the API fell back to look identical,
+                        and only one of them is what anybody is charged. */}
+                    <div className="gm-tiny gm-dim" style={{ marginBottom: 12 }}>
+                      {p.syncedAt
+                        ? `From Stripe · read ${shortDate(p.syncedAt)}`
+                        : "Not read from Stripe yet. This is the API's own figure."}
                     </div>
 
                     <DL
@@ -365,30 +482,34 @@ function PricingPage() {
                       ))}
                     </div>
 
-                    <button
-                      type="button"
-                      className="gm-btn gm-btn--sm"
-                      style={{ marginTop: 12 }}
-                      onClick={() => {
-                        setCompingPlan(p);
-                        setWhy("");
-                        setCompMember("");
-                      }}
-                    >
-                      <IconCheck />
-                      Comp a month
-                    </button>
+                    <div className="gm-row gm-plan-actions">
+                      {/* Only an operator who may write settings sees this,
+                          and only when the API can reach Stripe. A control
+                          that cannot work is worse than one that is absent. */}
+                      {canEditPlans ? (
+                        <button
+                          type="button"
+                          className="gm-btn gm-btn--sm gm-btn--primary"
+                          onClick={() => startEdit(p)}
+                        >
+                          <IconTag />
+                          Edit at Stripe
+                        </button>
+                      ) : null}
+                    </div>
                   </CardBody>
                 </Card>
               ))}
             </div>
+            )}
 
             <Note tone="gold">
-              <b>The price is set in Stripe, not here.</b> A figure typed into two systems disagrees
-              with itself the first time anybody changes one, and the console would then be quoting
-              a price nobody is paying. What this page answers is the part Stripe cannot: who is on
-              each plan, and what that is worth. Change a price in the Stripe dashboard and point
-              the API&rsquo;s price variable at the new one.
+              <b>Stripe is still the only copy of the price.</b> Editing a plan here calls Stripe
+              and then reads the answer back, so the figure on the card is what Stripe says it
+              charges, never a second number kept beside it. A price cannot be edited in place at
+              Stripe, so changing one creates a new price and retires the old:{" "}
+              <b>anybody already subscribed keeps the price they signed up on</b> until their
+              subscription is moved, which is not something this page does.
             </Note>
           </>
         ) : null}
@@ -427,7 +548,7 @@ function PricingPage() {
 
             {loading && boosts.length === 0 ? (
               <Card>
-                <Empty icon={<IconSparkle />} title="Reading the ledger…" />
+                <Loading label="Reading the ledger…" />
               </Card>
             ) : shownBoosts.length === 0 ? (
               <Card>
@@ -473,7 +594,7 @@ function PricingPage() {
                           {b.compedBy ? (
                             <span className="gm-tiny gm-dim" style={{ marginTop: 4 }}>
                               Comped by {b.compedBy}
-                              {b.compReason ? ` — ${b.compReason}` : ""}
+                              {b.compReason ? `. ${b.compReason}` : ""}
                             </span>
                           ) : null}
                         </div>
@@ -507,17 +628,6 @@ function PricingPage() {
                           >
                             <IconClock />
                             Apply now and extend
-                          </button>
-                          <button
-                            type="button"
-                            className="gm-btn gm-btn--sm"
-                            onClick={() => {
-                              setComping(b);
-                              setWhy("");
-                            }}
-                          >
-                            <IconCheck />
-                            Comp it
                           </button>
                         </div>
                       ) : null}
@@ -594,10 +704,10 @@ function PricingPage() {
                             </span>
                           </td>
                           <td className="gm-sm gm-muted gm-nowrap">
-                            {e.planId ? e.planId[0].toUpperCase() + e.planId.slice(1) : "—"}
+                            {e.planId ? e.planId[0].toUpperCase() + e.planId.slice(1) : "No plan"}
                           </td>
                           <td className="gm-mono gm-sm gm-nowrap">
-                            {e.amount == null ? "—" : aud(e.amount)}
+                            {e.amount == null ? "No amount" : aud(e.amount)}
                           </td>
                           <td className="gm-sm gm-muted gm-nowrap">{shortDate(e.at)}</td>
                         </tr>
@@ -611,154 +721,115 @@ function PricingPage() {
         ) : null}
       </div>
 
-      {/* ======================================================= comp boost */}
+      {/* ======================================================== edit plan */}
       <Modal
-        open={!!comping}
-        onClose={() => setComping(null)}
-        title="Comp this boost"
-        sub="It costs real revenue, so it is filed against the member with your name on it."
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={editing ? `Edit ${editing.name}` : "Edit plan"}
+        sub="Written straight to Stripe, then read back. Nothing is stored here as a second copy."
         footer={
           <>
             <button
               type="button"
               className="gm-btn gm-btn--primary"
-              disabled={why.trim().length < 6 || busy}
-              onClick={() => {
-                const b = comping;
-                if (!b) return;
-                setComping(null);
-                run(async () => {
-                  await compBoost(b.id, why.trim());
-                  setWhy("");
-                  return `${b.tierName} comped · filed to ${b.handle}`;
-                });
-              }}
+              disabled={!draftValid || saving}
+              onClick={savePlan}
             >
-              <IconCheck />
-              Comp and file
+              <IconTag />
+              {saving ? "Saving at Stripe…" : "Save at Stripe"}
             </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setComping(null)}>
+            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setEditing(null)}>
               Cancel
             </button>
+            <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
           </>
         }
       >
-        {comping ? (
+        {editing ? (
           <>
-            <Card pad>
-              <DL
-                rows={[
-                  ["Boost", `${comping.tierName} · ${comping.id}`],
-                  ["Member", `${comping.name} · ${comping.handle}`],
-                  ["Listing", `${comping.card} · ${comping.listingId}`],
-                  ["Not charged", aud(comping.amount)],
-                ]}
-              />
-            </Card>
             <div className="gm-field">
-              <label className="gm-label" htmlFor="comp-why">
-                Why
+              <label className="gm-label" htmlFor="pl-name">
+                Name
               </label>
-              <textarea
-                id="comp-why"
-                className="gm-textarea"
-                value={why}
-                onChange={(e) => setWhy(e.target.value)}
-                placeholder="What went wrong, and why this is the right way to make it good."
+              <input
+                id="pl-name"
+                className="gm-input"
+                value={draft.name}
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+              <span className="gm-hint">The Stripe product name. Members see it at checkout.</span>
+            </div>
+
+            <div className="gm-field">
+              <label className="gm-label" htmlFor="pl-blurb">
+                Description
+              </label>
+              <input
+                id="pl-blurb"
+                className="gm-input"
+                value={draft.blurb}
+                onChange={(e) => setDraft((d) => ({ ...d, blurb: e.target.value }))}
               />
             </div>
-          </>
-        ) : null}
-      </Modal>
 
-      {/* ======================================================== comp plan */}
-      <Modal
-        open={!!compingPlan}
-        onClose={() => setCompingPlan(null)}
-        title={compingPlan ? `Comp a month of ${compingPlan.name}` : ""}
-        sub="One billing cycle, not a standing arrangement."
-        footer={
-          <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
-              disabled={!compMember.trim() || why.trim().length < 6 || busy}
-              onClick={() => {
-                const p = compingPlan;
-                if (!p) return;
-                const member = compMember.trim();
-                setCompingPlan(null);
-                run(async () => {
-                  await compPlan(p.id, member, why.trim());
-                  setWhy("");
-                  setCompMember("");
-                  return `${p.name} comped for ${member} · filed to their record`;
-                });
-              }}
-            >
-              <IconCheck />
-              Comp and file
-            </button>
-            <button
-              type="button"
-              className="gm-btn gm-btn--ghost"
-              onClick={() => setCompingPlan(null)}
-            >
-              Cancel
-            </button>
-          </>
-        }
-      >
-        {compingPlan ? (
-          <>
+            <div className="gm-field">
+              <label className="gm-label" htmlFor="pl-price">
+                {editing.currency} a {editing.interval}
+              </label>
+              <input
+                id="pl-price"
+                className="gm-input"
+                type="number"
+                min={0}
+                step="0.01"
+                value={draft.price}
+                onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+              />
+              <span className="gm-hint">
+                Currently {aud(editing.price)}. Whole dollars, not cents.
+              </span>
+            </div>
+
+            {/* The one thing about this that is not what it sounds like. A
+                Stripe price cannot be edited, so changing the figure creates a
+                new price and retires the old one; the people already paying
+                stay on the old one until each subscription is moved, which is
+                not something this console does. */}
+            {priceChanged ? (
+              <Note tone="warn">
+                <b>
+                  This creates a new Stripe price and retires the current one.
+                </b>{" "}
+                New subscriptions will be sold at {aud(Number(draft.price))}.{" "}
+                {editing.subscribers > 0 ? (
+                  <>
+                    The <b>{editing.subscribers.toLocaleString("en-AU")}</b> already on{" "}
+                    {editing.name} keep paying {aud(editing.price)} until their subscriptions are
+                    migrated in Stripe. This page does not migrate them.
+                  </>
+                ) : (
+                  <>Nobody is on this plan yet, so nothing is left behind on the old price.</>
+                )}
+              </Note>
+            ) : null}
+
             <Card pad>
               <DL
                 rows={[
-                  ["Plan", compingPlan.name],
-                  ["Not charged", `${aud(compingPlan.price)} for one month`],
+                  ["Stripe product", editing.stripeProductId || "Resolved from the price on save"],
+                  ["Current price", editing.stripePriceId || "None configured"],
                   [
-                    "Quota while comped",
-                    compingPlan.quota === null
-                      ? "No ceiling"
-                      : `${compingPlan.quota} live listings`,
+                    "Last read from Stripe",
+                    editing.syncedAt ? shortDate(editing.syncedAt) : "Never",
                   ],
                 ]}
               />
             </Card>
-            <div className="gm-field">
-              <label className="gm-label" htmlFor="comp-member">
-                Member
-              </label>
-              <input
-                id="comp-member"
-                className="gm-input gm-mono"
-                value={compMember}
-                onChange={(e) => setCompMember(e.target.value)}
-                placeholder="u_…"
-              />
-              {/* The account id, not the handle: a handle is derived from a
-                  display name and two people can share one. Members has it on
-                  the record. */}
-              <span className="gm-hint">
-                The account id from the member record. A handle is derived from a display name and
-                is not unique.
-              </span>
-            </div>
-            <div className="gm-field">
-              <label className="gm-label" htmlFor="comp-plan-why">
-                Why
-              </label>
-              <textarea
-                id="comp-plan-why"
-                className="gm-textarea"
-                value={why}
-                onChange={(e) => setWhy(e.target.value)}
-                placeholder="A support case, an outage, an apology. It goes on their record."
-              />
-            </div>
           </>
         ) : null}
       </Modal>
+
+
 
       {toast ? <Toast title="Done" body={toast} onDone={() => setToast(null)} /> : null}
     </>

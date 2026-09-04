@@ -138,19 +138,15 @@ const NAV: Block[] = [
   {
     caption: "Operations",
     items: [
-      /* Two pages about money, read by the same person on the same day: what
-         the platform charges for, and where the numbers it quotes come from.
-         Given a row each they read as unrelated, which is how the price
-         engine stayed invisible behind a page called "Pricing plans". */
+      /* A row, not a group. "Pricing" held two pages about money and was
+         worth a heading for it; the price engine has gone, and a heading over
+         a single child is a click that reveals one thing you could already
+         see. It sits under Operations with the rest of them. */
       {
-        kind: "group",
-        key: "money",
-        label: "Pricing",
+        kind: "page",
+        href: "/admin/pricing",
+        label: "Subscriptions & boosts",
         icon: IconTag,
-        children: [
-          { href: "/admin/pricing", label: "Subscriptions & boosts", icon: IconTag },
-          { href: "/admin/price-engine", label: "Price engine", icon: IconTrend },
-        ],
       },
       { kind: "page", href: "/admin/reports", label: "Reports", icon: IconReport },
       { kind: "page", href: "/admin/announcements", label: "Announcements", icon: IconBell },
@@ -243,11 +239,23 @@ export default function Sidebar() {
 
   const [open, setOpen] = useState<string[]>(() => (activeGroup ? [activeGroup] : []));
 
-  /* Navigating into a group opens it. Closing one keeps it closed until you
-     go somewhere inside it again — the user's last gesture wins. */
+  /**
+   * Navigating anywhere resets which heading is open to the one you are in.
+   *
+   * The open set used to only ever grow: going into a group opened it and
+   * leaving for a page somewhere else left it hanging open behind you, so
+   * after a few clicks every heading was expanded and the nav was a wall.
+   * Now the route decides — land inside a group and it opens, go anywhere
+   * else and it closes. Toggling a heading by hand still works, and lasts
+   * until the next navigation.
+   */
+  const route = `${pathname}?${search.toString()}`;
   useEffect(() => {
-    if (activeGroup) setOpen((prev) => (prev.includes(activeGroup) ? prev : [...prev, activeGroup]));
-  }, [activeGroup]);
+    setOpen(activeGroup ? [activeGroup] : []);
+    // Keyed on the route rather than on `activeGroup`: moving between two
+    // pages that share no group leaves `activeGroup` undefined both times,
+    // and an effect that does not re-run cannot close anything.
+  }, [route]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(key: string) {
     setOpen((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
@@ -400,11 +408,24 @@ export default function Sidebar() {
                       <IconChevronDown className="gm-nav-caret" />
                     </button>
 
-                    {isOpen ? (
-                      <div className="gm-nav-kids" id={`gm-group-${s.key}`}>
+                    {/* Always mounted, collapsed by CSS.
+
+                        Rendering the children only when open meant opening
+                        animated and closing did not: an unmount happens
+                        between two frames, so the rows vanished. The wrapper
+                        animates its own height instead, which is what makes
+                        both directions the same gesture. `inert` keeps the
+                        collapsed rows out of tab order and off screen
+                        readers, since they are still in the document. */}
+                    <div
+                      className={`gm-nav-kidswrap${isOpen ? " is-open" : ""}`}
+                      id={`gm-group-${s.key}`}
+                      inert={!isOpen}
+                    >
+                      <div className="gm-nav-kids">
                         {s.children.map((c) => pageRow(c, true))}
                       </div>
-                    ) : null}
+                    </div>
                   </div>
                 );
               })}

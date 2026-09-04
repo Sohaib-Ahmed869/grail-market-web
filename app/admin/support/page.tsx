@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 /** The first-reply target by priority. The API is the authority; this mirrors
@@ -35,6 +36,7 @@ import {
   DL,
   Empty,
   Modal,
+  Loading,
   Note,
   PageHead,
   PriorityBadge,
@@ -273,7 +275,7 @@ function SupportPage() {
       await setTicketState(active.id, { status: "waiting" });
       setReply("");
       setWrites((n) => n + 1);
-      setToast(`${active.id} · replied`);
+      setToast(`${active.subject} · replied`);
     } catch (e) {
       setToast(e instanceof ApiError ? e.message : String(e));
     }
@@ -288,7 +290,7 @@ function SupportPage() {
       setOutcome("");
       setReply("");
       setWrites((n) => n + 1);
-      setToast(`${active.id} · resolved`);
+      setToast(`${active.subject} · resolved`);
     } catch (e) {
       setToast(e instanceof ApiError ? e.message : String(e));
     }
@@ -307,7 +309,7 @@ function SupportPage() {
       setNewTicket({ memberId: "", subject: "", body: "" });
       setWrites((n) => n + 1);
       openRow(created.id);
-      setToast(`${created.id} · raised`);
+      setToast(`${created.subject} · raised`);
     } catch (e) {
       setToast(e instanceof ApiError ? e.message : String(e));
     }
@@ -331,7 +333,7 @@ function SupportPage() {
          lists is how an agent carries on typing into somebody else's work. */
       setOpenId(null);
       setWrites((n) => n + 1);
-      setToast(`${active.id} · now with ${supportTierLabel[up]}`);
+      setToast(`${active.subject} · now with ${supportTierLabel[up]}`);
     } catch (e) {
       setToast(e instanceof ApiError ? e.message : String(e));
     }
@@ -434,8 +436,8 @@ function SupportPage() {
           {/* Loading and empty are different answers and must not share a
               screen: "Nothing matches that filter" while the request is still
               in flight tells an agent their filter is wrong when it is not. */}
-          {loading && rows.length === 0 ? (
-            <Empty icon={<IconInbox />} title="Reading the queue…" />
+          {loading ? (
+            <Loading label="Reading the queue…" />
           ) : list.length === 0 ? (
             <Empty
               icon={<IconInbox />}
@@ -470,9 +472,7 @@ function SupportPage() {
                       <td>
                         <div className="gm-cell2">
                           <b>{t.subject}</b>
-                          <span>
-                            <span className="gm-mono">{t.id}</span> · {t.category}
-                          </span>
+                          <span>{t.category}</span>
                         </div>
                       </td>
                       <td>
@@ -530,11 +530,11 @@ function SupportPage() {
         title={active ? active.subject : "Opening…"}
         sub={
           active
-            ? `${active.id} · ${active.category} · opened ${new Date(active.opened).toLocaleDateString(
-                "en-GB",
-                { day: "2-digit", month: "short" },
-              )}`
-            : (openId ?? "")
+            ? `${active.category} · opened ${new Date(active.opened).toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+              })}`
+            : ""
         }
         footer={
           active ? (
@@ -619,15 +619,16 @@ function SupportPage() {
                     {active.member.handle} · {active.member.role.replace("-", " & ")}
                   </span>
                 </div>
-                <a
+                <Link
                   className="gm-btn gm-btn--sm"
                   href={`/admin/members?scope=market&q=${encodeURIComponent(
                     active.member.handle,
                   )}`}
+                  onClick={() => setOpenId(null)}
                 >
                   <IconUsers />
                   Member record
-                </a>
+                </Link>
               </div>
             </Card>
 
@@ -761,7 +762,7 @@ function SupportPage() {
                               </p>
                               <div className="gm-feed-time">
                                 {l.grader ?? "Raw"} {l.grade ?? ""} · {money(l.price)} ·{" "}
-                                {l.status} · <span className="gm-mono">{l.id}</span>
+                                {l.status}
                               </div>
                             </div>
                           </div>
@@ -790,8 +791,7 @@ function SupportPage() {
                                 <b>{c.reason}</b>
                               </p>
                               <div className="gm-feed-time">
-                                {c.status} · {shortDate(c.at)} ·{" "}
-                                <span className="gm-mono">{c.id}</span>
+                                {c.status} · {shortDate(c.at)}
                               </div>
                             </div>
                           </div>
@@ -844,7 +844,7 @@ function SupportPage() {
             <Card pad>
               <DL
                 rows={[
-                  ["Ticket", <span className="gm-mono">{active.id}</span>],
+                  ["Ticket", active.subject],
                   ["From", supportTierLabel[active.tier]],
                   ["To", supportTierLabel[up]],
                   ["They will see", supportTierDetail[up]],

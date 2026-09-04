@@ -173,7 +173,7 @@ function normalise(w: WireListing): AdminListing {
     id: w.id,
     card: w.card,
     art: art(w.art),
-    setLine: w.setLine || "—",
+    setLine: w.setLine || "Set unknown",
     game,
     grader,
     grade: w.grade,
@@ -536,10 +536,158 @@ export const setMemberStanding = (id: string, standing: string, reason: string) 
 export const annotateMember = (id: string, patch: { tags?: string[]; note?: string }) =>
   post<{ member: WireMember }>(`members/${id}/notes`, patch).then((r) => normaliseMember(r.member));
 
+/**
+ * Write to members, from the console.
+ *
+ * Answers with what actually happened, split three ways, because they are
+ * different facts: `delivered` is how many have it in the app next time they
+ * open it, `pushed` is how many had a device to interrupt, and `failed` is how
+ * many got neither. A member with no device registered is a normal outcome and
+ * not a failure.
+ */
+export const messageMembers = (memberIds: string[], subject: string, body: string) =>
+  post<{ delivered: number; pushed: number; failed: number; of: number }>("members/message", {
+    memberIds,
+    subject,
+    body,
+  });
+
 export const fetchStaff = () => call<{ staff: AdminStaff[] }>("staff").then((r) => r.staff);
 
 export const setStaffRole = (id: string, role: Role) =>
   post<{ staff: AdminStaff[] }>(`staff/${id}/role`, { role }).then((r) => r.staff);
+
+/**
+ * Take the console role away.
+ *
+ * A separate call rather than `setStaffRole(id, "member")`, because `Role` is
+ * the union of *console* roles and "member" is the absence of one — widening
+ * the type to carry it would let "member" be offered anywhere a role is
+ * chosen. At the API it is the same single write: a member is a member with a
+ * role on them, so revoking is one UPDATE and there is no second record.
+ */
+export const revokeStaff = (id: string) =>
+  post<{ staff: AdminStaff[] }>(`staff/${id}/role`, { role: "member" }).then((r) => r.staff);
+
+/**
+ * Give an existing account a console role.
+ *
+ * Not "invite": the console cannot create an account. A person signs up like
+ * anybody else and is then granted a role — `users.role` is a column, so
+ * revoking is one write and there is no second record to keep in step. An
+ * address nobody has signed up with is refused by name rather than queued as
+ * a pending invitation nothing will deliver.
+ */
+export const grantStaff = (email: string, role: Role, why?: string) =>
+  post<{ staff: AdminStaff[] }>("staff/grant", { email, role, why }).then((r) => r.staff);
+
+/* =============================================================== settings */
+
+/** The operational knobs. Values only — the words for them live on the page,
+ *  because how a threshold is worded is a rendering decision. */
+export type Settings = {
+  grailFloor: number;
+  highValueFloor: number;
+  autoClear: boolean;
+  autoClearHours: number;
+  sampleRate: number;
+  requireCert: boolean;
+  blockLowConfidence: boolean;
+  minPhotos: number;
+  sessionHours: number;
+  pauseOnReport: boolean;
+  reportWindowDays: number;
+  autoEscalateHours: number;
+  strikeLimit: number;
+  allowRaw: boolean;
+  interceptOn: boolean;
+};
+
+export const fetchSettings = () =>
+  call<{ settings: Settings; canEdit: boolean }>("settings");
+
+/** `changed` names the keys that actually moved, so the page can say what it
+ *  saved rather than claiming it saved everything. */
+export const saveSettings = (patch: Partial<Settings>) =>
+  post<{ settings: Settings; changed: string[] }>("settings", patch);
+
+/* ================================================================ account
+
+   Your own account, not a member's. These go through /api/auth rather than
+   /api/admin: the API reads whose password is being changed from the session
+   token, which is the only thing that can answer that question.
+   ======================================================================== */
+
+async function authCall<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api/auth/${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(sessionToken ? { authorization: `Bearer ${sessionToken}` } : {}),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  const out = await res.json().catch(() => null);
+  if (!out || out.error) {
+    throw new ApiError(out?.error ?? "bad-response", out?.message ?? `The API answered ${res.status}.`);
+  }
+  return out as T;
+}
+
+export const updateProfile = (patch: { name?: string; phone?: string | null }) =>
+  authCall<{ user: { name: string; email: string; phone?: string | null } }>("profile", patch);
+
+export const changePassword = (current: string, next: string) =>
+  authCall<{ ok: true }>("password", { current, next });
+
+/* ============================================================== dashboard */
+
+export type Dashboard = {
+  stats: {
+    liveListings: number;
+    queueDepth: number;
+    breached: number;
+    openReports: number;
+    members: number;
+  };
+  money: {
+    mrr: number;
+    subscribers: number;
+    tiers: {
+      id: string;
+      name: string;
+      price: number;
+      quota: number | null;
+      subscribers: number;
+      mrr: number;
+    }[];
+    /** This calendar month, read out of Stripe's own webhook payloads. */
+    collected: number;
+    failed: number;
+    failedAccounts: number;
+  };
+  funnel: { key: string; label: string; value: number }[];
+  /** Twelve weeks, GMV in thousands against verifications cleared. */
+  gmv: { label: string; gmv: number; verified: number }[];
+  queueMix: { label: string; value: number; color: string }[];
+};
+
+export const fetchDashboard = () => call<Dashboard>("dashboard");
+
+/* ============================================================== attention */
+
+/** One thing past a line, for the bell. Derived on every read — there is no
+ *  admin-notification table and nothing here is dismissible. */
+export type Attention = {
+  key: string;
+  title: string;
+  count: number;
+  href: string;
+  tone: "bad" | "warn";
+};
+
+export const fetchAttention = () => call<{ items: Attention[] }>("attention");
 
 /* ============================================================== audit log */
 
@@ -911,10 +1059,17 @@ export const openTicket = (t: {
   priority?: string;
 }) => post<{ ticket: WireTicket }>("tickets", t).then((r) => normaliseTicket(r.ticket));
 
+/** One message to both sides. `delivery` is what actually happened, which is
+ *  not the same as what was attempted — see `messageMembers`. */
 export const messageBothParties = (id: string, body: string) =>
-  post<{ case: AdminCase; thread: CaseMessage[] }>(`cases/${id}/message`, { body }).then((r) => ({
+  post<{
+    case: AdminCase;
+    thread: CaseMessage[];
+    delivery: { delivered: number; pushed: number; of: number };
+  }>(`cases/${id}/message`, { body }).then((r) => ({
     record: r.case,
     thread: r.thread,
+    delivery: r.delivery,
   }));
 
 /* ==========================================================================
@@ -930,14 +1085,23 @@ export type AdminPlan = {
   id: "starter" | "collector" | "dealer";
   name: string;
   blurb: string;
-  /** AUD a month, as Stripe is configured to charge. */
+  /** A month, as Stripe is configured to charge. Read back from Stripe once
+   *  the plan has been synced; the API's own fallback until it has. */
   price: number;
+  currency: string;
+  /** "month" or "year", from the Stripe price. */
+  interval: string;
   /** Live listings allowed at once. null = no ceiling. */
   quota: number | null;
   perks: string[];
   /** Empty until the Stripe price is configured on the API. */
   stripePriceId: string;
   stripePriceEnv: string;
+  /** The Stripe product. Editing a plan needs one. */
+  stripeProductId: string;
+  /** When Stripe last confirmed the figures above. Null means never — what is
+   *  on screen is the API's fallback, not what anybody is charged. */
+  syncedAt: string | null;
   subscribers: number;
   pastDue: number;
   cancelled: number;
@@ -1005,6 +1169,10 @@ export type Commerce = {
   boosts: AdminBoost[];
   billing: AdminBillingEvent[];
   boostTiers: AdminBoostTier[];
+  /** Whether the API can talk to Stripe at all, and whether this operator may
+   *  change anything there. Without both, the plan controls are buttons that
+   *  cannot work and the page says so instead of failing on the click. */
+  stripe: { configured: boolean; canEdit: boolean };
 };
 
 export const fetchCommerce = () => call<Commerce>("commerce");
@@ -1017,6 +1185,25 @@ export const compBoost = (id: string, reason: string) =>
 
 export const compPlan = (planId: string, memberId: string, reason: string, months = 1) =>
   post<{ plans: AdminPlan[] }>(`plans/${planId}/comp`, { memberId, reason, months });
+
+/** Read the plans back from Stripe and refresh what the console caches.
+ *  `problems` names any plan Stripe would not answer for, by name. */
+export const syncPlans = () =>
+  post<{ plans: AdminPlan[]; problems: string[] }>("plans/sync", {});
+
+/**
+ * Change a plan, at Stripe.
+ *
+ * The name and blurb are an update to the Stripe product. The price is not:
+ * a Stripe price is immutable, so the API creates a new one and points the
+ * product at it. Anybody already subscribed keeps the price they signed up
+ * on — the confirm step says so, because it is not what "changed the price"
+ * sounds like it means.
+ */
+export const editPlan = (
+  planId: string,
+  patch: { name?: string; blurb?: string; price?: number },
+) => post<{ plans: AdminPlan[] }>(`plans/${planId}`, patch).then((r) => r.plans);
 
 /* ==========================================================================
    The price engine

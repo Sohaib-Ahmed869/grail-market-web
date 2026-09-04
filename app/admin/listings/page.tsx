@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -10,7 +11,6 @@ import {
   MIN_ANGLES,
   money,
   num,
-  operator,
   overMarket,
   shortDate,
   type ListingStatus,
@@ -38,6 +38,7 @@ import {
   Empty,
   ListingBadge,
   Modal,
+  Loading,
   Note,
   FilterMenu,
   PageHead,
@@ -64,6 +65,7 @@ import {
   IconXCircle,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { useRole } from "../components/RoleContext";
 import { exportCsv } from "../lib/csv";
 
 /**
@@ -158,9 +160,18 @@ function useDebounced(value: string, ms: number) {
 }
 
 function ListingsPage() {
+  /* Whoever is actually signed in. This preview used to name a fixture
+     operator, so it promised the decision would be filed under somebody who
+     may not even hold an account. */
+  const { me } = useRole();
+
   const params = useSearchParams();
   const wanted = params.get("view");
-  const fromUrl = (VIEWS.some((v) => v.key === wanted) ? wanted : "queue") as View;
+  /* Opens on everything, and you narrow from there. It opened on "Needs a
+     decision", which is the right first job but the wrong first screen: on a
+     quiet day the page arrived empty and read as broken, and there was no way
+     to see the market at all without knowing the tab existed. */
+  const fromUrl = (VIEWS.some((v) => v.key === wanted) ? wanted : "all") as View;
 
   const [view, setView] = useState<View>(fromUrl);
   useEffect(() => setView(fromUrl), [fromUrl]);
@@ -219,6 +230,14 @@ function ListingsPage() {
     setDecision(d);
   }
 
+  /** How far short of the minimum the reason is. Zero means it can be sent.
+   *  An approval needs no reason, so it is never short. */
+  const REASON_MIN = 8;
+  const short =
+    decision === null || decision === "approve"
+      ? 0
+      : Math.max(0, REASON_MIN - reason.trim().length);
+
   /** Open a row, and take it, so a second moderator does not decide the same
    *  card. A claim that fails is not an error — somebody else has it, and
    *  looking at a listing you cannot decide is a normal thing to do. */
@@ -257,7 +276,7 @@ function ListingsPage() {
             : decision === "reject"
               ? "Rejected and the seller told"
               : "Request sent",
-        body: `${listing.card} · ${listing.id} · decided by ${decidedBy} · the seller has been notified`,
+        body: `${listing.card} · decided by ${decidedBy} · the seller has been notified`,
       });
     } catch (e) {
       /* The API refuses a rejection with no reason, and refuses a transition
@@ -282,7 +301,7 @@ function ListingsPage() {
       const updated = await setMarketState(l.id, action);
       reload();
       setRecord((r) => (r && r.listing.id === l.id ? { ...r, listing: updated } : r));
-      setToast({ title, body: `${l.card} · ${l.id} · written to the audit log` });
+      setToast({ title, body: `${l.card} · written to the audit log` });
     } catch (e) {
       setToast({
         title: "That did not go through",
@@ -376,9 +395,9 @@ function ListingsPage() {
                   />
                 </div>
                 <FilterMenu
-                  applied={(view === "queue" ? 0 : 1) + (tier === "all" ? 0 : 1)}
+                  applied={(view === "all" ? 0 : 1) + (tier === "all" ? 0 : 1)}
                   onClear={() => {
-                    setView("queue");
+                    setView("all");
                     setTier("all");
                   }}
                   groups={[
@@ -415,8 +434,8 @@ function ListingsPage() {
           {/* Loading and empty are different answers and must not share a
               screen: "No listing matches that tab" while the request is still
               in flight tells a moderator their filter is wrong when it is not. */}
-          {loading && rows.length === 0 ? (
-            <Empty icon={<IconListing />} title="Reading the queue…" />
+          {loading ? (
+            <Loading label="Reading the queue…" />
           ) : rows.length === 0 ? (
             <Empty
               icon={<IconListing />}
@@ -615,7 +634,7 @@ function ListingsPage() {
         open={!!openId}
         onClose={() => setOpenId(null)}
         title={open ? open.card : "Opening…"}
-        sub={open ? `${open.id} · ${open.setLine}` : openId ?? ""}
+        sub={open ? open.setLine : ""}
         footer={
           open ? (
             IN_QUEUE.includes(open.status) ? (
@@ -731,13 +750,6 @@ function ListingsPage() {
               <CardHead
                 title="What the price is built on"
                 sub={`Confirmed ${open.grader} ${open.grade} sales only, never converted from another grading company`}
-                right={
-                  priceComps.length > 0 ? (
-                    <a className="gm-btn gm-btn--sm gm-btn--ghost" href="/admin/price-engine">
-                      Price engine
-                    </a>
-                  ) : null
-                }
               />
               <CardBody style={{ paddingTop: 8 }}>
                 {priceComps.length === 0 ? (
@@ -839,10 +851,10 @@ function ListingsPage() {
                     <b style={{ fontSize: 14.5 }}>{open.seller.name}</b>
                     <span>{open.seller.handle}</span>
                   </div>
-                  <a className="gm-btn gm-btn--sm gm-spacer" href="/admin/members?scope=market">
+                  <Link className="gm-btn gm-btn--sm gm-spacer" href="/admin/members?scope=market">
                     <IconExternal />
                     Profile
-                  </a>
+                  </Link>
                 </div>
                 <DL
                   rows={[
@@ -901,8 +913,7 @@ function ListingsPage() {
                           <div className="gm-feed-time">
                             {money(e.price)}
                             {e.setName ? ` · ${e.setName}` : ""}
-                            {e.by ? ` · ${e.by}` : ""} · {shortDate(e.at)} ·{" "}
-                            <span className="gm-mono">{e.id}</span>
+                            {e.by ? ` · ${e.by}` : ""} · {shortDate(e.at)}
                           </div>
                         </div>
                       </div>
@@ -994,7 +1005,7 @@ function ListingsPage() {
             <button
               type="button"
               className={`gm-btn ${decision ? DECISION_COPY[decision].tone : ""}`}
-              disabled={decision !== "approve" && reason.trim().length < 8}
+              disabled={short > 0 || busy}
               onClick={commit}
             >
               {decision === "approve" ? (
@@ -1004,12 +1015,23 @@ function ListingsPage() {
               ) : (
                 <IconMail />
               )}
-              {decision ? DECISION_COPY[decision].cta : ""}
+              {busy ? "Sending…" : decision ? DECISION_COPY[decision].cta : ""}
             </button>
             <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setDecision(null)}>
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
+            {/* Why the button is off, beside the button.
+
+                It used to sit there greyed with the requirement in a hint
+                under the textarea, which is the wrong place: the thing you are
+                looking at when nothing happens is the button. Reads as
+                "nothing happened" otherwise, and the reason is eight
+                characters away. */}
+            <span className="gm-spacer gm-tiny gm-dim">
+              {short > 0
+                ? `${short} more character${short === 1 ? "" : "s"} needed`
+                : "Written to the audit log"}
+            </span>
           </>
         }
       >
@@ -1098,8 +1120,7 @@ function ListingsPage() {
                       : "More information requested"}{" "}
                   · {open.card}
                 </b>
-                {reason.trim() ? <> · &ldquo;{reason.trim()}&rdquo;</> : null} · {operator.name} ·{" "}
-                {open.id}
+                {reason.trim() ? <> · &ldquo;{reason.trim()}&rdquo;</> : null} · {me?.name ?? "you"}
               </p>
             </Card>
           </>

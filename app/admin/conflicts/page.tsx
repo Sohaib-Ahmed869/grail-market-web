@@ -24,6 +24,7 @@ import {
   Empty,
   MetaBox,
   Modal,
+  Loading,
   Note,
   FilterMenu,
   PageHead,
@@ -76,7 +77,7 @@ function blockedBecause(outcome: string | null, rationale: string): string | nul
   if (!outcome) return "Choose an outcome below first.";
   const left = REASON_MIN - rationale.trim().length;
   if (left > 0) {
-    return `Write the reason it is recorded under — ${left} more character${left === 1 ? "" : "s"}.`;
+    return `Write the reason it is recorded under. ${left} more character${left === 1 ? "" : "s"} needed.`;
   }
   return null;
 }
@@ -132,7 +133,14 @@ function ConflictsPage() {
   const outcomeRef = useRef<HTMLDivElement>(null);
   /* Held as its own value: the panel is cleared on confirm, so the toast
      cannot read the outcome back off state that no longer exists. */
-  const [toast, setToast] = useState<{ id: string; action: string; escalated: boolean } | null>(
+  const [toast, setToast] = useState<{
+    what: string;
+    action: string;
+    escalated: boolean;
+    /** Writing to both sides is not a decision, and the toast used to call it
+     *  one — every message came back headed "Outcome applied". */
+    kind?: "decision" | "message";
+  } | null>(
     null
   );
 
@@ -190,7 +198,11 @@ function ConflictsPage() {
     try {
       const { record, thread } = await fetchCase(c.id);
       setOpen(toConflict(record, thread));
-      await claimCase(c.id).catch(() => null);
+      /* Claim it only when opening it to decide. Reading a case that is
+         already closed should not put your name on it as the person working
+         it — the board would then show every case anybody had ever looked at
+         as taken. */
+      if (decide) await claimCase(c.id).catch(() => null);
     } catch {
       /* the card's own data is already on screen; the thread is the extra */
     }
@@ -217,7 +229,7 @@ function ConflictsPage() {
           againstId: accusedId,
         });
       }
-      setToast({ id: open.id, action: chosen.title, escalated: !!chosen.escalates });
+      setToast({ what: open.listing.card, action: chosen.title, escalated: !!chosen.escalates });
       setWrites((n) => n + 1);
       setConfirming(false);
       setOpen(null);
@@ -226,7 +238,7 @@ function ConflictsPage() {
     } catch (e) {
       setConfirming(false);
       setToast({
-        id: open.id,
+        what: open.listing.card,
         action: e instanceof ApiError ? e.message : "did not go through",
         escalated: false,
       });
@@ -244,14 +256,29 @@ function ConflictsPage() {
     if (!open || message.trim().length < 4) return;
     setSending(true);
     try {
-      const { record, thread } = await messageBothParties(open.id, message.trim());
-      setOpen(toConflict(record, thread));
+      const { delivery } = await messageBothParties(open.id, message.trim());
       setMessaging(false);
       setMessage("");
-      setToast({ id: open.id, action: "message sent to both parties", escalated: false });
+      /* Both go, not just the small one. Sending left the case record standing
+         open behind the toast, which is the same half-closed state every other
+         page was careful to avoid. */
+      setOpen(null);
+      setWrites((n) => n + 1);
+      /* What happened, not what was attempted. "Sent to both parties" was
+         true of the attempt whether or not either of them could receive it. */
+      setToast({
+        kind: "message",
+        what: open.listing.card,
+        action:
+          `${delivery.delivered} of ${delivery.of} have it in the app` +
+          (delivery.pushed > 0
+            ? `, ${delivery.pushed} pushed to a device`
+            : ". Neither has a device registered, so nothing was pushed."),
+        escalated: false,
+      });
     } catch (e) {
       setToast({
-        id: open.id,
+        what: open.listing.card,
         action: e instanceof ApiError ? e.message : "did not send",
         escalated: false,
       });
@@ -359,7 +386,7 @@ function ConflictsPage() {
           </Note>
         ) : loading && list.length === 0 ? (
           <Card>
-            <Empty icon={<IconScale />} title="Reading the board…" />
+            <Loading label="Reading the board…" />
           </Card>
         ) : list.length === 0 ? (
           <Card>
@@ -376,10 +403,12 @@ function ConflictsPage() {
               const score = severityScore(c.kind, c.amount, c.ageHours);
               return (
                 <article key={c.id} className="gm-case">
-                  {/* What the complaint is, in words. The store's own id is
-                      still here because support has to quote it, but it is a
-                      reference underneath rather than the headline — nobody
-                      reads a case board looking for "dp_7c8af086". */}
+                  {/* What the complaint is, and what it is about — in words.
+                      The store's own id used to sit under the heading. It is
+                      gone: nobody reads a case board looking for
+                      "dp_7c8af086", and the card the case concerns is the
+                      thing a moderator actually recognises it by. The id is
+                      still searchable and still in the export. */}
                   <div className="gm-case-top">
                     <div className="gm-case-who">
                       <Slab
@@ -391,10 +420,9 @@ function ConflictsPage() {
                       <span className="gm-cell2" style={{ minWidth: 0 }}>
                         <b>{conflictKindLabel[c.kind]}</b>
                         <span
-                          className="gm-mono"
                           style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                         >
-                          Case {c.id}
+                          {c.listing.card}
                         </span>
                       </span>
                     </div>
@@ -439,16 +467,26 @@ function ConflictsPage() {
                     </div>
                   </div>
 
+                  {/* One button, not two.
+
+                      "View details" and "Decide" opened the same record and
+                      differed by a boolean that scrolled it to the outcome
+                      section — so the board offered a choice between reading a
+                      case and reading the same case slightly further down. It
+                      is the state of the case that decides which of the two
+                      words is true: an open case is there to be decided, and a
+                      closed one is there to be read. */}
                   <div className="gm-case-actions">
-                    <button
-                      type="button"
-                      className="gm-btn gm-btn--sm"
-                      onClick={() => show(c)}
-                    >
-                      <IconEye />
-                      View details
-                    </button>
-                    {c.status !== "resolved" ? (
+                    {c.status === "resolved" ? (
+                      <button
+                        type="button"
+                        className="gm-btn gm-btn--sm"
+                        onClick={() => show(c)}
+                      >
+                        <IconEye />
+                        View details
+                      </button>
+                    ) : (
                       <button
                         type="button"
                         className="gm-btn gm-btn--sm gm-btn--primary"
@@ -461,7 +499,7 @@ function ConflictsPage() {
                         <IconShield />
                         Decide
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 </article>
               );
@@ -475,7 +513,7 @@ function ConflictsPage() {
         open={!!open}
         onClose={() => setOpen(null)}
         title={open ? `${conflictKindLabel[open.kind]} · against ${open[open.against].handle}` : ""}
-        sub={open ? `Case ${open.id}` : ""}
+        sub={open ? conflictKindLabel[open.kind] : ""}
         footer={
           open && open.status !== "resolved" ? (
             <>
@@ -815,7 +853,7 @@ function ConflictsPage() {
             <Card pad>
               <DL
                 rows={[
-                  ["Case", `${open.id} · ${conflictKindLabel[open.kind]}`],
+                  ["Case", conflictKindLabel[open.kind]],
                   ["Card", open.listing.card],
                   ["Acts on", accused ? `${accused.name} · ${accused.handle}` : "Not chosen"],
                   ["Outcome", chosen?.title ?? "Not chosen"],
@@ -879,7 +917,7 @@ function ConflictsPage() {
             <Card pad>
               <DL
                 rows={[
-                  ["Case", `${open.id} · ${conflictKindLabel[open.kind]}`],
+                  ["Case", conflictKindLabel[open.kind]],
                   ["Goes to", `${open.buyer.handle} and ${open.seller.handle}`],
                   ["Appears as", "A line on the case thread, plus a notification each"],
                 ]}
@@ -903,8 +941,18 @@ function ConflictsPage() {
 
       {toast ? (
         <Toast
-          title={toast.escalated ? "Handed to Trust and safety" : "Outcome applied"}
-          body={`${toast.id} · ${toast.action}, written to the member record`}
+          title={
+            toast.kind === "message"
+              ? "Written to both parties"
+              : toast.escalated
+                ? "Handed to Trust and safety"
+                : "Outcome applied"
+          }
+          body={
+            toast.kind === "message"
+              ? `${toast.what} · ${toast.action}`
+              : `${toast.what} · ${toast.action}, written to the member record`
+          }
           onDone={() => setToast(null)}
         />
       ) : null}
