@@ -1910,156 +1910,147 @@
    ========================================================================== */
 
 /* The console sign-in.
-   Two halves: the brand on the left, the work on the right. A lone card
-   floating on a gradient is the shape every admin template ships with — this
-   one carries the actual mark, the actual wordmark, and says what the console
-   is for before asking who you are. Collapses to one column under 860px, where
-   the brand panel becomes a header strip rather than disappearing. */
+   One white card on a light ground, split in two: the form on the left,
+   because signing in is the job, and the brand panel INSET on the right with
+   its own radius. A full-bleed dark column reads as a splash screen the form
+   is stuck to the edge of; an inset panel reads as one considered object,
+   which is the difference between this and a template. */
 .gm-login {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  place-items: center;
+  padding: clamp(16px, 4vw, 48px);
   background: var(--paper);
 }
 
-.gm-login-aside {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 22px;
-  padding: 64px clamp(36px, 6vw, 88px);
-  overflow: hidden;
-  /* Navy with a gold bloom off the top-right — the console's own ground,
-     stronger here because nothing else is on this side to read against. */
-  background:
-    radial-gradient(680px 460px at 88% -6%, rgba(212, 185, 137, 0.5), transparent 60%),
-    radial-gradient(560px 460px at -6% 106%, rgba(168, 141, 96, 0.2), transparent 64%),
-    linear-gradient(158deg, #24344a 0%, #1a2632 54%, #121a24 100%);
+.gm-login-shell {
+  width: min(1040px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(16px, 3vw, 28px);
+  padding: clamp(16px, 2.4vw, 22px);
+  border-radius: 26px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 70px -32px rgba(16, 26, 38, 0.28), 0 2px 6px rgba(16, 26, 38, 0.05);
 }
 
-/* A single gold hairline down the seam, where the two halves meet. */
-.gm-login-aside::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 1px;
-  background: linear-gradient(180deg, transparent, rgba(203, 183, 148, 0.55), transparent);
+.gm-login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(372px, 100%);
+  margin: 0 auto;
+  padding: clamp(26px, 4vw, 48px) clamp(8px, 2vw, 20px);
+}
+
+.gm-login-brand { margin-bottom: 2px; }
+
+.gm-login-mark {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.gm-login-brand .gm-mark-dark { display: none; }
+:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-light { display: none; }
+:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-dark { display: block; }
+
+.gm-login-head { margin-bottom: 4px; }
+
+.gm-login-head h1 {
+  margin: 0 0 5px;
+  font-size: 27px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gm-login-head p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+/* -- the brand half ------------------------------------------------ */
+.gm-login-aside {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: clamp(28px, 3.4vw, 44px);
+  background:
+    radial-gradient(620px 420px at 88% -8%, rgba(212, 185, 137, 0.46), transparent 62%),
+    radial-gradient(520px 420px at -8% 108%, rgba(168, 141, 96, 0.18), transparent 66%),
+    linear-gradient(158deg, #24344a 0%, #1a2632 56%, #131c26 100%);
 }
 
 .gm-login-logo {
-  width: clamp(190px, 22vw, 260px);
+  width: clamp(150px, 15vw, 186px);
   height: auto;
+  margin-bottom: auto;
 }
 
 .gm-login-tag {
   margin: 0;
-  max-width: 30ch;
-  font-size: 17px;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.78);
+  max-width: 18ch;
+  font-size: clamp(21px, 2.1vw, 27px);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  color: #fff;
 }
 
-.gm-login-rule {
-  width: 54px;
-  height: 2px;
+.gm-login-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
+}
+
+.gm-login-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+/* A gold tick rather than a bullet — the one place the brand colour appears
+   on this panel, and it is doing work. */
+.gm-login-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 7px;
+  height: 7px;
   border-radius: 2px;
   background: var(--gold);
 }
 
 .gm-login-note {
   margin: 0;
-  max-width: 34ch;
-  font-size: 13px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* The form side. */
-.gm-login > form {
-  display: grid;
-  place-content: center;
-  padding: 48px clamp(24px, 5vw, 72px);
+@media (max-width: 880px) {
+  .gm-login-shell { grid-template-columns: 1fr; }
+  /* On a phone the job is the form; a marketing panel above it is a screenful
+     of scrolling before anybody can type. */
+  .gm-login-aside { display: none; }
+  .gm-login-card { padding: 26px 6px; }
 }
 
-@media (max-width: 860px) {
-  .gm-login {
-    grid-template-columns: 1fr;
-  }
-  .gm-login-aside {
-    padding: 34px 24px 30px;
-    gap: 14px;
-  }
-  .gm-login-aside::after {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(203, 183, 148, 0.55), transparent);
-  }
-  /* The strapline is scene-setting, and on a phone the job is the form. */
-  .gm-login-tag,
-  .gm-login-note,
-  .gm-login-rule {
-    display: none;
-  }
-  .gm-login-logo {
-    width: 168px;
-  }
-}
-
-.gm-login-card {
-  position: relative;
-  width: min(384px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-/* A gold hairline along the top edge. The one place the brand colour touches
-   the card, which is enough on a screen with a single control on it. */
-.gm-login-card::before { content: none; }
-
-.gm-login-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-
-.gm-login-mark {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-}
-
-/* The mark is navy and gold, which vanishes on the dark theme. Same pair and
-   the same swap as the rail, so there is one rule for this in the console. */
-.gm-login-brand .gm-mark-dark { display: none; }
-:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-light { display: none; }
-:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-dark { display: block; }
-
-.gm-login-brand b {
-  display: block;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
-  color: var(--ink);
-}
-
-.gm-login-brand span {
-  font-size: 12px;
-  color: var(--ink-3);
-}
-
-/* the eye sits inside the field rather than beside it, so the input keeps its
-   full width and the control cannot be mistaken for a second field */
 .gm-login-secret {
   position: relative;
 }
@@ -2125,12 +2116,24 @@
 }
 
 .gm-login-go {
-  height: 42px;
-  font-size: 13.5px;
+  height: 46px;
+  margin-top: 4px;
+  font-size: 14px;
+  border-radius: var(--r-sm);
+}
+
+/* The global 0.5 opacity turned the navy gradient into grey mush, so an
+   untouched form opened on a button that looked broken rather than waiting.
+   Hold the brand colour and dim it far less — disabled should read as "not
+   yet", not as "out of order". */
+.gm-login-go:disabled {
+  opacity: 1;
+  background: linear-gradient(135deg, #56728f 0%, #43596f 62%, #3a4b5d 100%);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .gm-login-foot {
-  margin: 0;
+  margin: 6px 0 0;
   text-align: center;
   font-size: 11.5px;
   line-height: 1.55;

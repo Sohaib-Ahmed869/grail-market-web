@@ -53,38 +53,23 @@ function LoginPage() {
 
   return (
     <div className="gm-login">
-      {/* The left half is the brand, the right half is the job. A single
-          centred card on a gradient is what every console looks like; this is
-          ours, and the mark is the actual mark rather than a padlock standing
-          in for one. */}
-      <aside className="gm-login-aside" aria-hidden="true">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="gm-login-logo" src="/brand/logo-horizontal-white.svg" alt="" />
-        <p className="gm-login-tag">
-          The console behind the marketplace — members, listings, disputes and
-          the prices we stand behind.
-        </p>
-        <span className="gm-login-rule" />
-        <p className="gm-login-note">
-          Every action here is written to the audit log against your name.
-        </p>
-      </aside>
-
-      <form className="gm-login-card" onSubmit={submit} noValidate>
-        <div className="gm-login-brand">
-          {/* Same swap the rail uses: the navy-and-gold mark reads on paper
-              and disappears on the dark theme, so the on-navy cut takes over
-              there. eslint-disable because these are static brand files, not
-              content Next should be optimising. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="gm-login-mark gm-mark-light" src="/brand/mark.svg" alt="" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="gm-login-mark gm-mark-dark" src="/brand/mark-onnavy.svg" alt="" />
-          <div>
-            <b>Admin console</b>
-            <span>Sign in to continue</span>
+      {/* One card, two halves: the form on the left because that is the job,
+          and the brand panel inset on the right rather than bled to the edge.
+          A full-height dark column reads as a splash screen the form is stuck
+          to the side of; an inset panel reads as one considered object. */}
+      <div className="gm-login-shell">
+        <form className="gm-login-card" onSubmit={submit} noValidate>
+          <div className="gm-login-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="gm-login-mark gm-mark-light" src="/brand/mark.svg" alt="" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="gm-login-mark gm-mark-dark" src="/brand/mark-onnavy.svg" alt="" />
           </div>
-        </div>
+
+          <div className="gm-login-head">
+            <h1>Welcome back</h1>
+            <p>Sign in to the GrailMarket console.</p>
+          </div>
 
         <div className="gm-field">
           <label className="gm-label" htmlFor="gm-login-email">
@@ -152,11 +137,30 @@ function LoginPage() {
           {busy ? "Signing in…" : "Log in"}
         </button>
 
-        <p className="gm-login-foot">
-          Console accounts are created by an owner. Ask them for access rather
-          than signing up.
-        </p>
-      </form>
+          <p className="gm-login-foot">
+            Console accounts are created by an owner — ask them for access.
+          </p>
+        </form>
+
+        {/* The brand half. No stock illustration and no invented dashboard —
+            the wordmark, one sentence about what this console is, and the
+            three things it actually watches over. */}
+        <aside className="gm-login-aside" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="gm-login-logo" src="/brand/logo-horizontal-white.svg" alt="" />
+          <p className="gm-login-tag">
+            The console behind the marketplace.
+          </p>
+          <ul className="gm-login-list">
+            <li>Members, listings and disputes</li>
+            <li>Identity checks and trust decisions</li>
+            <li>The prices we stand behind</li>
+          </ul>
+          <p className="gm-login-note">
+            Every action here is written to the audit log against your name.
+          </p>
+        </aside>
+      </div>
     </div>
   );
 }
