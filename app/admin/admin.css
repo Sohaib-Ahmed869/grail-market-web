@@ -2579,7 +2579,7 @@
     top: auto;
     bottom: 0;
     width: 100vw;
-    max-height: 92vh;
+    max-height: calc(92vh / var(--gm-zoom));
     transform: none;
     border-radius: var(--r-md) var(--r-md) 0 0;
     border-bottom: 0;
@@ -3096,15 +3096,29 @@
       Folding at 1360 keeps the expanded band above 1030px of content.
    ========================================================================== */
 
+/* `--gm-zoom` mirrors the zoom above so anything sized in VIEWPORT units can
+   divide it back out.
+   
+   `vh` resolves against the true viewport in CSS pixels and is THEN scaled by
+   the zoom, so `max-height: calc(100vh - 96px)` on a dialog renders at 125% of
+   the screen on a 1900px monitor — the window filled the viewport edge to edge
+   and its footer looked clipped, on the exact screens this console is built
+   for. Percentages and pixels are unaffected; only viewport units need this. */
+:root {
+  --gm-zoom: 1;
+}
+
 @media (min-width: 1600px) {
   :root {
     zoom: 1.1;
+    --gm-zoom: 1.1;
   }
 }
 
 @media (min-width: 1900px) {
   :root {
     zoom: 1.25;
+    --gm-zoom: 1.25;
   }
 }
 
@@ -3141,4 +3155,68 @@
   .gm-top {
     margin-left: 12px;
   }
+}
+
+
+/* ==========================================================================
+   Nesting — boxes inside boxes
+   --------------------------------------------------------------------------
+   .gm-card carries a border, a radius AND a shadow, which is right when it is
+   sitting on the page and wrong the moment it is inside something that also
+   has all three. A record modal held five of them stacked, so the window, the
+   sections and the rows inside the sections were all drawn as raised objects
+   and nothing on screen outranked anything else.
+
+   Depth is a comparison, not a property. These rules take it away where there
+   is nothing left to compare against, and they live here rather than on each
+   page so the whole console behaves the same way.
+   ========================================================================== */
+
+/* Sections stacked in a dialog are SECTIONS, not cards. Hairline between,
+   no border around, no shadow under — the window is the box already. */
+.gm-dialog-body > .gm-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-dialog-body > .gm-card:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Its head loses the rule too: a heading with a line under it, inside a
+   section that already has a line above it, is two lines doing one job. */
+.gm-dialog-body > .gm-card > .gm-card-head {
+  padding: 0 0 12px;
+  border-bottom: 0;
+}
+
+.gm-dialog-body > .gm-card > .gm-card--pad,
+.gm-dialog-body > .gm-card.gm-card--pad {
+  padding: 18px 0 0;
+}
+
+.gm-dialog-body > .gm-card:first-child.gm-card--pad {
+  padding-top: 0;
+}
+
+/* A card inside a card anywhere else: keep the outline so the grouping still
+   reads, drop the shadow so it stops pretending to float above its parent. */
+.gm-card .gm-card {
+  box-shadow: none;
+  background: var(--surface-2);
+}
+
+/* The dialog itself gets room to breathe. It was within 26px of the viewport
+   floor on a laptop, so the footer read as clipped even when it was not. */
+/* Both windows, corrected for the root zoom. */
+.gm-dialog,
+.gm-dialog--wide {
+  max-height: calc((100vh - 96px) / var(--gm-zoom));
 }
