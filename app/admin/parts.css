@@ -1924,7 +1924,8 @@
 }
 
 .gm-login-shell {
-  width: min(1040px, 100%);
+  width: min(1180px, 100%);
+  min-height: min(680px, calc(100vh - 96px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(16px, 3vw, 28px);
@@ -1938,17 +1939,24 @@
 .gm-login-card {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 16px;
-  width: min(372px, 100%);
+  width: min(386px, 100%);
   margin: 0 auto;
-  padding: clamp(26px, 4vw, 48px) clamp(8px, 2vw, 20px);
+  padding: clamp(28px, 4vw, 44px) clamp(8px, 2vw, 20px);
 }
 
-.gm-login-brand { margin-bottom: 2px; }
+/* Centred, like the reference: the mark sits over the heading rather than
+   beside it, so the column reads top-down instead of L-shaped. */
+.gm-login-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2px;
+}
 
 .gm-login-mark {
-  width: 42px;
-  height: 42px;
+  width: 54px;
+  height: 54px;
   object-fit: contain;
 }
 
@@ -1956,11 +1964,14 @@
 :root[data-gm-theme="dark"] .gm-login-brand .gm-mark-light { display: none; }
 :root[data-gm-theme="dark"] .gm-login-brand .gm-mark-dark { display: block; }
 
-.gm-login-head { margin-bottom: 4px; }
+.gm-login-head {
+  margin-bottom: 6px;
+  text-align: center;
+}
 
 .gm-login-head h1 {
   margin: 0 0 5px;
-  font-size: 27px;
+  font-size: 29px;
   line-height: 1.15;
   letter-spacing: -0.02em;
   font-weight: 700;
@@ -1977,12 +1988,11 @@
 .gm-login-aside {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 20px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 18px;
-  padding: clamp(28px, 3.4vw, 44px);
+  gap: 16px;
+  padding: clamp(30px, 3.2vw, 42px);
   background:
     radial-gradient(620px 420px at 88% -8%, rgba(212, 185, 137, 0.46), transparent 62%),
     radial-gradient(520px 420px at -8% 108%, rgba(168, 141, 96, 0.18), transparent 66%),
@@ -1990,15 +2000,14 @@
 }
 
 .gm-login-logo {
-  width: clamp(150px, 15vw, 186px);
+  width: clamp(150px, 14vw, 178px);
   height: auto;
-  margin-bottom: auto;
 }
 
 .gm-login-tag {
   margin: 0;
-  max-width: 18ch;
-  font-size: clamp(21px, 2.1vw, 27px);
+  max-width: 20ch;
+  font-size: clamp(20px, 1.9vw, 25px);
   line-height: 1.25;
   letter-spacing: -0.015em;
   font-weight: 600;
@@ -2035,7 +2044,7 @@
 }
 
 .gm-login-note {
-  margin: 0;
+  margin: auto 0 0;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   font-size: 12.5px;
@@ -2043,8 +2052,166 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* -- the console mock ----------------------------------------------
+   A glass panel showing what this console does, drawn in divs rather than
+   shipped as a screenshot: a screenshot goes stale the first time we change
+   the console, and at 2x it either blurs or costs 300KB. This stays sharp,
+   weighs nothing, and is honest about being an impression rather than a
+   promise of a specific screen. */
+.gm-mock {
+  margin-top: 4px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 26px 50px -26px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.gm-mock-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gm-mock-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.gm-mock-pill {
+  margin-left: 8px;
+  height: 8px;
+  flex: 1;
+  max-width: 120px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.gm-mock-body {
+  padding: 14px;
+  display: grid;
+  gap: 13px;
+}
+
+.gm-mock-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gm-mock-stat {
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.gm-mock-stat b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.gm-mock-stat span {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* The money tile is the gold one. One accent, on the number that matters. */
+.gm-mock-stat--gold b { color: var(--gold-300); }
+
+.gm-mock-rows { display: grid; gap: 7px; }
+
+.gm-mock-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gm-mock-thumb {
+  flex: none;
+  width: 20px;
+  height: 27px;
+  border-radius: 3px;
+  background: linear-gradient(150deg, rgba(203, 183, 148, 0.55), rgba(255, 255, 255, 0.13));
+}
+
+.gm-mock-lines {
+  flex: 1;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.gm-mock-lines i {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.gm-mock-lines i:last-child { background: rgba(255, 255, 255, 0.11); }
+
+.gm-mock-badge {
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.gm-mock-amt {
+  flex: none;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(203, 183, 148, 0.5);
+}
+
+.gm-mock-chart {
+  height: 56px;
+  padding: 8px 10px 6px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gm-mock-chart svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Not enough height to show a mock AND a form without squashing both. The
+   form wins; the mock is scene-setting. */
+@media (max-height: 720px) {
+  .gm-mock-chart { display: none; }
+}
+
+@media (max-height: 620px) {
+  .gm-mock { display: none; }
+}
+
 @media (max-width: 880px) {
-  .gm-login-shell { grid-template-columns: 1fr; }
+  .gm-login-shell {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
   /* On a phone the job is the form; a marketing panel above it is a screenful
      of scrolling before anybody can type. */
   .gm-login-aside { display: none; }

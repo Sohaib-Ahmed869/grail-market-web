@@ -148,14 +148,69 @@ function LoginPage() {
         <aside className="gm-login-aside" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="gm-login-logo" src="/brand/logo-horizontal-white.svg" alt="" />
-          <p className="gm-login-tag">
-            The console behind the marketplace.
-          </p>
-          <ul className="gm-login-list">
-            <li>Members, listings and disputes</li>
-            <li>Identity checks and trust decisions</li>
-            <li>The prices we stand behind</li>
-          </ul>
+          <p className="gm-login-tag">The console behind the marketplace.</p>
+
+          {/* A mock of THIS console, not a stock dashboard: the review queue
+              as it actually looks — a slab awaiting an identity decision, a
+              listing held for photos, a price we are standing behind. Built
+              from divs so it stays sharp at any size and costs no image. */}
+          <div className="gm-mock">
+            <div className="gm-mock-bar">
+              <span className="gm-mock-dot" />
+              <span className="gm-mock-dot" />
+              <span className="gm-mock-dot" />
+              <span className="gm-mock-pill" />
+            </div>
+
+            <div className="gm-mock-body">
+              <div className="gm-mock-stats">
+                <div className="gm-mock-stat">
+                  <b>12</b>
+                  <span>In review</span>
+                </div>
+                <div className="gm-mock-stat">
+                  <b>3</b>
+                  <span>Disputes</span>
+                </div>
+                <div className="gm-mock-stat gm-mock-stat--gold">
+                  <b>A$1.2m</b>
+                  <span>Listed value</span>
+                </div>
+              </div>
+
+              <div className="gm-mock-rows">
+                {[
+                  { tag: "BGS 9.5", w: 62, amt: 78 },
+                  { tag: "PSA 10", w: 46, amt: 62 },
+                  { tag: "CGC 9", w: 71, amt: 55 },
+                ].map((r) => (
+                  <div className="gm-mock-row" key={r.tag}>
+                    <span className="gm-mock-thumb" />
+                    <span className="gm-mock-lines">
+                      <i style={{ width: `${r.w}%` }} />
+                      <i style={{ width: `${r.w - 22}%` }} />
+                    </span>
+                    <span className="gm-mock-badge">{r.tag}</span>
+                    <span className="gm-mock-amt" style={{ width: `${r.amt}px` }} />
+                  </div>
+                ))}
+              </div>
+
+              <div className="gm-mock-chart">
+                <svg viewBox="0 0 220 56" preserveAspectRatio="none">
+                  <path
+                    d="M0 44 L26 38 L52 41 L78 27 L104 31 L130 18 L156 22 L182 11 L220 6"
+                    fill="none"
+                    stroke="#cbb794"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
           <p className="gm-login-note">
             Every action here is written to the audit log against your name.
           </p>
