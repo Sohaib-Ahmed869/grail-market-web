@@ -8,3 +8,6 @@ build/
 .env.local
 .DS_Store
 .vercel
+
+# scratch build dir for parallel verification servers
+.next-verify/

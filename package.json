@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cards": "node scripts/fetch-card-art.mjs"
   },
   "dependencies": {
     "next": "^15.4.0",
@@ -16,7 +17,8 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.5",
     "typescript": "^5.5.4"
   },
-  "description": "GrailCard web client \u2014 scan a card, or search for one, and see what it is worth."
+  "description": "GrailCard web client — scan a card, or search for one, and see what it is worth."
 }
