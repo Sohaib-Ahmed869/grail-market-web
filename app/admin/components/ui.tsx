@@ -81,6 +81,35 @@ export function OverlayPortal({ children }: { children: ReactNode }) {
 }
 
 /**
+ * How deep an overlay is stacked, so the one on top actually looks like it.
+ *
+ * Every dialog shared one pair of z-indexes — scrim 90, window 91 — so when a
+ * Modal opened on a RecordModal the inner scrim landed BENEATH the outer
+ * window. The record behind stayed at full brightness with its own action bar
+ * lit, and the screen showed two sets of buttons with no way to tell which one
+ * was live. Reference-counted the same way the scroll lock already is, and for
+ * the same reason: this nesting is normal, not an edge case.
+ */
+let overlayDepth = 0;
+
+function useOverlayDepth(active: boolean): number {
+  const [depth, setDepth] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    overlayDepth += 1;
+    setDepth(overlayDepth);
+    return () => {
+      overlayDepth -= 1;
+    };
+  }, [active]);
+  return depth;
+}
+
+/** Base of the overlay band. Each nested level takes the next two slots so a
+ *  child's scrim always outranks its parent's window. */
+const OVERLAY_Z = 90;
+
+/**
  * Holds the page still while an overlay is open. Reference-counted, because
  * a Modal can open on top of a Drawer and the inner one closing must not
  * unlock the page underneath the outer one.
@@ -669,6 +698,8 @@ function Dialog({
 
   useScrollLock(open);
 
+  const depth = useOverlayDepth(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -686,10 +717,14 @@ function Dialog({
 
   if (!open) return null;
 
+  const layer = Math.max(1, depth);
+  const zScrim = OVERLAY_Z + (layer - 1) * 2;
+
   return (
     <OverlayPortal>
-      <div className="gm-scrim" onClick={onClose} />
+      <div className="gm-scrim" style={{ zIndex: zScrim }} onClick={onClose} />
       <div
+        style={{ zIndex: zScrim + 1 }}
         className={`gm-dialog${wide ? " gm-dialog--wide" : ""}`}
         role="dialog"
         aria-modal="true"

@@ -1037,17 +1037,19 @@ function ListingsPage() {
       >
         {open && decision ? (
           <>
-            <Card pad>
-              <div className="gm-row" style={{ gap: 11, flexWrap: "nowrap" }}>
-                <Slab grader={open.grader} grade={open.grade} art={open.art} />
-                <div className="gm-cell2">
-                  <b>{open.card}</b>
-                  <span>
-                    {open.grader} {open.grade} · {money(open.askPrice)} · {open.seller.handle}
-                  </span>
-                </div>
+            {/* The subject of the dialog, not a panel inside it. Four bordered
+                cards stacked in a 520px window made every part look equally
+                important, which left the one field you actually have to fill
+                in competing with a receipt. */}
+            <div className="gm-decide-subject">
+              <Slab grader={open.grader} grade={open.grade} art={open.art} />
+              <div className="gm-cell2">
+                <b>{open.card}</b>
+                <span>
+                  {open.grader} {open.grade} · {money(open.askPrice)} · {open.seller.handle}
+                </span>
               </div>
-            </Card>
+            </div>
 
             {decision === "approve" ? (
               flagsFor(open).length > 0 ? (
@@ -1106,23 +1108,22 @@ function ListingsPage() {
 
             {/* No ambiguity about where this lands — the entry is shown before
                 it is filed, not summarised afterwards in a toast. */}
-            <Card pad>
-              <div className="gm-row" style={{ gap: 8, marginBottom: 7 }}>
-                <IconUsers style={{ width: 14, height: 14, color: "var(--ink-4)" }} />
-                <b className="gm-sm">Filed on {open.seller.handle}&rsquo;s record as</b>
-              </div>
-              <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                <b className="gm-strong">
+            {/* Still shown before it is filed rather than summarised in a
+                toast afterwards — but as a footnote, which is its weight. */}
+            <p className="gm-decide-filed">
+              <IconUsers />
+              <span>
+                Filed on {open.seller.handle}&rsquo;s record as{" "}
+                <b>
                   {decision === "approve"
                     ? "Listing approved"
                     : decision === "reject"
                       ? "Listing rejected"
-                      : "More information requested"}{" "}
-                  · {open.card}
-                </b>
-                {reason.trim() ? <> · &ldquo;{reason.trim()}&rdquo;</> : null} · {me?.name ?? "you"}
-              </p>
-            </Card>
+                      : "More information requested"}
+                </b>{" "}
+                by {me?.name ?? "you"}.
+              </span>
+            </p>
           </>
         ) : null}
       </Modal>

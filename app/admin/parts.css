@@ -2697,3 +2697,46 @@
   font-size: 11.5px;
   color: var(--ink-4);
 }
+
+
+/* ==========================================================================
+   Decision dialog — approve / reject / ask for more
+   ========================================================================== */
+
+/* The card under review is the SUBJECT of this window, so it sits at the top
+   without a border round it. It used to be a bordered Card, which made four
+   boxed panels in a 520px dialog and left the one field you actually have to
+   fill in competing for attention with a receipt. */
+.gm-decide-subject {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Where the decision lands. Shown before it is filed rather than summarised
+   in a toast afterwards, but at the weight of a footnote, which is what it
+   is — confirmation, not a second decision. */
+.gm-decide-filed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.gm-decide-filed svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  color: var(--ink-4);
+}
+
+.gm-decide-filed b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
