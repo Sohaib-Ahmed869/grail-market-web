@@ -1909,72 +1909,140 @@
    button, because console accounts are made by an owner, not claimed.
    ========================================================================== */
 
+/* The console sign-in.
+   Two halves: the brand on the left, the work on the right. A lone card
+   floating on a gradient is the shape every admin template ships with — this
+   one carries the actual mark, the actual wordmark, and says what the console
+   is for before asking who you are. Collapses to one column under 860px, where
+   the brand panel becomes a header strip rather than disappearing. */
 .gm-login {
-  position: relative;
   min-height: 100vh;
   display: grid;
-  place-items: center;
-  padding: 32px 20px;
-  /* Navy, with the gold bloom the console uses for its own ground — kept
-     stronger here than on the console because this screen has nothing else
-     on it to read against. */
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  background: var(--paper);
+}
+
+.gm-login-aside {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  padding: 64px clamp(36px, 6vw, 88px);
+  overflow: hidden;
+  /* Navy with a gold bloom off the top-right — the console's own ground,
+     stronger here because nothing else is on this side to read against. */
   background:
-    radial-gradient(760px 480px at 76% -4%, rgba(212, 185, 137, 0.62), transparent 58%),
-    radial-gradient(620px 480px at 6% 104%, rgba(168, 141, 96, 0.22), transparent 62%),
-    radial-gradient(700px 520px at 50% 50%, rgba(56, 83, 111, 0.35), transparent 70%),
-    linear-gradient(158deg, #24344a 0%, #1a2632 52%, #121a24 100%);
+    radial-gradient(680px 460px at 88% -6%, rgba(212, 185, 137, 0.5), transparent 60%),
+    radial-gradient(560px 460px at -6% 106%, rgba(168, 141, 96, 0.2), transparent 64%),
+    linear-gradient(158deg, #24344a 0%, #1a2632 54%, #121a24 100%);
+}
+
+/* A single gold hairline down the seam, where the two halves meet. */
+.gm-login-aside::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(203, 183, 148, 0.55), transparent);
+}
+
+.gm-login-logo {
+  width: clamp(190px, 22vw, 260px);
+  height: auto;
+}
+
+.gm-login-tag {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 17px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.gm-login-rule {
+  width: 54px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+
+.gm-login-note {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* The form side. */
+.gm-login > form {
+  display: grid;
+  place-content: center;
+  padding: 48px clamp(24px, 5vw, 72px);
+}
+
+@media (max-width: 860px) {
+  .gm-login {
+    grid-template-columns: 1fr;
+  }
+  .gm-login-aside {
+    padding: 34px 24px 30px;
+    gap: 14px;
+  }
+  .gm-login-aside::after {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(203, 183, 148, 0.55), transparent);
+  }
+  /* The strapline is scene-setting, and on a phone the job is the form. */
+  .gm-login-tag,
+  .gm-login-note,
+  .gm-login-rule {
+    display: none;
+  }
+  .gm-login-logo {
+    width: 168px;
+  }
 }
 
 .gm-login-card {
   position: relative;
-  z-index: 1;
-  width: min(392px, 100%);
+  width: min(384px, 100%);
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 30px 30px 26px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: 0 24px 60px rgba(9, 14, 20, 0.42), 0 2px 6px rgba(9, 14, 20, 0.3);
 }
 
 /* A gold hairline along the top edge. The one place the brand colour touches
    the card, which is enough on a screen with a single control on it. */
-.gm-login-card::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: 18px;
-  right: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-}
+.gm-login-card::before { content: none; }
 
 .gm-login-brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-  margin-bottom: 2px;
+  gap: 12px;
+  margin-bottom: 6px;
 }
 
 .gm-login-mark {
   flex: none;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-sm);
-  background: var(--grad-navy);
-  color: var(--gold);
-  box-shadow: var(--sh-navy);
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
 
-.gm-login-mark svg {
-  width: 17px;
-  height: 17px;
-}
+/* The mark is navy and gold, which vanishes on the dark theme. Same pair and
+   the same swap as the rail, so there is one rule for this in the console. */
+.gm-login-brand .gm-mark-dark { display: none; }
+:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-light { display: none; }
+:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-dark { display: block; }
 
 .gm-login-brand b {
   display: block;

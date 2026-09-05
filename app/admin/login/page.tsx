@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { ApiError, sessionActive, signIn } from "../lib/api";
-import { IconEye, IconEyeOff, IconLock } from "../components/icons";
+import { IconEye, IconEyeOff } from "../components/icons";
 
 /**
  * The console's sign-in.
@@ -53,14 +53,36 @@ function LoginPage() {
 
   return (
     <div className="gm-login">
+      {/* The left half is the brand, the right half is the job. A single
+          centred card on a gradient is what every console looks like; this is
+          ours, and the mark is the actual mark rather than a padlock standing
+          in for one. */}
+      <aside className="gm-login-aside" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="gm-login-logo" src="/brand/logo-horizontal-white.svg" alt="" />
+        <p className="gm-login-tag">
+          The console behind the marketplace — members, listings, disputes and
+          the prices we stand behind.
+        </p>
+        <span className="gm-login-rule" />
+        <p className="gm-login-note">
+          Every action here is written to the audit log against your name.
+        </p>
+      </aside>
+
       <form className="gm-login-card" onSubmit={submit} noValidate>
         <div className="gm-login-brand">
-          <span className="gm-login-mark" aria-hidden="true">
-            <IconLock />
-          </span>
+          {/* Same swap the rail uses: the navy-and-gold mark reads on paper
+              and disappears on the dark theme, so the on-navy cut takes over
+              there. eslint-disable because these are static brand files, not
+              content Next should be optimising. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="gm-login-mark gm-mark-light" src="/brand/mark.svg" alt="" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="gm-login-mark gm-mark-dark" src="/brand/mark-onnavy.svg" alt="" />
           <div>
-            <b>Grail Market</b>
-            <span>Admin console</span>
+            <b>Admin console</b>
+            <span>Sign in to continue</span>
           </div>
         </div>
 
