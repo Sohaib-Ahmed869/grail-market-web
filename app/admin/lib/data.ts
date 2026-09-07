@@ -781,7 +781,15 @@ export type Listing = {
   askPrice: number;
   /** What the price engine quotes. 0 = too few comparable sales to say. */
   marketPrice: number;
+  /** Where that figure came from, which the checks below have to distinguish.
+   *  "comps" is our own confirmed sales; "listing" is the price engine's
+   *  quote, frozen when the seller listed; "none" is no figure at all. Saying
+   *  "withheld" about a "listing" figure describes the wrong one of the
+   *  three. */
+  marketSource?: "comps" | "listing" | "none";
   confidence: Confidence;
+  /** How many of OUR OWN confirmed sales back it. Zero is common and does not
+   *  mean there is no price — it means we have not witnessed one. */
   sampleSize: number;
   tier: VerificationTier;
   status: ListingStatus;
@@ -1270,9 +1278,18 @@ export function checksFor(l: Listing): ListingCheck[] {
       rule: "Price confidence above low",
       passed: l.confidence !== "low",
       label: "The quoted price cannot be confirmed",
-      detail: `${l.sampleSize} comparable sale${
-        l.sampleSize === 1 ? "" : "s"
-      } on record. A figure is withheld rather than guessed.`,
+      // What this counts is OUR OWN confirmed sales, and it used to say the
+      // figure was "withheld" while a figure sat on the screen above it. Both
+      // halves were true of different things: nothing is in our ledger, and
+      // the number came from the price engine, which is a separate source
+      // with its own sample. Saying "withheld" about a number that is plainly
+      // displayed reads as the console being broken.
+      detail:
+        l.sampleSize > 0
+          ? `${l.sampleSize} confirmed sale${l.sampleSize === 1 ? "" : "s"} of our own at this grader and grade.`
+          : l.marketSource === "listing"
+            ? "No confirmed sale of our own at this grader and grade. The figure shown is the price engine's, quoted when the card was listed — not a sale we have witnessed."
+            : "No confirmed sale of our own at this grader and grade, and no figure to check against.",
       tone: "warn",
       automatic: true,
     },

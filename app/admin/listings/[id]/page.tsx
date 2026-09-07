@@ -399,9 +399,11 @@ function ListingRecord() {
           <CardBody style={{ paddingTop: 8 }}>
             {priceComps.length === 0 ? (
               <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                No confirmed sale on record at this grader and grade. That is what the
-                low-confidence badge above is saying. The figure is withheld rather than guessed
-                from a neighbouring grade.
+                No confirmed sale of our own on record at this grader and grade — which is
+                what the low-confidence badge above is saying, and it is a statement about
+                OUR ledger rather than about the figure. Any market price shown came from the
+                price engine. What is never done is borrowing a neighbouring grade, or another
+                grading company&rsquo;s number, to fill the gap.
               </p>
             ) : (
               <div className="gm-feed">
