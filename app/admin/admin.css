@@ -66,10 +66,40 @@
   --idle-bg: #eef1f5;
 
   /* -- gradients ------------------------------------------------------
-     One. Navy, for the primary button and the few solid navy surfaces. The
-     gold gradient and the navy-to-gold text gradient are gone: a gradient
-     that means nothing is the first thing to cut from an operations tool. */
+     Two. Navy for the primary button and the few solid navy surfaces, and
+     gold for the charts on the reports page.
+
+     The navy-to-gold TEXT gradient stays gone — a gradient that means
+     nothing is the first thing to cut from an operations tool. These two
+     both mean something: they are the fill of a solid object, and a ramp
+     across a bar or an arc is what stops it reading as a flat block of
+     paint.
+
+     `--gold-lift` and `--gold-sink` are the two ends, named rather than
+     inlined because an SVG gradient needs its stops as separate colours and
+     a CSS one needs them in a `linear-gradient()`. The dark theme picks its
+     own pair rather than reusing the ramp: `--gold-300` is LIGHTER than
+     `--gold` in light and DARKER in dark, so anything built from the ramp
+     runs the opposite way in the two themes. */
   --grad-navy: linear-gradient(135deg, #2c4159 0%, #1a2632 62%, #131c26 100%);
+  --gold-lift: #c9b189;
+  --gold-sink: #8a7146;
+  --grad-gold: linear-gradient(160deg, var(--gold-lift) 0%, var(--gold) 54%, var(--gold-sink) 100%);
+
+  /* The plan band on the subscriptions page — blue, and the same on all three.
+
+     It was gold, which is this console's accent and therefore the loudest
+     thing it owns; three of them in a row made the plans compete with the
+     controls rather than with each other. Blue is the brand's other half —
+     the navy the sidebar and every primary button are cut from — and at this
+     strength it reads as paper with a tint rather than as a surface demanding
+     something.
+
+     Written out rather than mixed, and stated per theme. A `color-mix`
+     against `--surface` cannot do this job: the light theme needs MORE colour
+     to hold a hue at all, and the dark theme needs less or the band goes pale
+     under light ink and the price stops being readable. */
+  --band-plan: linear-gradient(140deg, #33485f 0%, #1f2c3b 58%, #16202b 100%);
 
   /* -- elevation ------------------------------------------------------
      Every surface sits on a shadow beneath it plus `--edge`, a one-pixel
@@ -168,6 +198,11 @@
   --idle-bg: #1e2833;
 
   --grad-navy: linear-gradient(135deg, #33485f 0%, #1e2b39 62%, #16202b 100%);
+  /* Lighter at the top in both themes: the light end is where the light is,
+     not where the ramp token happens to sit. */
+  --gold-lift: #d9c096;
+  --gold-sink: #9a8058;
+  --band-plan: linear-gradient(140deg, #2a3c50 0%, #1a2531 58%, #131b24 100%);
 
   /* shadow does almost no work on a dark ground — depth comes from the
      surface stepping lighter, so these stay shallow and the borders carry it */
@@ -313,6 +348,16 @@
   margin: 0;
   width: 100%;
   animation: gm-rise 0.34s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+}
+
+/* A record page ends with its action bar, and the bar is sticky — so once you
+   have scrolled to the bottom it stops being pinned and sits at its natural
+   place, which was 52px above the end of the page. That gap is the 60px of
+   breathing room above, and on every other page it is right: it keeps the
+   last card off the bottom edge. Under a bar that has already been holding
+   the bottom edge all the way down, it is just a hole. */
+.gm-content:has(.gm-actionbar) {
+  padding-bottom: 16px;
 }
 
 @keyframes gm-rise {
@@ -802,24 +847,40 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Room for the selected row's shadow inside the clip.
+
+     The collapse works by animating the wrapper's `grid-template-rows` from
+     0fr to 1fr, and that needs this element to be clippable — so `overflow:
+     hidden` cannot go. But the selected child is a raised pill carrying
+     `--sh-2`, a shadow with fourteen pixels of blur under it, and with the
+     content flush to the edges the clip cut straight through it. On the last
+     child in a group that read as the pill itself having its bottom sliced
+     off. The padding is the room the shadow needs; the margin below gives
+     back what it costs so the group is the same height as before. */
   padding-left: 22px;
-  /* the row is what collapses, so its content must be allowed to be clipped */
   min-height: 0;
   overflow: hidden;
 }
 
-/* The spacing lives on the open state, or a closed group would still reserve
-   twelve pixels under its heading. */
+/* The vertical padding lives on the OPEN state, and this is the second time
+   that has had to be said in this rule.
+
+   Collapsing works by animating the wrapper's grid row to `0fr`, which zeroes
+   the child's CONTENT height — padding is not content, so it survives the
+   collapse. Ten pixels of it left every closed group sitting further from its
+   neighbour than two plain rows sit from each other, which is visible the
+   moment Cases and People are shut beside Reports and Announcements. */
 .gm-nav-kidswrap.is-open .gm-nav-kids {
-  margin: 5px 0 7px;
+  padding: 3px 4px 7px 22px;
+  margin: 2px 0 1px;
 }
 
 .gm-nav-kids::before {
   content: "";
   position: absolute;
   left: 11px;
-  top: 3px;
-  bottom: 3px;
+  top: 6px;
+  bottom: 10px;
   width: 1.5px;
   border-radius: var(--r-xs);
   background: var(--line-2);
@@ -1277,10 +1338,155 @@
 
 .gm-page-head {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+/* The title, its line of explanation, and whatever the page does — one row,
+   wrapping, exactly as it always was. It is nested now only so a back link can
+   sit above it without becoming a third item in the same row. */
+.gm-page-head-main {
+  display: flex;
   align-items: flex-end;
   gap: 14px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+}
+
+/* ------------------------------------------------------------------ back
+
+   A record is a page now rather than a window over the list that opened it,
+   so the way out has to be visible before anything is scrolled. It reads as a
+   direction — arrow, then where it goes — not as a button, because it undoes
+   navigation rather than doing anything.
+   ------------------------------------------------------------------------ */
+
+.gm-backlink {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px 0 7px;
+  margin-left: -7px;
+  border-radius: var(--r-sm); /* matches the radius every button in the console uses */
+  font-size: 12.4px;
+  font-weight: 550;
+  color: var(--ink-3);
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.gm-backlink svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.15s ease;
+}
+
+/* Hover is the chip treatment the record pages already use — `.gm-scope`:
+   the tinted fill, the small radius, and the hairline-plus-highlight that
+   makes it a raised object. It was a bare tint with no edge to it, which on a
+   page full of chips read as the one control that had been left unfinished. */
+.gm-backlink:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+  box-shadow: var(--sh-1), var(--edge);
+}
+
+.gm-backlink:hover svg {
+  transform: translateX(-2px);
+}
+
+.gm-backlink:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   ACTION BAR — what the dialog footer became
+
+   The actions on a record used to sit in a dialog footer: pinned, always in
+   view, wrapping when there were four of them. A record is a page now, so the
+   same row sits at the foot of the page and sticks to the bottom of the
+   viewport while there is still record underneath it.
+
+   It wraps rather than scrolls. The last button in the row is usually the most
+   consequential one — Reject, Revoke, Withdraw — and a row that runs off the
+   edge hides precisely that.
+   ========================================================================== */
+
+.gm-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  margin: 4px -4px -8px;
+  padding: 10px 4px 12px;
+  /* The page scrolls under it, so it needs something to sit on. A fade rather
+     than a hard edge: a solid bar reads as a second page footer. */
+  background: linear-gradient(
+    to top,
+    var(--paper) 0%,
+    var(--paper) 62%,
+    transparent 100%
+  );
+}
+
+.gm-actionbar-inner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-actionbar-note {
+  margin-left: auto;
+  font-size: 11.8px;
+  color: var(--ink-4);
+}
+
+/* Below this a row of three or four buttons cannot sit on one line, and the
+   half-wrapped result puts one button on its own under the others looking like
+   it belongs to something else. They all go full width instead, in the order
+   they are written — the primary action first. */
+@media (max-width: 560px) {
+  /* And it stops sticking. Five buttons in a column is most of a phone
+     screen, so pinning them over the record turns an aid into a lid — you
+     scroll the page and see the same five buttons the whole way down with a
+     sliver of record behind them. It sits at the end of the page instead,
+     which is where the actions on a record belong when there is no room to
+     keep them in view. */
+  .gm-actionbar {
+    position: static;
+    background: none;
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .gm-actionbar-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gm-actionbar-inner > .gm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .gm-actionbar-inner > .gm-spacer {
+    margin-left: 0;
+  }
+
+  .gm-actionbar-note {
+    margin-left: 0;
+    text-align: center;
+  }
 }
 
 .gm-page-head h2 {
@@ -1512,10 +1718,25 @@
    TABLE
    ========================================================================== */
 
+/* The container stays white because the card it sits in is already the
+   raised white surface. The rows carry the tint instead, so a row reads as
+   an entry ON the card rather than the card reading as a tinted panel with
+   white rows floating in it. */
 .gm-tablewrap {
   width: 100%;
   overflow-x: auto;
   scrollbar-width: thin;
+  padding: 4px 12px 12px;
+  border-radius: var(--r-md);
+  background: none;
+}
+
+/* A table already inside a raised, flush surface — the dashboard's queue
+   extract sits in a `.gm-well--flush` — is inset by that surface's own edge,
+   so it gives back the padding it would otherwise double up on. */
+.gm-well--flush > .gm-tablewrap,
+.gm-tablewrap--plain {
+  padding: 0 12px 4px;
 }
 
 .gm-table {
@@ -1551,18 +1772,42 @@
   border: 1px solid var(--line);
 }
 
+/* ------------------------------------------------------- rows as rows
+
+   A table used to be a grid: a tinted sticky header, a hairline under every
+   row, and the whole thing flush inside its card. It read as a spreadsheet
+   pasted into a console that is otherwise made of raised, rounded boxes with
+   space between them — the one surface in the whole design system that was
+   drawn to a different rule.
+
+   So each row IS one of those boxes now. `border-spacing` puts real air
+   between them, and the border, the radius, the shadow and the top highlight
+   are the same four tokens every card on every page uses — which is what the
+   consistency is: not that the table looks like the reference, but that a row
+   looks like a card because it is one.
+
+   The mechanics: `border-collapse: separate` is what allows the spacing, and
+   a `<tr>` cannot take a border or a radius in any browser — so the border
+   lives on the cells (top and bottom on all of them, left on the first, right
+   on the last) and the corners are rounded on the first and last cell only. */
+.gm-table {
+  border-spacing: 0 6px;
+  border-collapse: separate;
+}
+
 .gm-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
   text-align: left;
-  padding: 10px 14px;
-  font-size: 11.8px;
-  font-weight: 650;
-  letter-spacing: 0.005em;
-  color: var(--ink-3);
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--line-2);
+  /* The header is a set of labels above the rows, not a band across them: no
+     fill, no rule underneath. The gap the rows sit in does that job. */
+  padding: 2px 16px 6px;
+  font-size: 11.4px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-4);
+  background: none;
   white-space: nowrap;
 }
 
@@ -1574,22 +1819,46 @@
 }
 
 .gm-table tbody td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
+  /* A row is one line of text plus a thumbnail. 13px of padding above and
+     below it made each row about a fifth of the screen on a laptop, so a
+     queue of ten rows could not be seen at once — which is the whole reason
+     a queue is a table. */
+  padding: 8px 14px;
   vertical-align: middle;
   color: var(--ink-2);
-}
-
-.gm-table tbody tr {
-  transition: background 0.16s ease, box-shadow 0.2s ease;
-}
-
-.gm-table tbody tr:hover {
   background: var(--surface-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transition: background 0.16s ease, border-color 0.16s ease;
 }
 
-.gm-table tbody tr:last-child td {
-  border-bottom: none;
+/* The one-pixel highlight along the top of every raised surface in this
+   console. It has to go on the cells rather than the row, because a `<tr>`
+   takes neither a border nor a radius. */
+.gm-table tbody td {
+  box-shadow: var(--edge);
+}
+
+.gm-table tbody td:first-child {
+  border-left: 1px solid var(--line);
+  border-top-left-radius: var(--r-md);
+  border-bottom-left-radius: var(--r-md);
+}
+
+.gm-table tbody td:last-child {
+  border-right: 1px solid var(--line);
+  border-top-right-radius: var(--r-md);
+  border-bottom-right-radius: var(--r-md);
+}
+
+/* The same lift every other card-shaped surface gets — see the note on
+   `.gm-card--lift`. It cannot be a `transform` here: moving a `<tr>` shifts
+   it out of the table's own layout and the columns stop lining up with the
+   header. The hover deepens the tint one step, reading as "more present" in
+   both light and dark themes. */
+.gm-table tbody tr:hover td {
+  background: var(--surface-3);
+  border-color: var(--line-2);
 }
 
 .gm-table .gm-num {
@@ -1698,6 +1967,56 @@
   .gm-table--tight .gm-rowact .gm-btn--sm span {
     display: none;
   }
+}
+
+/* ------------------------------------------------------- the row menu
+
+   One control per row, the same size on every row. A circle rather than a
+   rectangle: it holds three dots and no words, and at 30px square a rounded
+   rectangle reads as a button that has lost its label. It carries the same
+   border, fill and edge as everything else raised, so it belongs to the row
+   it sits in rather than floating over it.
+
+   The dashboard only. The queues elsewhere have one or two actions a row and
+   name them; this table is an extract sitting beside a rail, where the two
+   decisions cost more width than there is. */
+.gm-rowmenu-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-4);
+  cursor: pointer;
+  box-shadow: var(--sh-1), var(--edge);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.gm-rowmenu-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gm-rowmenu-btn:hover,
+.gm-rowmenu-btn.is-open {
+  color: var(--ink);
+  border-color: var(--line-2);
+  background: var(--surface-2);
+}
+
+.gm-rowmenu-btn:focus-visible {
+  outline: none;
+  border-color: var(--focus-line);
+  box-shadow: var(--sh-1), var(--focus-ring);
+}
+
+/* Narrower than the filter panel: these are three short actions, not seven
+   groups of options. */
+.gm-rowmenu {
+  min-width: 226px;
 }
 
 /* The row's own controls, at the end of it.
@@ -2489,9 +2808,14 @@
   }
 }
 
-/* One window, two widths. `--wide` carries a whole record — a member, a case,
-   a listing with its photo set — and the narrow default carries one decision
-   and the reason it needs typed. Both are centred; neither is a drawer. */
+/* One window, one width. The wide variant that carried a whole record is gone
+   — records are routes now — so what is left is a decision and the reason it
+   needs typed, which never wanted 940px.
+
+   `dvh` rather than `vh`: on a phone `100vh` is the height of the viewport
+   with the browser chrome hidden, which it is not while you are typing into a
+   dialog. The dialog was taller than the screen and its footer — the buttons —
+   was underneath the address bar. */
 .gm-dialog {
   position: fixed;
   z-index: 91;
@@ -2499,7 +2823,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 32px));
-  max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
   display: flex;
   flex-direction: column;
   border-radius: var(--r-md);
@@ -2508,13 +2832,6 @@
   box-shadow: var(--sh-4);
   animation: gm-pop 0.24s cubic-bezier(0.22, 0.9, 0.34, 1) both;
   overflow: hidden;
-}
-
-/* Wide enough for two columns of record without becoming a page of its own.
-   The viewport clamp keeps it off the edges on a laptop screen. */
-.gm-dialog--wide {
-  width: min(940px, calc(100vw - 48px));
-  max-height: calc(100vh - 56px);
 }
 
 @keyframes gm-pop {
@@ -2574,12 +2891,22 @@
 /* On a small screen there is no room to be a window, so it becomes the sheet
    it always should have been on a phone: full width, pinned to the bottom. */
 @media (max-width: 760px) {
-  .gm-dialog,
-  .gm-dialog--wide {
+  .gm-dialog {
+    /* `left: 0`, not the inherited `left: 50%`.
+
+       This rule turns the centred window into a bottom sheet, and it did that
+       by dropping the transform — but `left: 50%` above is half of the
+       centring, and the `translate(-50%, …)` that cancelled it went with the
+       transform. So the sheet's LEFT edge sat at the middle of the screen and
+       the other 100vw of it ran off the right: on a phone the buttons in the
+       footer were simply not on the page. Which is the bug that started all
+       this. */
     top: auto;
+    right: 0;
     bottom: 0;
-    width: 100vw;
-    max-height: calc(92vh / var(--gm-zoom));
+    left: 0;
+    width: auto;
+    max-height: 90dvh;
     transform: none;
     border-radius: var(--r-md) var(--r-md) 0 0;
     border-bottom: 0;
@@ -2595,6 +2922,28 @@
       opacity: 1;
       transform: none;
     }
+  }
+}
+
+/* Below this the footer cannot hold two buttons and a line of small print on
+   one row. Half-wrapped it put one button on its own underneath, reading as
+   though it belonged to something else, and the "why the button is off" note
+   — which is pushed right by `gm-spacer` — ended up above the button it was
+   explaining. Everything goes full width and stays in source order, so the
+   primary action is first and the note is last. */
+@media (max-width: 480px) {
+  .gm-dialog-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gm-dialog-foot > .gm-btn {
+    width: 100%;
+  }
+
+  .gm-dialog-foot > .gm-spacer {
+    margin-left: 0;
+    text-align: center;
   }
 }
 
@@ -3096,29 +3445,15 @@
       Folding at 1360 keeps the expanded band above 1030px of content.
    ========================================================================== */
 
-/* `--gm-zoom` mirrors the zoom above so anything sized in VIEWPORT units can
-   divide it back out.
-   
-   `vh` resolves against the true viewport in CSS pixels and is THEN scaled by
-   the zoom, so `max-height: calc(100vh - 96px)` on a dialog renders at 125% of
-   the screen on a 1900px monitor — the window filled the viewport edge to edge
-   and its footer looked clipped, on the exact screens this console is built
-   for. Percentages and pixels are unaffected; only viewport units need this. */
-:root {
-  --gm-zoom: 1;
-}
-
 @media (min-width: 1600px) {
   :root {
     zoom: 1.1;
-    --gm-zoom: 1.1;
   }
 }
 
 @media (min-width: 1900px) {
   :root {
     zoom: 1.25;
-    --gm-zoom: 1.25;
   }
 }
 
@@ -3155,68 +3490,4 @@
   .gm-top {
     margin-left: 12px;
   }
-}
-
-
-/* ==========================================================================
-   Nesting — boxes inside boxes
-   --------------------------------------------------------------------------
-   .gm-card carries a border, a radius AND a shadow, which is right when it is
-   sitting on the page and wrong the moment it is inside something that also
-   has all three. A record modal held five of them stacked, so the window, the
-   sections and the rows inside the sections were all drawn as raised objects
-   and nothing on screen outranked anything else.
-
-   Depth is a comparison, not a property. These rules take it away where there
-   is nothing left to compare against, and they live here rather than on each
-   page so the whole console behaves the same way.
-   ========================================================================== */
-
-/* Sections stacked in a dialog are SECTIONS, not cards. Hairline between,
-   no border around, no shadow under — the window is the box already. */
-.gm-dialog-body > .gm-card {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-  padding-left: 0;
-  padding-right: 0;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
-
-.gm-dialog-body > .gm-card:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-/* Its head loses the rule too: a heading with a line under it, inside a
-   section that already has a line above it, is two lines doing one job. */
-.gm-dialog-body > .gm-card > .gm-card-head {
-  padding: 0 0 12px;
-  border-bottom: 0;
-}
-
-.gm-dialog-body > .gm-card > .gm-card--pad,
-.gm-dialog-body > .gm-card.gm-card--pad {
-  padding: 18px 0 0;
-}
-
-.gm-dialog-body > .gm-card:first-child.gm-card--pad {
-  padding-top: 0;
-}
-
-/* A card inside a card anywhere else: keep the outline so the grouping still
-   reads, drop the shadow so it stops pretending to float above its parent. */
-.gm-card .gm-card {
-  box-shadow: none;
-  background: var(--surface-2);
-}
-
-/* The dialog itself gets room to breathe. It was within 26px of the viewport
-   floor on a laptop, so the footer read as clipped even when it was not. */
-/* Both windows, corrected for the root zoom. */
-.gm-dialog,
-.gm-dialog--wide {
-  max-height: calc((100vh - 96px) / var(--gm-zoom));
 }

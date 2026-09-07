@@ -671,6 +671,22 @@ export type Dashboard = {
   /** Twelve weeks, GMV in thousands against verifications cleared. */
   gmv: { label: string; gmv: number; verified: number }[];
   queueMix: { label: string; value: number; color: string }[];
+  /**
+   * The last few things anybody did in the console, newest first.
+   *
+   * It rides in this read rather than a second one for the reason the store's
+   * own header gives: the page shows a single moment, and every extra round
+   * trip is another chance for two panels to be describing different ones.
+   */
+  recent: AuditEntry[];
+  /** The support desk at a glance — the one queue with a clock on it. */
+  support: {
+    fresh: number;
+    waiting: number;
+    live: number;
+    breaching: number;
+    oldest: { id: string; subject: string; slaHours: number } | null;
+  };
 };
 
 export const fetchDashboard = () => call<Dashboard>("dashboard");
@@ -844,6 +860,35 @@ export type ReportsPayload = {
     medianLabel: string;
     breached: number;
     decided: number;
+  };
+  /**
+   * The owner's questions, as opposed to the moderator's.
+   *
+   * Everything above this line is about working the queue — what was decided,
+   * how fast, and what it cost in conflicts. That is the right page for a
+   * moderator and the wrong one for whoever owns the business, whose four
+   * questions are what am I earning, how many people are paying, how many
+   * accounts are real, and how much is going wrong.
+   *
+   * Two of these are deliberately NOT period-scoped, and say so on screen:
+   * recurring revenue and the subscriber count are what is true right now,
+   * because "MRR over the last 7 days" is not a thing. Everything else moves
+   * with the period control.
+   */
+  owner: {
+    mrr: number;
+    subscribers: number;
+    plans: { name: string; price: number; subscribers: number; mrr: number }[];
+    collected: number;
+    failed: number;
+    failedAccounts: number;
+    newSubscribers: number;
+    members: number;
+    newMembers: number;
+    verified: number;
+    newVerified: number;
+    casesOpened: number;
+    casesResolved: number;
   };
   reports: ReportSeries[];
 };

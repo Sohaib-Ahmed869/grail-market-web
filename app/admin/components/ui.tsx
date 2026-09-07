@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 /**
  * Renders overlays at the end of <body> instead of wherever the page happens
@@ -81,37 +81,12 @@ export function OverlayPortal({ children }: { children: ReactNode }) {
 }
 
 /**
- * How deep an overlay is stacked, so the one on top actually looks like it.
+ * Holds the page still while an overlay is open.
  *
- * Every dialog shared one pair of z-indexes — scrim 90, window 91 — so when a
- * Modal opened on a RecordModal the inner scrim landed BENEATH the outer
- * window. The record behind stayed at full brightness with its own action bar
- * lit, and the screen showed two sets of buttons with no way to tell which one
- * was live. Reference-counted the same way the scroll lock already is, and for
- * the same reason: this nesting is normal, not an edge case.
- */
-let overlayDepth = 0;
-
-function useOverlayDepth(active: boolean): number {
-  const [depth, setDepth] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    overlayDepth += 1;
-    setDepth(overlayDepth);
-    return () => {
-      overlayDepth -= 1;
-    };
-  }, [active]);
-  return depth;
-}
-
-/** Base of the overlay band. Each nested level takes the next two slots so a
- *  child's scrim always outranks its parent's window. */
-const OVERLAY_Z = 90;
-
-/**
- * Holds the page still while an overlay is open. Reference-counted, because
- * a Modal can open on top of a Drawer and the inner one closing must not
+ * Still reference-counted, though nothing stacks overlays any more — records
+ * became routes precisely so that a Modal never opens on top of another one.
+ * The count stays because it is what makes that guarantee cheap to keep: if a
+ * second overlay ever does appear over a first, closing the inner one will not
  * unlock the page underneath the outer one.
  */
 let scrollLocks = 0;
@@ -146,6 +121,7 @@ function useScrollLock(active: boolean) {
 import {
   IconAlert,
   IconArrowDown,
+  IconArrowLeft,
   IconArrowRight,
   IconArrowUp,
   IconCheck,
@@ -155,6 +131,7 @@ import {
   IconFlag,
   IconGrid,
   IconInfo,
+  IconMore,
   IconRows,
   IconStar,
   IconX,
@@ -223,22 +200,71 @@ export function PageHead({
   title,
   sub,
   right,
+  back,
 }: {
-  title: string;
-  sub?: string;
+  title: ReactNode;
+  sub?: ReactNode;
   right?: ReactNode;
+  /** Where the arrow at the top left goes, and what it is called.
+   *
+   *  A record used to be a window over the list that opened it, so leaving it
+   *  meant closing the window. It is a page of its own now, and a page needs a
+   *  way back that is visible before you scroll — hence the arrow beside the
+   *  title rather than a link buried at the foot. */
+  back?: { href: string; label: string };
 }) {
   return (
-    <div className="gm-page-head">
-      <div style={{ minWidth: 0 }}>
-        <h2>{title}</h2>
-        {sub ? <p>{sub}</p> : null}
-      </div>
-      {right ? (
-        <div className="gm-spacer gm-row" style={{ gap: 8 }}>
-          {right}
-        </div>
+    <div className={`gm-page-head${back ? " gm-page-head--back" : ""}`}>
+      {back ? (
+        <Link className="gm-backlink" href={back.href} aria-label={`Back to ${back.label}`}>
+          <IconArrowLeft />
+          <span>{back.label}</span>
+        </Link>
       ) : null}
+      <div className="gm-page-head-main">
+        <div style={{ minWidth: 0 }}>
+          <h2>{title}</h2>
+          {sub ? <p>{sub}</p> : null}
+        </div>
+        {right ? (
+          <div className="gm-spacer gm-row" style={{ gap: 8 }}>
+            {right}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   Action bar — what the dialog footer became
+
+   A record used to be a dialog, and its actions sat in the dialog's footer:
+   pinned to the bottom of the window, always in view, wrapping when there were
+   four of them. A record is a page now, so the same row lives at the foot of
+   the page and sticks to the bottom of the viewport while there is still
+   record above it.
+
+   It wraps rather than scrolls, for the reason the dialog footer wrapped: the
+   last action in the row is usually the most consequential one, and a row that
+   runs off the edge hides exactly that.
+   ========================================================================== */
+
+export function ActionBar({
+  children,
+  note,
+}: {
+  children: ReactNode;
+  /** Why a button is off, or where the action lands. Sits to the right on a
+   *  wide screen and under the buttons on a narrow one. */
+  note?: ReactNode;
+}) {
+  return (
+    <div className="gm-actionbar">
+      <div className="gm-actionbar-inner">
+        {children}
+        {note ? <span className="gm-actionbar-note">{note}</span> : null}
+      </div>
     </div>
   );
 }
@@ -359,10 +385,25 @@ export function Slab({
 }) {
   const raw = grader === "Raw" || !grade || grade === "None";
 
+  /* A failed fetch is tracked separately from `art` itself: `gm-slab--art`
+     exists only to switch OFF the drawn stand-in beneath the photo, and the
+     drawn slab is a deliberate fallback — a real photo on top of it is the
+     goal, but a broken-image icon on top of it is worse than the stand-in
+     alone, since it looks like a rendering bug rather than a missing photo.
+     So the class only turns off once the image is confirmed to work, and
+     turns back on the moment it fails. */
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [art]);
+
+  const showArt = !!art && !broken;
+
   return (
     <span
       className={`gm-slab gm-slab--${size}${raw ? " gm-slab--raw" : ""}${
-        art ? " gm-slab--art" : ""
+        showArt ? " gm-slab--art" : ""
       }`}
       aria-hidden="true"
     >
@@ -376,12 +417,13 @@ export function Slab({
       )}
       <span className="gm-slab-window">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {art ? (
+        {showArt ? (
           <img
             className="gm-slab-art"
-            src={/^(https?:)?\/\//.test(art) || art.startsWith("/") ? art : `/cards/${art}.png`}
+            src={/^(https?:)?\/\//.test(art!) || art!.startsWith("/") ? art : `/cards/${art}.png`}
             alt=""
             loading="lazy"
+            onError={() => setBroken(true)}
           />
         ) : null}
       </span>
@@ -663,28 +705,29 @@ export function Loading({ label, small }: { label?: string; small?: boolean }) {
 }
 
 /* ==========================================================================
-   Dialog — the detail surface behind every row
+   Modal — one decision, and whatever it needs typed first
 
-   This was a right-hand drawer. A drawer is the wrong shape for what these
-   actually hold: a member record, a case with both sides of it, a listing
-   with its photo set and its checks. All of that is wide, and a 560px column
-   sliding in from the edge made every one of them a long scroll while two
-   thirds of the screen sat behind a scrim doing nothing.
+   This was a right-hand drawer, then a centred dialog in two widths: a narrow
+   one for a decision and a wide one carrying a whole record.
 
-   So there is one dialog, centred, in two widths. `Modal` is the narrow one
-   for a decision that needs a reason typed. `RecordModal` is the wide one for
-   a whole record. Everything else about them — the scrim, Escape, the scroll
-   lock, the header, the footer — is the same, because it always was.
+   The wide one is gone. A record — a member, a case, a listing with its photo
+   set — is a route now, because the actions on it each opened a *second*
+   dialog on top of the first, and two overlays deep there is no back, no
+   address for what you are looking at, and on a laptop the inner footer sat
+   below the bottom of the outer one.
+
+   What is left is the narrow one, and it is used for exactly what it was
+   always right for: a decision that must not be dismissed by looking away,
+   with the reason it is recorded under typed into it.
    ========================================================================== */
 
-function Dialog({
+export function Modal({
   open,
   onClose,
   title,
   sub,
   children,
   footer,
-  wide,
 }: {
   open: boolean;
   onClose: () => void;
@@ -692,13 +735,10 @@ function Dialog({
   sub?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  wide?: boolean;
 }) {
   const body = useRef<HTMLDivElement>(null);
 
   useScrollLock(open);
-
-  const depth = useOverlayDepth(open);
 
   useEffect(() => {
     if (!open) return;
@@ -717,15 +757,11 @@ function Dialog({
 
   if (!open) return null;
 
-  const layer = Math.max(1, depth);
-  const zScrim = OVERLAY_Z + (layer - 1) * 2;
-
   return (
     <OverlayPortal>
-      <div className="gm-scrim" style={{ zIndex: zScrim }} onClick={onClose} />
+      <div className="gm-scrim" onClick={onClose} />
       <div
-        style={{ zIndex: zScrim + 1 }}
-        className={`gm-dialog${wide ? " gm-dialog--wide" : ""}`}
+        className="gm-dialog"
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Details"}
@@ -751,25 +787,6 @@ function Dialog({
       </div>
     </OverlayPortal>
   );
-}
-
-type DialogProps = {
-  open: boolean;
-  onClose: () => void;
-  title: ReactNode;
-  sub?: ReactNode;
-  children: ReactNode;
-  footer?: ReactNode;
-};
-
-/** The wide window: a whole record, opened from a row. */
-export function RecordModal(props: DialogProps) {
-  return <Dialog {...props} wide />;
-}
-
-/** The narrow window: one decision, and the reason it needs typed first. */
-export function Modal(props: DialogProps) {
-  return <Dialog {...props} />;
 }
 
 /* ==========================================================================
@@ -1845,6 +1862,7 @@ export function Gauge({
   label,
   caption,
   color = "var(--gold)",
+  gradient,
   size = 150,
   thickness = 14,
 }: {
@@ -1853,6 +1871,8 @@ export function Gauge({
   label: string;
   caption?: string;
   color?: string;
+  /** Stroke the arc with a gradient rather than a flat colour. */
+  gradient?: { from: string; to: string };
   size?: number;
   thickness?: number;
 }) {
@@ -1860,6 +1880,19 @@ export function Gauge({
   const r = px((size - thickness) / 2 - 1);
   const c = px(2 * Math.PI * r);
   const drawn = px(pct * c);
+
+  /*
+   * useId is called unconditionally (hooks can't be conditional) but only
+   * used when a gradient is supplied. A page can show several gauges at
+   * once, and every one needs its own <linearGradient> id — a fixed id
+   * would let the second dial silently steal the first's ramp. useId also
+   * matches on the server and client render, which a random or time-based
+   * id would not, so it avoids a hydration mismatch on this
+   * server-rendered app. The colons useId returns are valid in an id
+   * attribute and fine inside this url(#...) reference, but we strip them
+   * so the id stays readable in devtools.
+   */
+  const gradientId = useId().replace(/:/g, "");
 
   return (
     <div className="gm-gauge" style={{ width: size, height: size }}>
@@ -1870,13 +1903,24 @@ export function Gauge({
         role="img"
         aria-label={`${label}: ${Math.round(pct * 100)}%`}
       >
+        {gradient ? (
+          <defs>
+            {/* Diagonal (0,0 -> 100%,100%) rather than left-to-right, so the
+                arc's tone shifts as it sweeps round the dial instead of
+                reading as one flat colour with a visible seam. */}
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradient.from} />
+              <stop offset="100%" stopColor={gradient.to} />
+            </linearGradient>
+          </defs>
+        ) : null}
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-3)" strokeWidth={thickness} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={color}
+          stroke={gradient ? `url(#${gradientId})` : color}
           strokeWidth={thickness}
           strokeLinecap="round"
           strokeDasharray={`${drawn} ${px(c - drawn)}`}
@@ -2176,11 +2220,33 @@ export function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
+/**
+ * How much the market figure is worth trusting, in words.
+ *
+ * It used to read `low · n=0`, which is two pieces of jargon in a chip half an
+ * inch wide: a bare adjective with no noun, and a statistician's letter for
+ * something the console never calls `n` anywhere else. A moderator deciding
+ * whether an ask is fair has to know what is weak about the figure, and "low"
+ * on its own does not say — the answer is always the sample, so the sample is
+ * what it says now.
+ *
+ * Zero is its own sentence rather than "0 sales": there is no figure at all in
+ * that case, and the card above already explains that it is withheld rather
+ * than guessed.
+ */
 export function ConfidenceBadge({ level, sample }: { level: string; sample: number }) {
   const map: Record<string, BadgeTone> = { high: "ok", medium: "warn", low: "bad" };
+  const from =
+    sample === 0
+      ? "no comparable sales"
+      : `${sample} comparable sale${sample === 1 ? "" : "s"}`;
   return (
     <Badge tone={map[level] ?? "idle"}>
-      {level} · n={sample}
+      {level === "high" ? "Confident" : level === "medium" ? "Fair confidence" : "Low confidence"}
+      <span className="gm-conf-sep" aria-hidden>
+        ·
+      </span>
+      <span className="gm-conf-from">{from}</span>
     </Badge>
   );
 }
@@ -2447,6 +2513,174 @@ export function FilterMenu({
  * these options and no others. The selected one is filled and carries the
  * same corner radius as every button in the console.
  */
+/* ==========================================================================
+   Row menu — the actions on a row, behind one control
+
+   The dashboard only, and that is the whole of the argument for it.
+
+   The queues have a page each: a table across the full width, one or two
+   actions a row, and room to name them. This table is an extract in a column
+   beside the standings rail with about 825px to work in, and "Approve" and
+   "Reject" as buttons were the two things that pushed it past that — the row
+   grew a sideways scrollbar in the middle of a dashboard, which is the one
+   place that should never ask you to scroll to read a number.
+
+   So here, and nowhere else, the actions go behind one 30px control. It also
+   gains the third thing that would not fit as a button at all: a way into the
+   record, which is what you want on any row you are not sure about.
+   ========================================================================== */
+
+export type RowAction = {
+  key: string;
+  label: string;
+  icon?: ReactNode;
+  /** A navigation. Rendered as a link, so it opens in a new tab on
+   *  middle-click like any other link in the console. */
+  href?: string;
+  onClick?: () => void;
+  tone?: "danger";
+};
+
+export function RowMenu({ actions, label = "Actions" }: { actions: RowAction[]; label?: string }) {
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [box, setBox] = useState<{ left: number; top: number | null; bottom: number | null } | null>(
+    null,
+  );
+
+  /**
+   * Where it opens.
+   *
+   * Right-aligned to the button and pulled inside the viewport, because this
+   * control lives in the last column of a table. It flips above when there is
+   * not room below — which is most of the time, since the rows that need it
+   * most are the ones at the bottom of the list.
+   */
+  const place = useCallback(() => {
+    const el = btn.current;
+    if (!el) return;
+    /* Local pixels. The root is zoomed above 1600px, and a rect fed straight
+       back into a fixed coordinate is multiplied by that zoom a second time. */
+    const r = localRect(el);
+    const vp = localViewport();
+    const w = 226;
+    const gap = 6;
+    const need = actions.length * 36 + 16;
+    const below = vp.h - r.bottom - gap - 12;
+    const flip = below < need && r.top - gap - 12 > below;
+
+    setBox({
+      left: Math.max(8, Math.min(r.right - w, vp.w - w - 10)),
+      top: flip ? null : r.bottom + gap,
+      bottom: flip ? vp.h - r.top + gap : null,
+    });
+  }, [actions.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (!btn.current?.contains(t) && !panel.current?.contains(t)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        btn.current?.focus();
+      }
+    }
+    /* Follow the button rather than closing on a scroll, and give up only once
+       the row it belongs to has left the screen. Same reasoning as FilterMenu:
+       a menu that shuts the moment the table moves is a menu you cannot use
+       while reading the table. */
+    function onScroll(e: Event) {
+      const t = e.target as Node | null;
+      if (t && panel.current?.contains(t)) return;
+      const r = btn.current ? localRect(btn.current) : null;
+      if (!r || r.bottom < 0 || r.top > localViewport().h) {
+        setOpen(false);
+        return;
+      }
+      place();
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
+
+  if (actions.length === 0) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={btn}
+        className={`gm-rowmenu-btn${open ? " is-open" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+      >
+        <IconMore />
+      </button>
+
+      {open && box ? (
+        <OverlayPortal>
+          <div
+            ref={panel}
+            className="gm-menu gm-rowmenu"
+            role="menu"
+            aria-label={label}
+            style={{
+              position: "fixed",
+              left: box.left,
+              ...(box.top === null ? { bottom: box.bottom ?? 0 } : { top: box.top }),
+            }}
+          >
+            {actions.map((a) =>
+              a.href ? (
+                <Link
+                  key={a.key}
+                  role="menuitem"
+                  className={`gm-menu-item${a.tone === "danger" ? " gm-menu-item--danger" : ""}`}
+                  href={a.href}
+                  onClick={() => setOpen(false)}
+                >
+                  {a.icon}
+                  {a.label}
+                </Link>
+              ) : (
+                <button
+                  key={a.key}
+                  type="button"
+                  role="menuitem"
+                  className={`gm-menu-item${a.tone === "danger" ? " gm-menu-item--danger" : ""}`}
+                  onClick={() => {
+                    setOpen(false);
+                    a.onClick?.();
+                  }}
+                >
+                  {a.icon}
+                  {a.label}
+                </button>
+              ),
+            )}
+          </div>
+        </OverlayPortal>
+      ) : null}
+    </>
+  );
+}
+
 export function SectionTabs<T extends string>({
   value,
   onChange,
@@ -2495,17 +2729,6 @@ export function MetaBox({
         {value}
       </div>
     </div>
-  );
-}
-
-/** Severity as an outlined pill — "High 8/10", the way the reference reads. */
-export function Severity({ level, score }: { level: "high" | "med" | "low"; score: number }) {
-  const word = level === "high" ? "High" : level === "med" ? "Medium" : "Low";
-  return (
-    <span className={`gm-sev gm-sev--${level}`}>
-      <IconFlag />
-      {word} {score}/10
-    </span>
   );
 }
 
@@ -2559,31 +2782,78 @@ export function Rating({ value }: { value: number }) {
   );
 }
 
-/** A confirmation that something was resolved, mirroring the reference. */
+/**
+ * What just happened, said once and then gone.
+ *
+ * Three things were wrong with the shape this replaces. The tick sat in a
+ * 30px ring vertically centred against a two-line message, so on anything
+ * longer than a few words it floated between the two lines rather than
+ * sitting with the heading it belongs to; the ring was outlined in `--ok`
+ * whatever the toast said, so a failure was announced with a green tick; and
+ * the body copy was styled through a bare `span` selector that also caught
+ * the wrapper, which is why the heading needed a `<b>` to claw its own size
+ * back.
+ *
+ * So: the mark is tinted by tone and aligned to the first line, the text is
+ * its own block, there is a way to dismiss it before the timer, and a hairline
+ * under it runs down as the timer does — a toast that vanishes with no warning
+ * reads as a glitch.
+ */
 export function Toast({
   title,
   body,
+  tone = "ok",
   onDone,
 }: {
   title: string;
   body: string;
+  /** `bad` for something that did not happen. The default says it did. */
+  tone?: "ok" | "bad" | "info";
   onDone: () => void;
 }) {
+  /* Long enough to finish reading it, and there is a way out before then.
+
+     It was 3.6 seconds, which is about one reading of a two-line message by
+     somebody already looking at the corner it appears in — and nobody is,
+     because they are looking at the thing they just clicked. A toast that
+     goes before it has been read is a toast that never happened. So: twelve
+     seconds, twenty for a failure, the hairline underneath showing how much
+     of that is left, and a close button for anyone who has read it and wants
+     the corner back. */
+  const life = tone === "bad" ? 20000 : 12000;
+
   useEffect(() => {
-    const t = setTimeout(onDone, 3200);
+    const t = setTimeout(onDone, life);
     return () => clearTimeout(t);
-  }, [onDone]);
+  }, [onDone, life]);
 
   return (
     <OverlayPortal>
-      <div className="gm-toast" role="status">
-        <span className="gm-toast-ico">
-          <IconCheck />
+      <div
+        className={`gm-toast gm-toast--${tone}`}
+        role={tone === "bad" ? "alert" : "status"}
+        aria-live={tone === "bad" ? "assertive" : "polite"}
+      >
+        <span className="gm-toast-ico" aria-hidden>
+          {tone === "bad" ? <IconAlert /> : tone === "info" ? <IconInfo /> : <IconCheck />}
         </span>
-        <span>
+        <div className="gm-toast-text">
           <b>{title}</b>
-          <span>{body}</span>
-        </span>
+          <p>{body}</p>
+        </div>
+        <button
+          type="button"
+          className="gm-toast-close"
+          onClick={onDone}
+          aria-label="Dismiss"
+        >
+          <IconX />
+        </button>
+        <span
+          className="gm-toast-life"
+          style={{ animationDuration: `${life}ms` }}
+          aria-hidden
+        />
       </div>
     </OverlayPortal>
   );

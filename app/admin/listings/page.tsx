@@ -3,41 +3,14 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  checksFor,
-  dateOnly,
-  flagsFor,
-  IN_QUEUE,
-  MIN_ANGLES,
-  money,
-  num,
-  overMarket,
-  shortDate,
-  type ListingStatus,
-} from "../lib/data";
-import {
-  ApiError,
-  claimListing,
-  decideListing,
-  fetchListing,
-  setMarketState,
-  useListings,
-  type AdminListing,
-  type Comp,
-  type Photo,
-} from "../lib/api";
+import { IN_QUEUE, money } from "../lib/data";
+import { ApiError, setMarketState, useListings } from "../lib/api";
 import {
   Badge,
   Card,
-  CardBody,
   CardHead,
-  CheckList,
-  ConfidenceBadge,
-  DL,
-  RecordModal,
   Empty,
   ListingBadge,
-  Modal,
   Loading,
   Note,
   FilterMenu,
@@ -49,23 +22,8 @@ import {
   Toast,
   ViewToggle,
 } from "../components/ui";
-import {
-  IconBan,
-  IconAlert,
-  IconCheck,
-  IconDownload,
-  IconExternal,
-  IconEye,
-  IconListing,
-  IconMail,
-  IconNote,
-  IconSearch,
-  IconUsers,
-  IconX,
-  IconXCircle,
-} from "../components/icons";
+import { IconDownload, IconEye, IconListing, IconSearch } from "../components/icons";
 import { Gate } from "../components/Gate";
-import { useRole } from "../components/RoleContext";
 import { exportCsv } from "../lib/csv";
 
 /**
@@ -90,65 +48,6 @@ const VIEWS = [
 
 type View = (typeof VIEWS)[number]["key"];
 
-type Decision = "approve" | "reject" | "request";
-
-const DECISION_COPY: Record<
-  Decision,
-  { title: string; sub: string; cta: string; tone: string; status: ListingStatus }
-> = {
-  approve: {
-    title: "Approve and publish",
-    sub: "It goes on the market the moment this is confirmed. There is no second step.",
-    cta: "Approve and publish",
-    tone: "gm-btn--primary",
-    status: "live",
-  },
-  reject: {
-    title: "Reject this listing",
-    sub: "The seller is told why, word for word, and the reason is filed on their record.",
-    cta: "Reject and notify",
-    tone: "gm-btn--danger",
-    status: "rejected",
-  },
-  request: {
-    title: "Ask the seller for more",
-    sub: "The listing pauses and the review clock stops until they reply.",
-    cta: "Send the request",
-    tone: "gm-btn--gold",
-    status: "info-requested",
-  },
-};
-
-/** One line of the seller's listing history, as the API returns it. */
-type HistoryEntry = {
-  id: string;
-  card: string;
-  setName: string | null;
-  status: string;
-  price: number;
-  reason: string | null;
-  by: string | null;
-  at: string;
-};
-
-/** Everything the open record needs, fetched in one call. */
-type OpenRecord = {
-  listing: AdminListing;
-  comps: Comp[];
-  photos: Photo[];
-  history: HistoryEntry[];
-};
-
-/** The store's own status words, in the console's vocabulary. Only the
- *  history feed needs this — everything else arrives already translated. */
-function historyStatus(s: string): ListingStatus {
-  return s === "in_review"
-    ? "awaiting"
-    : s === "info_requested"
-      ? "info-requested"
-      : (["live", "sold", "paused", "rejected"].includes(s) ? s : "withdrawn") as ListingStatus;
-}
-
 /** Hold the search box still for a moment before asking the database. */
 function useDebounced(value: string, ms: number) {
   const [held, setHeld] = useState(value);
@@ -160,11 +59,6 @@ function useDebounced(value: string, ms: number) {
 }
 
 function ListingsPage() {
-  /* Whoever is actually signed in. This preview used to name a fixture
-     operator, so it promised the decision would be filed under somebody who
-     may not even hold an account. */
-  const { me } = useRole();
-
   const params = useSearchParams();
   const wanted = params.get("view");
   /* Opens on everything, and you narrow from there. It opened on "Needs a
@@ -188,108 +82,13 @@ function ListingsPage() {
   const rows = data?.listings ?? [];
   const counts = data?.counts ?? { queue: 0, seller: 0, market: 0, closed: 0, all: 0 };
 
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [record, setRecord] = useState<OpenRecord | null>(null);
-  const [recordError, setRecordError] = useState<string | null>(null);
-  const [decision, setDecision] = useState<Decision | null>(null);
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
+  const [toast, setToast] = useState<{
+    title: string;
+    body: string;
+    tone?: "ok" | "bad";
+  } | null>(null);
 
-  const open = record?.listing ?? null;
-  const priceComps = record?.comps ?? [];
-  const photoSet = record?.photos ?? [];
-  const sellerRecord = record?.history ?? [];
   const breached = rows.filter((l) => IN_QUEUE.includes(l.status) && l.slaHours < 0).length;
-
-  /* The row is opened by id and the record read from the API, not lifted out
-     of the list: the list carries what a row needs, and the record needs the
-     comps, the angles supplied and the seller's history as well. */
-  useEffect(() => {
-    if (!openId) {
-      setRecord(null);
-      setRecordError(null);
-      return;
-    }
-    let live = true;
-    setRecordError(null);
-    fetchListing(openId)
-      .then((r) => {
-        if (live) setRecord(r as OpenRecord);
-      })
-      .catch((e) => {
-        if (live) setRecordError(e instanceof ApiError ? e.message : String(e));
-      });
-    return () => {
-      live = false;
-    };
-  }, [openId]);
-
-  function startDecision(d: Decision) {
-    setReason("");
-    setDecision(d);
-  }
-
-  /** How far short of the minimum the reason is. Zero means it can be sent.
-   *  An approval needs no reason, so it is never short. */
-  const REASON_MIN = 8;
-  const short =
-    decision === null || decision === "approve"
-      ? 0
-      : Math.max(0, REASON_MIN - reason.trim().length);
-
-  /** Open a row, and take it, so a second moderator does not decide the same
-   *  card. A claim that fails is not an error — somebody else has it, and
-   *  looking at a listing you cannot decide is a normal thing to do. */
-  async function openAndClaim(id: string, alsoClaim: boolean) {
-    setOpenId(id);
-    if (!alsoClaim) return;
-    try {
-      await claimListing(id);
-      reload();
-      setRecord((await fetchListing(id)) as OpenRecord);
-    } catch (e) {
-      if (e instanceof ApiError && e.code !== "already-claimed") {
-        setToast({ title: "Could not claim it", body: e.message });
-      }
-    }
-  }
-
-  async function commit() {
-    if (!open || !decision || busy) return;
-    setBusy(true);
-    try {
-      const { listing, decidedBy } = await decideListing(
-        open.id,
-        decision,
-        reason.trim(),
-        decision === "approve" ? reason.trim() : undefined,
-      );
-      setDecision(null);
-      setReason("");
-      setOpenId(null);
-      reload();
-      setToast({
-        title:
-          decision === "approve"
-            ? "Published to the market"
-            : decision === "reject"
-              ? "Rejected and the seller told"
-              : "Request sent",
-        body: `${listing.card} · decided by ${decidedBy} · the seller has been notified`,
-      });
-    } catch (e) {
-      /* The API refuses a rejection with no reason, and refuses a transition
-         the state machine does not allow. Both arrive here, and both are
-         worth reading rather than swallowing — the row did not move. */
-      setToast({
-        title: "The decision did not go through",
-        body: e instanceof ApiError ? e.message : String(e),
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
 
   /** Pause, resume, withdraw — the levers on something already on sale. */
   async function setMarketStatus(
@@ -298,14 +97,14 @@ function ListingsPage() {
     title: string,
   ) {
     try {
-      const updated = await setMarketState(l.id, action);
+      await setMarketState(l.id, action);
       reload();
-      setRecord((r) => (r && r.listing.id === l.id ? { ...r, listing: updated } : r));
       setToast({ title, body: `${l.card} · written to the audit log` });
     } catch (e) {
       setToast({
         title: "That did not go through",
         body: e instanceof ApiError ? e.message : String(e),
+        tone: "bad",
       });
     }
   }
@@ -468,14 +267,13 @@ function ListingsPage() {
                         <span className="gm-tiny gm-muted">
                           {l.seller.handle} · {l.seller.reviews} reviews
                         </span>
-                        <button
-                          type="button"
+                        <Link
                           className="gm-btn gm-btn--sm gm-spacer"
-                          onClick={() => openAndClaim(l.id, IN_QUEUE.includes(l.status))}
+                          href={`/admin/listings/${l.id}`}
                         >
                           <IconEye />
                           Open
-                        </button>
+                        </Link>
                       </>
                     }
                   />
@@ -483,39 +281,47 @@ function ListingsPage() {
             </div>
           ) : (
             <div className="gm-tablewrap">
-              {/* Seven columns, not nine.
+              {/* Five columns, not seven, and not the nine it started with.
 
-                  Every row opens a record that carries the certificate, the
-                  price confidence, the comps behind the figure, the seller's
-                  history and the photo set. Repeating all of that on the row
-                  did not make the queue faster to read — it made it wider than
-                  the panel, so the decision buttons at the end of each row were
-                  the first thing to go off the edge.
+                  Every row opens a record that carries the ask against the
+                  market, the comps behind that figure, the certificate, the
+                  seller's history, the photo set and the review clock. Putting
+                  all of it back on the row did not make the queue faster to
+                  read — it made it wider than the panel, so the buttons at the
+                  end of each row were the first thing to go off the edge, and
+                  a moderator scanning for the next job had six numbers to step
+                  over before reaching it.
 
-                  What is left is what a moderator triages on: what the card is,
-                  who is selling it, what state it is in, what they want for it
-                  against the market, and how long it has been waiting. */}
-              <table className="gm-table" style={{ minWidth: 1060 }}>
+                  What is left is what triage is actually done on: what the
+                  card is, who is selling it, how much it matters, and where it
+                  is. The ask, the market comparison and the activity counts
+                  moved to the record. The only number still here is the review
+                  clock, and only once it has been missed — that is not data
+                  about the listing, it is the reason to open this one next. */}
+              <table className="gm-table" style={{ minWidth: 720 }}>
                 <thead>
                   <tr>
                     <th>Card</th>
                     <th>Seller</th>
                     <th>Tier</th>
                     <th>State</th>
-                    <th>Ask</th>
-                    <th>Activity</th>
                     <th className="gm-rowend">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((l) => {
-                    const over = overMarket(l);
                     const waiting = IN_QUEUE.includes(l.status);
                     return (
                       <tr key={l.id}>
                         <td>
                           <div className="gm-cell-user">
-                            <Slab grader={l.grader} grade={l.grade} art={l.art} />
+                            {/* The small slab, not the medium one. It is the
+                                tallest thing in a row and so it is what sets
+                                the row height — at 62px it made the row twice
+                                the height of the two lines of text beside it,
+                                and a queue is a table so that ten of them can
+                                be read at once. */}
+                            <Slab grader={l.grader} grade={l.grade} art={l.art} size="sm" />
                             <div className="gm-cell2">
                               <b>{l.card}</b>
                               <span>
@@ -544,52 +350,35 @@ function ListingsPage() {
                         <td>
                           <Tier tier={l.tier} />
                         </td>
+                        {/* One line, so the state chip sits level with the
+                            tier chip beside it. The submitted date and the
+                            name of whoever cleared it used to hang underneath
+                            in small print, which pushed every state badge in
+                            the column half a line up and made two columns that
+                            should read across as one row read as two. Both
+                            facts are on the record, where there is room to say
+                            what they are. */}
                         <td>
-                          <ListingBadge status={l.status} />
+                          <div className="gm-row" style={{ gap: 6 }}>
+                            <ListingBadge status={l.status} />
+                            {/* Not a clock on every row — only the ones that
+                                have run out. A number counting down beside
+                                fifteen listings is noise; the four that are
+                                late are the queue's actual order. */}
+                            {waiting && l.slaHours < 0 ? (
+                              <Badge tone="bad">{Math.abs(l.slaHours)}h over</Badge>
+                            ) : null}
+                          </div>
                         </td>
-                        <td className="gm-figure">
-                          <div className="gm-strong">{money(l.askPrice)}</div>
-                          {/* The ask against the market figure, which is the
-                              overpricing check the feature set asks for. The
-                              market number itself is in the record. */}
-                          {l.marketPrice > 0 && over !== null && Math.abs(over) >= 5 ? (
-                            <div
-                              className="gm-tiny"
-                              style={{ color: over > 0 ? "var(--bad)" : "var(--ok)" }}
-                            >
-                              {over > 0 ? "+" : ""}
-                              {over.toFixed(0)}% vs {money(l.marketPrice)}
-                            </div>
-                          ) : l.marketPrice > 0 ? (
-                            <div className="gm-tiny gm-dim">at market</div>
-                          ) : (
-                            <div className="gm-tiny gm-dim">no market figure</div>
-                          )}
-                        </td>
-                        <td>
-                          {waiting ? (
-                            <>
-                              <div className="gm-sm">{shortDate(l.submitted)}</div>
-                              {l.slaHours < 0 ? (
-                                <div className="gm-tiny" style={{ color: "var(--bad)", fontWeight: 700 }}>
-                                  {Math.abs(l.slaHours)}h over SLA
-                                </div>
-                              ) : (
-                                <div className="gm-tiny gm-dim">{l.slaHours}h left</div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <div className="gm-sm">
-                                {num(l.views)} views · {num(l.watchers)} watching
-                              </div>
-                              <div className="gm-tiny gm-dim">
-                                {l.reviewedBy ? `by ${l.reviewedBy}` : "Auto-cleared"}
-                                {l.releasedAt ? ` · ${dateOnly(l.releasedAt)}` : ""}
-                              </div>
-                            </>
-                          )}
-                        </td>
+                        {/* Two buttons at most, and usually one.
+
+                            This was a three-dot menu for a while. A menu earns
+                            its place when a row has four or five things you
+                            could do to it; here the whole set is "open it",
+                            plus one market action on the rows that are on the
+                            market. Putting one item behind a menu costs a
+                            click and hides the only word — Review — that says
+                            what the row is for. */}
                         <td className="gm-rowend">
                           <div className="gm-rowact">
                             {l.status === "live" ? (
@@ -609,14 +398,16 @@ function ListingsPage() {
                                 Resume
                               </button>
                             ) : null}
-                            <button
-                              type="button"
-                              className="gm-btn gm-btn--sm"
-                              onClick={() => openAndClaim(l.id, IN_QUEUE.includes(l.status))}
-                            >
+                            {/* A link, not a button that opens a window over
+                                this table. The record is a page with an address
+                                of its own, so it can be sent to somebody, opened
+                                in a second tab, and left with the browser's own
+                                back. Pausing a live listing lives there too —
+                                it is the third action, and the row holds two. */}
+                            <Link className="gm-btn gm-btn--sm" href={`/admin/listings/${l.id}`}>
                               <IconEye />
                               {waiting ? "Review" : "Open"}
-                            </button>
+                            </Link>
                           </div>
                         </td>
                       </tr>
@@ -629,507 +420,13 @@ function ListingsPage() {
         </Card>
       </div>
 
-      {/* ============================================================ record */}
-      <RecordModal
-        open={!!openId}
-        onClose={() => setOpenId(null)}
-        title={open ? open.card : "Opening…"}
-        sub={open ? open.setLine : ""}
-        footer={
-          open ? (
-            IN_QUEUE.includes(open.status) ? (
-              <>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
-                  onClick={() => startDecision("approve")}
-                >
-                  <IconCheck />
-                  Approve and publish
-                </button>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--gold"
-                  onClick={() => startDecision("request")}
-                >
-                  <IconMail />
-                  Ask for more
-                </button>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--danger gm-spacer"
-                  onClick={() => startDecision("reject")}
-                >
-                  <IconX />
-                  Reject
-                </button>
-              </>
-            ) : open.status === "live" ? (
-              <>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--gold"
-                  onClick={() => setMarketStatus(open, "pause", "Paused")}
-                >
-                  Pause
-                </button>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--danger gm-spacer"
-                  onClick={() => setMarketStatus(open, "withdraw", "Withdrawn")}
-                >
-                  <IconBan />
-                  Withdraw
-                </button>
-              </>
-            ) : open.status === "paused" ? (
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                onClick={() => setMarketStatus(open, "resume", "Back on the market")}
-              >
-                <IconCheck />
-                Put it back on the market
-              </button>
-            ) : (
-              <span className="gm-sm gm-muted">
-                This listing is closed. Reopening it is an audit-log action.
-              </span>
-            )
-          ) : null
-        }
-      >
-        {recordError ? (
-          <Note tone="bad">
-            <b>That record could not be read.</b> {recordError}
-          </Note>
-        ) : !open ? (
-          <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-            Reading the listing…
-          </p>
-        ) : (
-          <>
-            <div className="gm-row" style={{ gap: 14, flexWrap: "nowrap", alignItems: "flex-start" }}>
-              <Slab grader={open.grader} grade={open.grade} art={open.art} size="lg" />
-              <div className="gm-stack" style={{ gap: 10, minWidth: 0 }}>
-                <div className="gm-row" style={{ gap: 7 }}>
-                  <Tier tier={open.tier} />
-                  <GameChip game={open.game} />
-                  <ListingBadge status={open.status} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.03em" }}>
-                    {money(open.askPrice)}
-                  </div>
-                  <div className="gm-sm gm-muted">
-                    {/* Where the figure came from, said plainly. A median of
-                        our own confirmed sales and a snapshot taken when the
-                        seller priced the card are not the same claim, and a
-                        moderator deciding whether an ask is fair needs to
-                        know which one is on screen. */}
-                    {open.marketSource === "comps"
-                      ? `Market ${money(open.marketPrice)}, the median of ${open.sampleSize} confirmed ${open.grader} ${open.grade} sale${open.sampleSize === 1 ? "" : "s"}`
-                      : open.marketSource === "listing"
-                        ? `Market ${money(open.marketPrice)}, quoted to the seller when they listed it. No confirmed ${open.grader} ${open.grade} sale has been recorded since.`
-                        : "No market figure. Too few comparable sales to quote one."}
-                  </div>
-                </div>
-                <ConfidenceBadge level={open.confidence} sample={open.sampleSize} />
-              </div>
-            </div>
-
-            {/* -------------------------------------------------- the comps
-
-                A sample count and a confidence badge say a figure was worked
-                out; they do not say from what. A moderator deciding whether
-                an ask is fair needs the sales themselves, and needs to see
-                that every one of them is the same grader and grade — this is
-                the only place that rule is visible rather than asserted.
-            */}
-            <Card>
-              <CardHead
-                title="What the price is built on"
-                sub={`Confirmed ${open.grader} ${open.grade} sales only, never converted from another grading company`}
-              />
-              <CardBody style={{ paddingTop: 8 }}>
-                {priceComps.length === 0 ? (
-                  <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                    No confirmed sale on record at this grader and grade. That is what the
-                    low-confidence badge above is saying. The figure is withheld rather than
-                    guessed from a neighbouring grade.
-                  </p>
-                ) : (
-                  <div className="gm-feed">
-                    {priceComps.map((c) => (
-                      <div key={c.id} className="gm-feed-item">
-                        <span
-                          className={`gm-feed-ico ${
-                            c.outlier ? "gm-feed-ico--bad" : "gm-feed-ico--ok"
-                          }`}
-                        >
-                          {c.outlier ? <IconAlert /> : <IconCheck />}
-                        </span>
-                        <div className="gm-feed-body">
-                          <p className="gm-row" style={{ gap: 8 }}>
-                            <b style={c.outlier ? { opacity: 0.6 } : undefined}>
-                              {money(c.price)}
-                            </b>
-                            {c.outlier ? <Badge tone="bad">Excluded as an outlier</Badge> : null}
-                          </p>
-                          {c.outlier && c.why ? (
-                            <p className="gm-sm gm-muted">{c.why}</p>
-                          ) : null}
-                          <div className="gm-feed-time">
-                            {c.grader} {c.grade} · sold {shortDate(c.soldAt)} ·{" "}
-                            <span className="gm-mono">{c.ref}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
-
-            <Card>
-              <CardHead
-                title="Automatic checks"
-                sub={`${flagsFor(open).length} of ${checksFor(open).length} raised a flag`}
-              />
-              <CardBody style={{ paddingTop: 8 }}>
-                <CheckList checks={checksFor(open)} />
-              </CardBody>
-            </Card>
-
-            <Card>
-              <CardHead title="Listing" />
-              <CardBody>
-                <DL
-                  rows={[
-                    ["Grading company", open.grader],
-                    ["Stated grade", `${open.grader} ${open.grade}`],
-                    [
-                      "Label reads",
-                      open.labelGrade && open.labelGrade !== open.grade ? (
-                        <Badge tone="bad">
-                          {open.grader} {open.labelGrade}
-                        </Badge>
-                      ) : (
-                        <span className="gm-muted">Matches the stated grade</span>
-                      ),
-                    ],
-                    ["Certificate", <span className="gm-mono">{open.cert}</span>],
-                    ["Set", open.setLine],
-                    ["Angles supplied", `${open.photos}`],
-                    ["Submitted", shortDate(open.submitted)],
-                    open.releasedAt
-                      ? ["Published", `${shortDate(open.releasedAt)} by ${open.reviewedBy ?? "auto-clear"}`]
-                      : [
-                          "Review clock",
-                          open.slaHours < 0 ? (
-                            <Badge tone="bad">{Math.abs(open.slaHours)}h over</Badge>
-                          ) : (
-                            <span>{open.slaHours}h remaining</span>
-                          ),
-                        ],
-                  ]}
-                />
-              </CardBody>
-            </Card>
-
-            {open.note ? (
-              <Note>
-                <b>Moderator note.</b> {open.note}
-              </Note>
-            ) : null}
-
-            <Card>
-              <CardHead title="Seller" />
-              <CardBody>
-                <div className="gm-row" style={{ gap: 11, marginBottom: 12, flexWrap: "nowrap" }}>
-                  <div className="gm-cell2">
-                    <b style={{ fontSize: 14.5 }}>{open.seller.name}</b>
-                    <span>{open.seller.handle}</span>
-                  </div>
-                  <Link className="gm-btn gm-btn--sm gm-spacer" href="/admin/members?scope=market">
-                    <IconExternal />
-                    Profile
-                  </Link>
-                </div>
-                <DL
-                  rows={[
-                    ["Completed sales", num(open.seller.sales)],
-                    ["Rating", `${open.seller.rating.toFixed(1)} / 5.0`],
-                    ["Reviews received", num(open.seller.reviews)],
-                  ]}
-                />
-              </CardBody>
-            </Card>
-
-            {/* What this seller has been decided on before. Read from the
-                listings themselves rather than from a separate record store,
-                so it cannot disagree with the queue. */}
-            <Card>
-              <CardHead
-                title="This seller's other listings"
-                sub={`${sellerRecord.length} decided · every decision here is filed against ${open.seller.handle}`}
-              />
-              <CardBody style={{ paddingTop: 8 }}>
-                {sellerRecord.length === 0 ? (
-                  <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                    This is their first listing. The decision you take here starts the record.
-                  </p>
-                ) : (
-                  <div className="gm-feed">
-                    {sellerRecord.map((e) => (
-                      <div key={e.id} className="gm-feed-item">
-                        <span
-                          className={`gm-feed-ico${
-                            e.status === "live" || e.status === "sold"
-                              ? " gm-feed-ico--ok"
-                              : e.status === "rejected"
-                                ? " gm-feed-ico--bad"
-                                : e.status === "info_requested"
-                                  ? " gm-feed-ico--warn"
-                                  : " gm-feed-ico--gold"
-                          }`}
-                        >
-                          {e.status === "live" || e.status === "sold" ? (
-                            <IconCheck />
-                          ) : e.status === "info_requested" ? (
-                            <IconMail />
-                          ) : e.status === "rejected" ? (
-                            <IconXCircle />
-                          ) : (
-                            <IconNote />
-                          )}
-                        </span>
-                        <div className="gm-feed-body">
-                          <p className="gm-row" style={{ gap: 8 }}>
-                            <b>{e.card}</b>
-                            <ListingBadge status={historyStatus(e.status)} />
-                          </p>
-                          {e.reason ? <p className="gm-sm gm-muted">{e.reason}</p> : null}
-                          <div className="gm-feed-time">
-                            {money(e.price)}
-                            {e.setName ? ` · ${e.setName}` : ""}
-                            {e.by ? ` · ${e.by}` : ""} · {shortDate(e.at)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
-
-            <Card>
-              <CardHead
-                title="Photo set"
-                sub={`${open.photos} of ${MIN_ANGLES} angles: front, back, four slab edges, four corners`}
-              />
-              <CardBody>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill,minmax(84px,1fr))",
-                    gap: 10,
-                  }}
-                >
-                  {/* The photographs themselves. The angle is the label,
-                      because "photo 7" is not a thing a moderator can check
-                      and "back-left corner" is. */}
-                  {photoSet.map((ph, i) => (
-                    /* Keyed on the position, not the URL: a seller who shoots
-                       four corners against the same background can and does
-                       upload the same file twice, and React needs the two to
-                       stay two things. */
-                    <figure key={`${i}-${ph.angle ?? ""}`} style={{ margin: 0 }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={ph.url}
-                        alt={ph.angle ?? `Angle ${i + 1}`}
-                        loading="lazy"
-                        style={{
-                          width: "100%",
-                          aspectRatio: "3 / 4",
-                          objectFit: "cover",
-                          borderRadius: "var(--r-sm)",
-                          background: "var(--surface-2)",
-                          boxShadow: "var(--sh-1)",
-                          display: "block",
-                        }}
-                      />
-                      <figcaption
-                        className="gm-tiny gm-dim"
-                        style={{ marginTop: 4, textAlign: "center" }}
-                      >
-                        {ph.angle ?? i + 1}
-                      </figcaption>
-                    </figure>
-                  ))}
-                  {/* the gaps, drawn as gaps: an angle that was not supplied is
-                      the finding, and an absence is invisible without a slot */}
-                  {Array.from({ length: Math.max(0, MIN_ANGLES - photoSet.length) }).map((_, i) => (
-                    <div
-                      key={`missing-${i}`}
-                      style={{
-                        aspectRatio: "3 / 4",
-                        borderRadius: "var(--r-sm)",
-                        border: "1px dashed var(--line-2)",
-                        display: "grid",
-                        placeItems: "center",
-                        color: "var(--ink-4)",
-                        fontSize: 10,
-                        fontWeight: 600,
-                      }}
-                    >
-                      missing
-                    </div>
-                  ))}
-                </div>
-              </CardBody>
-            </Card>
-          </>
-        )}
-      </RecordModal>
-
-      {/* ============================================================= modal */}
-      <Modal
-        open={!!decision}
-        onClose={() => setDecision(null)}
-        title={decision ? DECISION_COPY[decision].title : ""}
-        sub={decision ? DECISION_COPY[decision].sub : ""}
-        footer={
-          <>
-            <button
-              type="button"
-              className={`gm-btn ${decision ? DECISION_COPY[decision].tone : ""}`}
-              disabled={short > 0 || busy}
-              onClick={commit}
-            >
-              {decision === "approve" ? (
-                <IconCheck />
-              ) : decision === "reject" ? (
-                <IconXCircle />
-              ) : (
-                <IconMail />
-              )}
-              {busy ? "Sending…" : decision ? DECISION_COPY[decision].cta : ""}
-            </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setDecision(null)}>
-              Cancel
-            </button>
-            {/* Why the button is off, beside the button.
-
-                It used to sit there greyed with the requirement in a hint
-                under the textarea, which is the wrong place: the thing you are
-                looking at when nothing happens is the button. Reads as
-                "nothing happened" otherwise, and the reason is eight
-                characters away. */}
-            <span className="gm-spacer gm-tiny gm-dim">
-              {short > 0
-                ? `${short} more character${short === 1 ? "" : "s"} needed`
-                : "Written to the audit log"}
-            </span>
-          </>
-        }
-      >
-        {open && decision ? (
-          <>
-            {/* The subject of the dialog, not a panel inside it. Four bordered
-                cards stacked in a 520px window made every part look equally
-                important, which left the one field you actually have to fill
-                in competing with a receipt. */}
-            <div className="gm-decide-subject">
-              <Slab grader={open.grader} grade={open.grade} art={open.art} />
-              <div className="gm-cell2">
-                <b>{open.card}</b>
-                <span>
-                  {open.grader} {open.grade} · {money(open.askPrice)} · {open.seller.handle}
-                </span>
-              </div>
-            </div>
-
-            {decision === "approve" ? (
-              flagsFor(open).length > 0 ? (
-                <Note tone="warn">
-                  <b>
-                    {flagsFor(open).length} flag{flagsFor(open).length > 1 ? "s are" : " is"} still
-                    open on this listing.
-                  </b>{" "}
-                  Approving publishes it anyway, and the flags stay on the record against your name.
-                </Note>
-              ) : (
-                <Note tone="gold">
-                  Every check passed. It goes on the market immediately, and the photo set and cert
-                  as reviewed are frozen against the listing, so a later swap is detectable.
-                </Note>
-              )
-            ) : decision === "reject" ? (
-              <Note tone="bad">
-                The seller sees the reason below, word for word. Three rejections inside 30 days
-                triggers an automatic member review.
-              </Note>
-            ) : (
-              <Note>
-                The review clock stops until the seller replies. They get one reminder at 48 hours,
-                then the listing expires at seven days.
-              </Note>
-            )}
-
-            <div className="gm-field">
-              <label className="gm-label" htmlFor="gm-listing-reason">
-                {decision === "approve"
-                  ? "Note for the record (optional)"
-                  : decision === "reject"
-                    ? "Reason shown to the seller"
-                    : "What do you need from the seller?"}
-              </label>
-              <textarea
-                id="gm-listing-reason"
-                className="gm-textarea"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder={
-                  decision === "approve"
-                    ? "Cert matched the register, photos consistent with the label."
-                    : decision === "reject"
-                      ? "Be specific. The seller acts on this."
-                      : "A straight-on photo of the subgrade block, and the original invoice."
-                }
-              />
-              {decision !== "approve" ? (
-                <span className="gm-hint">
-                  At least 8 characters. This is what the seller is told.
-                </span>
-              ) : null}
-            </div>
-
-            {/* No ambiguity about where this lands — the entry is shown before
-                it is filed, not summarised afterwards in a toast. */}
-            {/* Still shown before it is filed rather than summarised in a
-                toast afterwards — but as a footnote, which is its weight. */}
-            <p className="gm-decide-filed">
-              <IconUsers />
-              <span>
-                Filed on {open.seller.handle}&rsquo;s record as{" "}
-                <b>
-                  {decision === "approve"
-                    ? "Listing approved"
-                    : decision === "reject"
-                      ? "Listing rejected"
-                      : "More information requested"}
-                </b>{" "}
-                by {me?.name ?? "you"}.
-              </span>
-            </p>
-          </>
-        ) : null}
-      </Modal>
-
       {toast ? (
-        <Toast title={toast.title} body={toast.body} onDone={() => setToast(null)} />
+        <Toast
+          title={toast.title}
+          body={toast.body}
+          tone={toast.tone}
+          onDone={() => setToast(null)}
+        />
       ) : null}
     </>
   );

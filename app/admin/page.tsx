@@ -12,14 +12,15 @@ import {
   type Dashboard,
 } from "./lib/api";
 import {
+  Badge,
   Card,
   Empty,
-  Funnel,
+  Gauge,
   LinkStat,
   Loading,
   Modal,
   Note,
-  RingChart,
+  RowMenu,
   Slab,
   StackBar,
   ListingBadge,
@@ -30,6 +31,7 @@ import {
 import {
   IconArrowRight,
   IconCheck,
+  IconEye,
   IconInbox,
   IconShield,
   IconXCircle,
@@ -119,10 +121,20 @@ function DashboardPage() {
   const moneyIn = data?.money;
   const breached = stats?.breached ?? 0;
   const funnel = data?.funnel ?? [];
-  const queueMix = data?.queueMix ?? [];
+  const support = data?.support ?? {
+    fresh: 0,
+    waiting: 0,
+    live: 0,
+    breaching: 0,
+    oldest: null,
+  };
 
   /* How much of the intake came out the far end. Null rather than 0% when
      nobody signed up in the period: no cohort is not a cohort that failed. */
+  /** Everyone the provider has not answered on yet. */
+  const waiting =
+    funnel.length > 1 ? Math.max(0, funnel[0].value - funnel[funnel.length - 1].value) : 0;
+
   const funnelEnd =
     funnel.length > 1 && funnel[0].value > 0
       ? Math.round((funnel[funnel.length - 1].value / funnel[0].value) * 100)
@@ -259,93 +271,6 @@ function DashboardPage() {
           </div>
         </section>
 
-        {/* ======================================== the money and the funnel */}
-        <div className="gm-dash-duo">
-          <section>
-            <div className="gm-blockhead">
-              <h3>Subscription revenue</h3>
-              <p>Recurring, by plan</p>
-              {/* No growth badge. It needs last month's MRR, which nothing
-                  records — the figure it used to show came from a constant
-                  beside the one above it and could not go down. */}
-            </div>
-
-            <div className="gm-well">
-              <div className="gm-money">
-                <span className="gm-money-value">{aud(moneyIn?.mrr ?? 0)}</span>
-                <span className="gm-money-unit">
-                  MRR · {(moneyIn?.subscribers ?? 0).toLocaleString("en-AU")} subscriber
-                  {moneyIn?.subscribers === 1 ? "" : "s"}
-                </span>
-              </div>
-
-              <StackBar
-                parts={(moneyIn?.tiers ?? []).map((t, i) => ({
-                  label: t.name,
-                  value: t.mrr,
-                  color: PLAN_COLOUR[i % PLAN_COLOUR.length],
-                }))}
-              />
-
-              <div>
-                {(moneyIn?.tiers ?? []).map((t, i) => (
-                  <div key={t.id} className="gm-planline">
-                    <span
-                      className="gm-planline-key"
-                      style={{ background: PLAN_COLOUR[i % PLAN_COLOUR.length] }}
-                    />
-                    <span className="gm-planline-name">
-                      <b>{t.name}</b>
-                      <span>
-                        {aud(t.price)} a month ·{" "}
-                        {t.quota === null
-                          ? "unlimited listings"
-                          : `${t.quota} listing${t.quota > 1 ? "s" : ""}`}
-                      </span>
-                    </span>
-                    <span className="gm-planline-num">
-                      <b>{aud(t.mrr)}</b>
-                      <span>{t.subscribers.toLocaleString("en-AU")} on plan</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Collected is not MRR, and the difference is the dunning pile —
-                  saying only one of the two hides a real queue of work. */}
-              <p className="gm-sm gm-muted" style={{ marginTop: 14 }}>
-                <b className="gm-strong">{aud(moneyIn?.collected ?? 0)}</b> collected this
-                month.{" "}
-                <span className="gm-dim">
-                  {(moneyIn?.failed ?? 0) > 0
-                    ? `${aud(moneyIn!.failed)} failed across ${moneyIn!.failedAccounts} account${
-                        moneyIn!.failedAccounts === 1 ? "" : "s"
-                      }.`
-                    : "Nothing failed."}
-                </span>
-              </p>
-            </div>
-          </section>
-
-          <section>
-            <div className="gm-blockhead">
-              <h3>Verification funnel</h3>
-              <p>New accounts, last 30 days</p>
-              {funnelEnd !== null ? (
-                <span className="gm-spacer gm-badge gm-badge--gold">{funnelEnd}% end to end</span>
-              ) : null}
-            </div>
-
-            <div className="gm-well">
-              <Funnel stages={funnel} />
-              <p className="gm-tiny gm-dim" style={{ marginTop: 14 }}>
-                The last two steps are the provider&rsquo;s decision against the DVS. We hold the
-                outcome only. No documents reach this database.
-              </p>
-            </div>
-          </section>
-        </div>
-
         {/* ============================================ the queue, worked here */}
         <section>
           <div className="gm-blockhead">
@@ -423,32 +348,44 @@ function DashboardPage() {
                             <span className="gm-muted gm-mono">{s.slaHours}h</span>
                           )}
                         </td>
+                        {/* Here, and only here, the actions go behind a menu.
+
+                            The queues have a page each and name their actions
+                            on the row. This is an extract in a column beside
+                            the standings rail with about 825px to work in, and
+                            two coloured buttons were what pushed it past that
+                            — a dashboard that has to be scrolled sideways to
+                            read a number. It also gains the action that would
+                            not have fitted as a third button: a way into the
+                            record, for any row you are not sure about. */}
                         <td>
-                          <div className="gm-rowact">
-                            <button
-                              type="button"
-                              className="gm-btn gm-btn--sm gm-btn--primary"
-                              onClick={() => approve(s)}
-                              title={`Approve ${s.card}`}
-                              aria-label={`Approve ${s.card}`}
-                            >
-                              <IconCheck />
-                              <span>Approve</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="gm-btn gm-btn--sm gm-btn--danger"
-                              onClick={() => {
-                                setReason("");
-                                setRejecting(s);
-                              }}
-                              title={`Reject ${s.card}`}
-                              aria-label={`Reject ${s.card}`}
-                            >
-                              <IconXCircle />
-                              <span>Reject</span>
-                            </button>
-                          </div>
+                          <RowMenu
+                            label={`Actions for ${s.card}`}
+                            actions={[
+                              {
+                                key: "open",
+                                label: "Review this listing",
+                                icon: <IconEye />,
+                                href: `/admin/listings/${s.id}`,
+                              },
+                              {
+                                key: "approve",
+                                label: "Approve and publish",
+                                icon: <IconCheck />,
+                                onClick: () => approve(s),
+                              },
+                              {
+                                key: "reject",
+                                label: "Reject it",
+                                icon: <IconXCircle />,
+                                onClick: () => {
+                                  setReason("");
+                                  setRejecting(s);
+                                },
+                                tone: "danger" as const,
+                              },
+                            ]}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -458,6 +395,143 @@ function DashboardPage() {
             )}
           </div>
         </section>
+
+        {/* ======================================== the money and the funnel */}
+        <div className="gm-dash-duo">
+          <section>
+            <div className="gm-blockhead">
+              <h3>Subscription revenue</h3>
+              <p>Recurring, by plan</p>
+              {/* No growth badge. It needs last month's MRR, which nothing
+                  records — the figure it used to show came from a constant
+                  beside the one above it and could not go down. */}
+            </div>
+
+            <div className="gm-well">
+              <div className="gm-money">
+                <span className="gm-money-value">{aud(moneyIn?.mrr ?? 0)}</span>
+                <span className="gm-money-unit">
+                  MRR · {(moneyIn?.subscribers ?? 0).toLocaleString("en-AU")} subscriber
+                  {moneyIn?.subscribers === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <StackBar
+                parts={(moneyIn?.tiers ?? []).map((t, i) => ({
+                  label: t.name,
+                  value: t.mrr,
+                  color: PLAN_COLOUR[i % PLAN_COLOUR.length],
+                }))}
+              />
+
+              <div>
+                {(moneyIn?.tiers ?? []).map((t, i) => (
+                  <div key={t.id} className="gm-planline">
+                    <span
+                      className="gm-planline-key"
+                      style={{ background: PLAN_COLOUR[i % PLAN_COLOUR.length] }}
+                    />
+                    <span className="gm-planline-name">
+                      <b>{t.name}</b>
+                      <span>
+                        {aud(t.price)} a month ·{" "}
+                        {t.quota === null
+                          ? "unlimited listings"
+                          : `${t.quota} listing${t.quota > 1 ? "s" : ""}`}
+                      </span>
+                    </span>
+                    <span className="gm-planline-num">
+                      <b>{aud(t.mrr)}</b>
+                      <span>{t.subscribers.toLocaleString("en-AU")} on plan</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Collected is not MRR, and the difference is the dunning pile —
+                  saying only one of the two hides a real queue of work. */}
+              <p className="gm-sm gm-muted" style={{ marginTop: 14 }}>
+                <b className="gm-strong">{aud(moneyIn?.collected ?? 0)}</b> collected this
+                month.{" "}
+                <span className="gm-dim">
+                  {(moneyIn?.failed ?? 0) > 0
+                    ? `${aud(moneyIn!.failed)} failed across ${moneyIn!.failedAccounts} account${
+                        moneyIn!.failedAccounts === 1 ? "" : "s"
+                      }.`
+                    : "Nothing failed."}
+                </span>
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <div className="gm-blockhead">
+              <h3>Verification</h3>
+              <p>New accounts, last 30 days</p>
+            </div>
+
+            {/* A dial and three figures, not a funnel.
+
+                `Funnel` draws a bar per stage with the drop-off written under
+                each one, and it earns that when there are four or five steps
+                to lose people between. There are two — an account is created
+                and the provider either approves it or has not yet — so it was
+                three quarters of a panel of chrome around one number, and the
+                two full-width bars at the same length said "nothing has gone
+                wrong" in the loudest way available.
+
+                The dial IS that number, the rows beside it are the counts it
+                came from, and the layout runs across rather than down so the
+                panel fills its half of the row instead of leaving the bottom
+                third empty. */}
+            <div className="gm-well gm-verif-box">
+              <div className="gm-verif">
+              {funnel.length === 0 ? (
+                <p className="gm-sm gm-muted" style={{ margin: 0 }}>
+                  Nobody has signed up in the last 30 days.
+                </p>
+              ) : (
+                <>
+                  <div className="gm-verif-dial">
+                    <Gauge
+                      value={funnelEnd ?? 0}
+                      label={`${funnelEnd ?? 0}%`}
+                      caption="verified"
+                      gradient={{ from: "var(--gold-lift)", to: "var(--gold-sink)" }}
+                      size={124}
+                      thickness={12}
+                    />
+                  </div>
+                  <div className="gm-verif-rows">
+                    {funnel.map((stage) => (
+                      <div key={stage.key} className="gm-verif-row">
+                        <span>{stage.label}</span>
+                        <b>{stage.value.toLocaleString("en-AU")}</b>
+                      </div>
+                    ))}
+                    {/* The gap between the two, named. It is the only number
+                        here anybody can act on — everyone still sitting with
+                        the provider — and it was previously something you had
+                        to work out by subtracting one bar from another. */}
+                    <div className="gm-verif-row gm-verif-row--wait">
+                      <span>Waiting on the provider</span>
+                      <b>{waiting.toLocaleString("en-AU")}</b>
+                    </div>
+                  </div>
+                </>
+              )}
+              </div>
+              {/* Inside the box and pinned to its foot. It sat underneath as
+                  loose text, which left the panel ending in two places — the
+                  well at one height and the sentence at another — beside a
+                  revenue panel that ended cleanly at its border. */}
+              <p className="gm-verif-note">
+                The decision is the provider&rsquo;s, against the DVS. We hold the outcome only.
+                No documents reach this database.
+              </p>
+            </div>
+          </section>
+        </div>
 
         <section>
           <div className="gm-blockhead">
@@ -511,23 +585,80 @@ function DashboardPage() {
           </div>
         </section>
 
+        {/* ------------------------------------------------- the other queue
+
+            This was "Latest activity", and before that "Review mix" — a ring
+            splitting the review queue by tier, which the table on this page
+            already lists in full.
+
+            Support is the gap those two were standing in. The console has a
+            whole section for it with a first-reply target attached, and the
+            dashboard — a page whose entire job is telling you what is waiting
+            — had no idea it existed. The listing queue gets a headline, a
+            count, a table and a chart; the one queue with a clock on it got
+            nothing.
+
+            The three numbers are the states an agent picks work from, the
+            warning only appears when something has actually gone past its
+            target, and the ticket named at the foot is the one to open next.
+            It rides in the same single dashboard read for the reason the
+            store's own header gives. */}
         <section>
           <div className="gm-blockhead">
-            <h3>Review mix</h3>
-            <p>
-              {stats?.queueDepth ?? 0} in flight, by tier
-            </p>
+            <h3>Support desk</h3>
+            <p>{support.live === 0 ? "Nothing open" : `${support.live} open`}</p>
+            <Link href="/admin/support" className="gm-spacer gm-btn gm-btn--sm">
+              Open queue
+              <IconArrowRight />
+            </Link>
           </div>
-          <div className="gm-well">
-            {queueMix.length === 0 ? (
-              <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                Nothing is waiting on a decision.
-              </p>
+
+          <div className="gm-well gm-support">
+            <div className="gm-support-nums">
+              <div className="gm-support-num">
+                <b>{support.fresh}</b>
+                <span>Unanswered</span>
+              </div>
+              <div className="gm-support-num">
+                <b>{support.waiting}</b>
+                <span>With the member</span>
+              </div>
+            </div>
+
+            {/* Only when it is true. A green "0 past target" on a desk that is
+                keeping up is a line nobody needs to read every morning, and it
+                takes the room the warning would want. */}
+            {support.breaching > 0 ? (
+              <Note tone="bad">
+                <b>
+                  {support.breaching} past the first-reply target.
+                </b>{" "}
+                Answer {support.breaching === 1 ? "it" : "those"} before anything newer.
+              </Note>
+            ) : null}
+
+            {support.oldest ? (
+              <Link href={`/admin/support/${support.oldest.id}`} className="gm-support-next">
+                <span className="gm-support-next-label">Oldest unanswered</span>
+                <span className="gm-support-next-subject">{support.oldest.subject}</span>
+                <span className="gm-support-next-sla">
+                  {support.oldest.slaHours < 0 ? (
+                    <Badge tone="bad">{Math.abs(support.oldest.slaHours)}h over</Badge>
+                  ) : (
+                    <Badge tone="ok">{support.oldest.slaHours}h left</Badge>
+                  )}
+                </span>
+              </Link>
             ) : (
-              <RingChart rings={queueMix} />
+              <p className="gm-sm gm-muted" style={{ margin: 0 }}>
+                {support.live === 0
+                  ? "Nobody has written in."
+                  : "Every ticket has had a first reply."}
+              </p>
             )}
           </div>
         </section>
+
       </aside>
 
       {/* ====================================================== reject modal */}
