@@ -398,10 +398,21 @@
   background: var(--surface);
 }
 
+/* `0 1 auto`, not `0 0 auto`.
+
+   The band is deliberately narrow — 32ch of copy, so the fanned card trail
+   beside it has room — and `flex: 0 0 auto` said that width was also a floor.
+   On a phone there is about 230px between the rail and the far edge of the
+   band's own padding, and 32ch is nearer 294, so the copy sat 64px wider than
+   the space it was in and pushed the whole page sideways. `overflow: hidden`
+   on `.gm-hero` cropped the evidence, which is why it showed up as a single
+   stubborn pixel of horizontal scroll on the document rather than as anything
+   you could see. It may shrink now; `max-width` still stops it growing. */
 .gm-hero-copy {
   position: relative;
   z-index: 2;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 32ch;
 }
 
@@ -693,9 +704,24 @@
    7 · CASE CARD — conflicts, laid out like the reference's offer board
    ========================================================================== */
 
+/* Narrower tracks than the 320px this started at, so a desktop gets four
+   cards across rather than three.
+
+   The card's action is a full-width button, and a full-width button on a
+   370px card is a navy bar wider than anything above it — it stops being the
+   thing you do to the case and becomes the loudest thing on the card. At four
+   across the button is about 250px, which is button-shaped. Nothing on the
+   card wraps at that width: the two meta boxes hold "20 hours" and a price,
+   and the card name truncates rather than running to a second line.
+
+   `min(260px, 100%)`, not a bare 260px. An `auto-fill` track with a hard
+   minimum cannot go narrower than that minimum, so on a phone — where the
+   column is about 280px once the rail and the page padding have taken theirs
+   — the board was wider than the screen and the whole page scrolled sideways.
+   The `min()` lets the track collapse to whatever there is. */
 .gm-caseboard {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -734,12 +760,40 @@
   white-space: nowrap;
 }
 
-.gm-case-title {
-  font-size: 14.5px;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  color: var(--ink);
-  line-height: 1.35;
+/* The line of facts under the heading. Two of them, stacked, both truncating
+   rather than wrapping: a case card in a grid of case cards has to be the
+   same height as its neighbours, and a long card name was the one thing here
+   with no natural ceiling. */
+.gm-case-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12.4px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.gm-nowrap-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The line that carries who raised it and where the case has got to. The
+   badge is a fixed width and the handle is not, so the handle is the one that
+   gives way. */
+.gm-case-facts-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.gm-case-facts-row > .gm-badge {
+  flex: none;
+  margin-left: auto;
 }
 
 .gm-case-body {
@@ -758,46 +812,16 @@
   margin-top: auto;
 }
 
+/* The button fills the card, which is what it did originally. It looked
+   wrong for a while, but the fault was the card being 370px wide rather than
+   the button filling it — see the note on `.gm-caseboard` above. At four
+   cards across it is the width of a button again, and a full-width action at
+   the foot of a card is the same shape the plan cards and the record pages
+   use. */
 .gm-case-actions .gm-btn {
   flex: 1 1 0;
 }
 
-/* severity, as an outline pill rather than a filled block */
-.gm-sev {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding: 0 9px;
-  border-radius: var(--r-sm);
-  font-size: 11.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  background: transparent;
-  color: var(--ink-3);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-}
-
-.gm-sev svg {
-  width: 12px;
-  height: 12px;
-}
-
-.gm-sev--high {
-  color: var(--bad);
-  box-shadow: inset 0 0 0 1px currentColor;
-}
-
-.gm-sev--med {
-  color: var(--warn);
-  box-shadow: inset 0 0 0 1px currentColor;
-}
-
-.gm-sev--low {
-  color: var(--info);
-  box-shadow: inset 0 0 0 1px currentColor;
-}
 
 /* the resolved confirmation that slides in at the top right */
 /* Above the scrim and above the dialog.
@@ -810,57 +834,176 @@
    still on screen. */
 .gm-toast {
   position: fixed;
-  top: 84px;
-  right: 26px;
+  top: calc(var(--topbar-h) + 14px);
+  right: 22px;
   z-index: 120;
-  display: flex;
+  width: min(370px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 11px;
-  padding: 12px 16px;
-  border-radius: var(--r-md);
+  gap: 12px;
+  padding: 13px 14px;
+  /* A pill, not a card. It is the one thing on screen that is not part of the
+     page — it arrives, says one thing and leaves — and the pill shape is what
+     says so before the words are read. */
+  border-radius: 18px;
   border: 1px solid var(--line);
   background: var(--surface);
-  box-shadow: var(--sh-3);
-  animation: gm-toast-in 0.3s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+  overflow: hidden;
+  animation: gm-toast-in 0.28s cubic-bezier(0.22, 0.9, 0.34, 1) both;
 }
 
+/* A filled disc, and the exception to the console's "no solid-filled icon
+   chips" rule — asked for, and it earns it here. Everywhere else that rule
+   holds because a filled chip behind an icon is decoration on a page already
+   full of them. This icon is the whole message: it is the difference between
+   "that worked" and "that did not", read from the corner of the eye by
+   somebody looking at the thing they just clicked. */
 .gm-toast-ico {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   flex: none;
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
-  border: 1px solid var(--ok);
-  color: var(--ok);
+  color: #fff;
+  background: var(--ok);
+}
+
+.gm-toast--bad .gm-toast-ico {
+  background: var(--bad);
+}
+
+.gm-toast--info .gm-toast-ico {
+  background: var(--gold);
 }
 
 .gm-toast-ico svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.4;
 }
 
-.gm-toast b {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
+.gm-toast-text {
+  min-width: 0;
 }
 
-.gm-toast span {
+/* The heading carries the tone, the way the reference does it. The body stays
+   ink, because it is the part with the detail in it and a whole toast in one
+   colour is a poster. */
+.gm-toast-text b {
   display: block;
-  font-size: 11.8px;
+  font-size: 13.4px;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  color: var(--ok);
+}
+
+.gm-toast--bad .gm-toast-text b {
+  color: var(--bad);
+}
+
+.gm-toast--info .gm-toast-text b {
+  color: var(--gold-600);
+}
+
+.gm-toast-text p {
+  margin: 2px 0 0;
+  font-size: 12.2px;
+  line-height: 1.4;
   color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* A toast that only leaves on a timer cannot be got rid of, and the ones that
+   report a failure are the longest-lived. */
+.gm-toast-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.gm-toast-close:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.gm-toast-close svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* How long is left, drawn. Something that removes itself without warning reads
+   as a glitch rather than as a timer running out. */
+.gm-toast-life {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left center;
+  background: color-mix(in srgb, var(--ok) 40%, transparent);
+  animation: gm-toast-life linear both;
+}
+
+.gm-toast--bad .gm-toast-life {
+  background: color-mix(in srgb, var(--bad) 40%, transparent);
+}
+
+.gm-toast--info .gm-toast-life {
+  background: color-mix(in srgb, var(--gold) 40%, transparent);
+}
+
+@keyframes gm-toast-life {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 @keyframes gm-toast-in {
   from {
     opacity: 0;
-    transform: translateX(16px);
+    transform: translateX(16px) scale(0.98);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* On a phone it is a bar along the bottom, clear of the thumb but not of the
+   page: pinned to the top right it sat under the topbar and half off the
+   edge. */
+@media (max-width: 620px) {
+  .gm-toast {
+    top: auto;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+
+  @keyframes gm-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
@@ -1066,8 +1209,7 @@
   font-style: normal;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--ink-4);
 }
 
@@ -1089,7 +1231,7 @@
 
 .gm-people {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -1222,185 +1364,111 @@
 
 .gm-plans {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 18px;
   align-items: stretch;
 }
 
-.gm-plan {
-  display: flex;
-  flex-direction: column;
+/* -------------------------------------------------------- the price band
+
+   Everything between here and the section below used to describe a bespoke
+   plan card — its own border, its own body, an in-place price input, a
+   feature list, a footer. None of it had a caller: the page draws plans with
+   the console's ordinary `Card`, and the price is edited at Stripe rather
+   than typed into the card. What replaces it is only the part that is still
+   wanted: a tinted band across the top of that Card carrying the plan's name
+   and what it costs.
+
+   The band is a wash rather than a block of colour. A saturated header on
+   three cards in a row is the loudest thing on a page whose figures are the
+   point, and gold at full strength is this console's accent — reserved for
+   controls. It fades to the card's own surface by two thirds of the way
+   down, so the price sits on paper and only the name sits in the tint. */
+
+.gm-plan-band {
+  position: relative;
+  /* Inset on all four sides with all four corners rounded — a panel sitting
+     inside the card, not a band bolted across the top of it. Flush to the
+     edges with a square bottom, the tint read as the card having been dipped
+     in something; as its own shape it reads as a plate the name and the price
+     are printed on, which is what it is. */
+  margin: 14px 14px 0;
+  padding: 14px 16px 16px;
   border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  overflow: hidden;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Stated per theme rather than mixed here — see `--band-plan` in admin.css
+     for why a `color-mix` against the surface could not do this job. */
+  background: var(--band-plan);
+  /* Dark in both themes, so the ink on it is light in both. Everything inside
+     the band opts out of the page's own ink colours below rather than each
+     element being told twice. */
+  color: #fff;
+  box-shadow: none;
 }
 
+.gm-plan-band .gm-plan-price b,
+.gm-plan-band .gm-plan-per {
+  color: inherit;
+}
 
+.gm-plan-band .gm-plan-per {
+  opacity: 0.72;
+}
 
+/* The plan carrying the most subscribers gets the stronger wash.
 
-/* a floor under the head keeps the price on the same line across the row
-   even when one tagline wraps to two and another does not */
-.gm-plan-head {
-  padding: 20px;
-  border-bottom: 1px solid var(--line);
-  min-height: 168px;
+   The reference this came from highlights whichever plan the seller most
+   wants sold. That is a marketing decision and there is nobody to make it
+   here — so the band highlights the plan that is actually carrying the
+   business, which is a fact the page already knows and the one an owner
+   looking at three plans is trying to find. */
+
+.gm-plan-band-top {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 15px;
 }
 
-
-
+/* The name as a chip, the way the reference sets it: small, on its own line,
+   and clearly a label for the number underneath rather than a heading over
+   the whole card. */
+/* A pale chip on the navy, rather than a white card on it. A solid white pill
+   on a dark band is a hole punched in the panel; a translucent one belongs to
+   the surface it sits on and still reads at 11px. */
 .gm-plan-name {
   display: inline-flex;
   align-items: center;
-  height: 24px;
+  height: 23px;
   padding: 0 10px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line-2);
-  font-size: 11.5px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.13);
+  font-size: 11.2px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--ink-3);
-  margin-bottom: 14px;
+  color: #fff;
+  white-space: nowrap;
 }
-
-
 
 .gm-plan-price {
   display: flex;
   align-items: baseline;
-  gap: 2px;
+  gap: 3px;
 }
 
-.gm-plan-cur {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-}
-
-/* the price is an input that does not look like one until you reach for it —
-   the admin edits the number in place rather than in a separate form */
-.gm-plan-amount {
-  width: 4.5ch;
-  border: 0;
-  border-bottom: 1px dashed transparent;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  font-size: 34px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
+.gm-plan-price b {
+  font-size: 31px;
+  font-weight: 750;
+  letter-spacing: -0.032em;
+  line-height: 1.05;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  transition: border-color 0.18s ease;
-}
-
-.gm-plan-amount:hover {
-  border-bottom-color: var(--line-2);
-}
-
-.gm-plan-amount:focus {
-  outline: none;
-  border-bottom-color: var(--focus-line);
-}
-
-.gm-plan-amount--wide {
-  width: 7ch;
-  font-size: 28px;
 }
 
 .gm-plan-per {
   font-size: 13px;
-  color: var(--ink-4);
   font-weight: 500;
-}
-
-.gm-plan-tag {
-  margin: 12px 0 0;
-  font-size: 12.6px;
-  color: var(--ink-3);
-  line-height: 1.5;
-}
-
-/* the price band is a fixed height so "Custom" and "$39" sit on one line */
-.gm-plan-price {
-  min-height: 46px;
-  align-items: baseline;
-}
-
-.gm-plan-body {
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  flex: 1 1 auto;
-}
-
-.gm-plan-feat {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  font-size: 12.8px;
-  color: var(--ink-2);
-  line-height: 1.45;
-}
-
-.gm-plan-feat svg {
-  width: 14px;
-  height: 14px;
-  flex: none;
-  margin-top: 1px;
-  color: var(--gold);
-}
-
-.gm-plan-feat input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  border-bottom: 1px dashed transparent;
-  background: transparent;
-  padding: 0 0 1px;
-  font: inherit;
-  font-size: 12.8px;
-  color: var(--ink-2);
-  transition: border-color 0.18s ease;
-}
-
-.gm-plan-feat input:hover {
-  border-bottom-color: var(--line-2);
-}
-
-.gm-plan-feat input:focus {
-  outline: none;
-  border-bottom-color: var(--focus-line);
-}
-
-/* the CTA is pushed to the bottom of the card, so every button in the row
-   lands on the same line regardless of how many features sit above it */
-.gm-plan-foot {
-  padding: 0 20px 20px;
-  margin-top: auto;
-}
-
-/* the live/stripe state strip */
-.gm-plan-state {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  padding: 11px 20px;
-  border-top: 1px solid var(--line);
-  background: var(--surface-2);
-  font-size: 11.5px;
-  color: var(--ink-4);
-}
-
-.gm-plan-state code {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 11px;
   color: var(--ink-3);
 }
 
@@ -1409,11 +1477,23 @@
    ========================================================================== */
 
 /* a bare heading used between blocks, no card chrome around it */
+/* Wraps, because the thing on its right is pushed there by `margin-left:
+   auto` and so has nothing holding it back. On a phone the dashboard's
+   "-100.0% on last week" chip sat a pixel past the edge of the page and gave
+   the whole document a horizontal scroll — one pixel wide, invisible, and
+   enough to make every page on the console scroll sideways. */
 .gm-blockhead {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+@media (max-width: 760px) {
+  .gm-blockhead > .gm-spacer {
+    margin-left: 0;
+  }
 }
 
 .gm-blockhead h3 {
@@ -1518,7 +1598,6 @@
 .gm-hero,
 .gm-case,
 .gm-person,
-.gm-plan,
 .gm-ctile,
 .gm-toast {
   box-shadow: var(--sh-2), var(--edge);
@@ -1534,8 +1613,7 @@
 .gm-linkstat:hover,
 .gm-case:hover,
 .gm-person:hover,
-.gm-ctile:hover,
-.gm-plan:hover {
+.gm-ctile:hover {
   transform: translateY(-2px);
   border-color: var(--line-2);
   box-shadow: var(--sh-2), var(--edge);
@@ -1544,6 +1622,21 @@
 .gm-metabox,
 .gm-scope {
   box-shadow: var(--sh-1), var(--edge);
+}
+
+/* ------------------------------------------------ the confidence chip
+
+   Two facts in one chip: how far the market figure can be trusted, and the
+   sample that decides it. The second is written at the chip's own weight
+   rather than bolder, because it is the reason for the first rather than a
+   second finding. */
+.gm-conf-sep {
+  opacity: 0.45;
+}
+
+.gm-conf-from {
+  font-weight: 500;
+  opacity: 0.85;
 }
 
 .gm-toast {
@@ -1894,8 +1987,7 @@
   flex: none;
   font-size: 10.4px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--ink-4);
   padding-top: 4px;
 }
@@ -2458,4 +2550,461 @@
 .gm-bellclear span {
   font-size: 11.5px;
   color: var(--ink-4);
+}
+
+/* ==========================================================================
+   RECORD PAGES
+
+   A listing, a member, a case or a ticket used to be a dialog over the list
+   that opened it. They are routes now — see the note on `ActionBar` in
+   admin.css — and these are the two pieces that were written inline in the
+   dialog body and needed somewhere to live once it became a page.
+   ========================================================================== */
+
+/* The identity block at the top of a record: the object on the left, what it
+   is and what it is worth on the right. It goes to one column early, because
+   a 120px slab beside a 200px column is worse than either on its own. */
+/* The card sits in the middle of the block, not at the top of it.
+
+   `flex-start` left a 162px slab hard against the top edge of a column of
+   text half again as tall, so the identity block read as a picture with a
+   paragraph hanging off it rather than as one thing. Centred, the two halves
+   share a middle line and the card looks placed rather than dropped. */
+.gm-record-top {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.gm-record-top > .gm-stack {
+  flex: 1 1 260px;
+}
+
+/* The photo set. `auto-fill` rather than a fixed count so the same grid works
+   at the width of a laptop and at the width of the record page on a phone. */
+.gm-photogrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+
+/* Three states, and they are three different facts.
+
+   A photograph. An angle the seller never supplied, which is the finding the
+   panel exists to show — an absence is invisible without a slot to be absent
+   from. And an angle that was supplied but cannot be fetched, which is our
+   fault, not theirs, and must not be mistaken for either of the others.
+
+   The third one used to be a broken `<img>`: the browser's torn-page icon and
+   the alt text sitting in an empty frame, which reads as a photograph that is
+   still loading and, worse, looks close enough to the "missing" tile to be
+   counted as one. A moderator would have rejected a listing for angles the
+   seller had actually sent. */
+.gm-photo-missing,
+.gm-photo-failed {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Dashed and grey: nothing was sent, and nothing is wrong. */
+.gm-photo-missing {
+  border: 1px dashed var(--line-2);
+  color: var(--ink-4);
+}
+
+/* Solid and warned: something was sent and we cannot show it. */
+.gm-photo-failed {
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line-2));
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.gm-photo-failed svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ==========================================================================
+   FIGURE CARD — a report that is a number rather than a chart
+
+   The reports page draws four series in full and answers the rest with one
+   figure each. They used to be rows in a table of report metadata; as cards
+   they read like the four KPI tiles at the top of the same page, which is
+   correct, because they are the same kind of thing: a number for the period,
+   what it counts, and the shape it made getting there.
+   ========================================================================== */
+
+.gm-figcard {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gm-figcard-label {
+  display: block;
+  font-size: 11.8px;
+  font-weight: 600;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-figcard-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-figcard-foot {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   BENTO — the reports page
+
+   Three columns of equal width, and a panel takes one or two of them. The
+   page is seven questions, and they are not the same size: what is being
+   traded and who is joining are series and want width, while revenue,
+   verification, conflicts and the queue are one figure each and do not.
+
+   A grid rather than a stack of rows, so the wide panels sit BESIDE the
+   narrow ones instead of under them. The page used to be four full-width
+   bands and the eye had to travel the whole width to find the next thing.
+   ========================================================================== */
+
+.gm-bento {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  /* `stretch`, not `start`. The panels in a row hold different things — a
+     gauge, a gauge with a bar list under it, a figure — so they are different
+     heights, and letting each one stop where its content stopped left the row
+     ragged along the bottom with the next row starting from three different
+     places. They match their row now and the spare room sits inside the card,
+     which is what a grid of cards is supposed to look like. */
+  align-items: stretch;
+}
+
+/* And the card fills the track it was stretched into, rather than sitting at
+   its natural height inside a taller box. */
+.gm-bento > .gm-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-bento-wide {
+  grid-column: span 2;
+}
+
+.gm-bento-full {
+  grid-column: 1 / -1;
+}
+
+/* Two columns, then one.
+
+   `dense` matters here. Two of these panels span both columns, and a spanning
+   item cannot start in a row that has only one column left — so at two columns
+   the grid left a hole beside every narrow panel that happened to precede a
+   wide one. Three holes on the reports page, each the size of a card.
+
+   `dense` lets a later single-column panel back-fill the gap the wide one
+   could not use. It reorders what you see against the source order, which is
+   normally a reason not to use it; here every panel is self-titled and answers
+   its own question, so which of them lands beside which carries no meaning. */
+@media (max-width: 1240px) {
+  .gm-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: dense;
+  }
+}
+
+@media (max-width: 820px) {
+  .gm-bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-bento-wide,
+  .gm-bento-full {
+    grid-column: span 1;
+  }
+}
+
+/* --------------------------------------------------------- the big figure
+
+   One number at a size nothing on the card competes with, because a panel
+   answers one question and should open with the answer. */
+
+.gm-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gm-figure-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.8px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.gm-figure-ico {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+  color: var(--ink-4);
+}
+
+.gm-figure-ico svg {
+  width: 13px;
+  height: 13px;
+}
+
+.gm-figure-value {
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.032em;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-figure-foot {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* The plan breakdown under the revenue figure: name, price, headcount. Three
+   columns rather than a sentence each, so they read down. */
+.gm-figure-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 14px;
+}
+
+.gm-figure-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  font-size: 12.4px;
+  color: var(--ink-2);
+}
+
+.gm-figure-row:nth-child(odd) {
+  background: var(--surface-2);
+}
+
+.gm-figure-row b {
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* ==========================================================================
+   VERIFICATION — the dashboard's second panel
+
+   A dial and the counts behind it, side by side. It ran down the page as two
+   full-width bars and a paragraph, which left the bottom third of the panel
+   empty next to a revenue panel packed to its edges — the pair looked broken
+   rather than balanced. Across the width, the two fill the same room.
+   ========================================================================== */
+
+/* The box is a column: the dial and its counts, then the footnote on the
+   floor. `flex: 1` on the first of them is what makes the panel end level
+   with the revenue panel beside it instead of stopping wherever its content
+   happened to stop. */
+.gm-verif-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-verif {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.gm-verif-note {
+  margin: 15px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-4);
+}
+
+.gm-verif-dial {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.gm-verif-rows {
+  flex: 1 1 190px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gm-verif-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  font-size: 12.8px;
+  color: var(--ink-2);
+}
+
+.gm-verif-row:nth-child(odd) {
+  background: var(--surface-2);
+}
+
+.gm-verif-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-verif-row b {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one anybody can act on. Quiet at zero — nobody waiting is the normal
+   state and it should not be the loudest row on the panel. */
+.gm-verif-row--wait b {
+  color: var(--ink-3);
+}
+
+/* The two panels in this row are the same height, and their contents should
+   reach the bottom of it rather than pooling at the top. */
+.gm-dash-duo > section {
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-dash-duo > section > .gm-well {
+  flex: 1 1 auto;
+}
+
+/* ==========================================================================
+   SUPPORT DESK — the dashboard rail
+
+   Two counts across the top, a warning only when there is one, and the ticket
+   to open next at the foot. The whole panel is a list of things to do, which
+   is what a rail beside a queue should be.
+   ========================================================================== */
+
+.gm-support {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.gm-support-nums {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.gm-support-num {
+  padding: 11px 13px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.gm-support-num b {
+  display: block;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-support-num span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* The next thing to open, as a link rather than a line of text — it is the
+   one row on this panel anybody acts on. */
+.gm-support-next {
+  display: block;
+  padding: 11px 13px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-decoration: none;
+  box-shadow: var(--sh-1), var(--edge);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.gm-support-next:hover {
+  border-color: var(--line-2);
+  background: var(--surface-2);
+}
+
+.gm-support-next-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-4);
+}
+
+.gm-support-next-subject {
+  display: block;
+  margin: 3px 0 7px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.gm-support-next-sla {
+  display: block;
 }

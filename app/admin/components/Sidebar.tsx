@@ -7,12 +7,12 @@ import ThemeToggle from "./ThemeToggle";
 import { can, ROUTE_CAPABILITY, type Capability, type Role } from "../lib/data";
 import { useRole } from "./RoleContext";
 import {
-  IconBell,
   IconChevronDown,
   IconDashboard,
   IconFlag,
   IconKey,
   IconListing,
+  IconMegaphone,
   IconPanel,
   IconReport,
   IconScale,
@@ -46,11 +46,15 @@ type Page = {
   /**
    * Two rows can share a path and differ only by a query — one page holding
    * two directories is still two places to go. `param` is the value this row
-   * stands for, and `fallback` marks the row the page falls back to when the
-   * query is missing, so a bare link still lights something.
+   * stands for, `fallback` marks the row a bare link to the path itself
+   * belongs to, and `childFallback` the row a bare link to a page *beneath*
+   * it belongs to. They are not always the same row: `/admin/members` with no
+   * scope is the admin team, while `/admin/members/<id>` with no scope is a
+   * marketplace member, since a staff record is the one that says `?scope=team`.
    */
   param?: { key: string; value: string };
   fallback?: boolean;
+  childFallback?: boolean;
 };
 
 /**
@@ -87,7 +91,7 @@ const NAV: Block[] = [
       {
         kind: "page",
         href: "/admin/listings",
-        label: "Listing queue",
+        label: "Verification",
         icon: IconListing,
         /* Filled in from the API at render — see `queueCount` below. NAV is a
            module constant, so a live figure cannot be baked into it. */
@@ -123,6 +127,7 @@ const NAV: Block[] = [
             label: "Members",
             icon: IconUsers,
             param: { key: "scope", value: "market" },
+            childFallback: true,
           },
           {
             href: "/admin/members?scope=team",
@@ -149,7 +154,7 @@ const NAV: Block[] = [
         icon: IconTag,
       },
       { kind: "page", href: "/admin/reports", label: "Reports", icon: IconReport },
-      { kind: "page", href: "/admin/announcements", label: "Announcements", icon: IconBell },
+      { kind: "page", href: "/admin/announcements", label: "Announcements", icon: IconMegaphone },
       { kind: "page", href: "/admin/audit", label: "Audit log", icon: IconKey },
     ],
   },
@@ -217,7 +222,16 @@ function isActive(pathname: string, search: URLSearchParams, p: Page) {
   if (!p.param) return true;
 
   const current = search.get(p.param.key);
-  return current === null ? !!p.fallback : current === p.param.value;
+  if (current !== null) return current === p.param.value;
+
+  /* No parameter on the URL, so the two rows sharing this path have to decide
+     between them which one a bare link belongs to — and the answer is not the
+     same for the directory and for a record beneath it.
+     `/admin/members` with no scope is the admin team; `/admin/members/<id>`
+     with no scope is a marketplace member, because a staff record says
+     `?scope=team` and a member's says nothing. Without this split, opening a
+     seller's record lit "Admin team" in the nav. */
+  return pathname.startsWith(`${path}/`) ? !!p.childFallback : !!p.fallback;
 }
 
 export default function Sidebar() {

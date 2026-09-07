@@ -51,10 +51,20 @@ export const IconQueue = (p: P) => (
   </Ico>
 );
 
+/* Scales, drawn the way the reference draws them: a knob at the pivot, a
+   straight beam, and pans that are dishes rather than triangles.
+
+   The handshake underneath them in that drawing is not here. It was tried
+   twice — once whole, once reduced to a single zigzag bar — and at the 14px
+   this renders at in the nav it is a smudge under the scales rather than two
+   hands. What survives is the half that carries the meaning: a case closes on
+   a judgement, and the pans are what say judgement. */
 export const IconScale = (p: P) => (
   <Ico {...p}>
-    <path d="M12 3v18M7 21h10M4.5 8h15M8.5 6.8 12 4l3.5 2.8" />
-    <path d="M4.5 8 2 14a3 3 0 0 0 5 0L4.5 8ZM19.5 8 17 14a3 3 0 0 0 5 0L19.5 8Z" />
+    <circle cx="12" cy="4.8" r="1.5" />
+    <path d="M12 6.3v13.4M8.2 20.9h7.6M4.4 7.6h15.2" />
+    <path d="M2 12.2h4.8a2.4 2.4 0 0 1-4.8 0ZM17.2 12.2H22a2.4 2.4 0 0 1-4.8 0Z" />
+    <path d="M4.4 7.6v4.6M19.6 7.6v4.6" />
   </Ico>
 );
 
@@ -66,19 +76,43 @@ export const IconUsers = (p: P) => (
   </Ico>
 );
 
+/* A dashboard, not a document.
+
+   It was a page with a folded corner and three bars on it — the icon for a
+   file that happens to contain a report. The page this opens is not a
+   document; it is a wall of live figures, and the frame around the charts is
+   what says so.
+
+   The drawing this is taken from also carries a pie overlapping the frame's
+   corner and a list of lines beside the chart. Both were tried and both are
+   lost at 14px: a five-pixel pie against a five-pixel corner is one blot. The
+   line and the bars survive because they are strokes rather than shapes. */
 export const IconReport = (p: P) => (
   <Ico {...p}>
-    <path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
-    <path d="M14 3v5h5" />
-    <path d="M8.5 17v-3M12 17v-6M15.5 17v-4" />
+    <rect x="2.6" y="4.4" width="18.8" height="15.2" rx="2.2" />
+    <path d="M6.2 12.6 9.4 9.8l2.6 2.2 3.6-3.6" />
+    <path d="M7.4 16.6v-1.4M11 16.6v-3.2M14.6 16.6v-2.2M18.2 16.6v-4.4" />
   </Ico>
 );
 
+/* A headset, not a speech bubble.
+
+   Support is a desk somebody sits at with a first-reply clock running, and a
+   bubble is what every other messaging surface in this console already uses —
+   the case thread, the member composer, the ticket reply. The headset says
+   which of those is the one with a person on the end of it.
+
+   Five shapes, which is the most this set can carry at 15px: the band, an ear
+   cup each side, the boom, and the mic. The cups are pill-shaped rather than
+   rectangles because at two and a half pixels wide a rounded rectangle and a
+   pill are the same drawing, and the pill has two fewer corners to blur. */
 export const IconSupport = (p: P) => (
   <Ico {...p}>
-    <path d="M21 15.5a3 3 0 0 1-3 3h-3.2L12 21.5V18.5H6a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z" />
-    <path d="M9.6 9.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-.9.8-.9 1.4v.3" />
-    <path d="M12 16.2h.01" />
+    <path d="M4.6 12.6v-1.4a7.4 7.4 0 0 1 14.8 0v1.4" />
+    <rect x="2.8" y="11.8" width="4" height="5.8" rx="2" />
+    <rect x="17.2" y="11.8" width="4" height="5.8" rx="2" />
+    <path d="M19.2 17.6v.3a3.2 3.2 0 0 1-3.2 3.2h-1.5" />
+    <circle cx="12.6" cy="21.1" r="1.7" />
   </Ico>
 );
 
@@ -198,6 +232,12 @@ export const IconArrowDown = (p: P) => (
   </Ico>
 );
 
+export const IconArrowLeft = (p: P) => (
+  <Ico {...p}>
+    <path d="M20 12H5M11 6l-6 6 6 6" />
+  </Ico>
+);
+
 export const IconArrowRight = (p: P) => (
   <Ico {...p}>
     <path d="M4 12h15M13 6l6 6-6 6" />
@@ -312,6 +352,30 @@ export const IconMessage = (p: P) => (
   </Ico>
 );
 
+/* Announcements and notifications both used the bell, and they are opposite
+   directions: a notification arrives for whoever is signed in, an
+   announcement is what the console broadcasts out to members.
+
+   A horn, a handle and three rays. Not the ellipse at the bell's mouth or the
+   button on the body — both are in the drawing this is taken from and both
+   are lost at 15px, where the whole icon is fifteen pixels wide and every
+   shape is an outline. The rays are what stop it reading as a plain cone, so
+   they get the space the detail would have taken. They stop at x=21: an arc
+   drawn to 25 is outside the 24-box and is simply not painted, which is how
+   the first attempt at this ended up a cone with nothing beside it.
+
+   The handle hangs BELOW the horn's lower edge rather than starting inside
+   it. Drawn from y=13 it sat within the cone, and two round-capped strokes
+   crossing at that size do not read as one shape behind another — they fill
+   in, and the corner of the megaphone became a blot. */
+export const IconMegaphone = (p: P) => (
+  <Ico {...p}>
+    <path d="m2.6 10.4 12.4-4.2v11.6L2.6 13.6Z" />
+    <path d="M6.6 16.2v2.6a1.6 1.6 0 0 0 3.2 0v-1.6" />
+    <path d="M17.6 8.4 20.3 7M18 12h2.9M17.6 15.6l2.7 1.4" />
+  </Ico>
+);
+
 export const IconExternal = (p: P) => (
   <Ico {...p}>
     <path d="M13.5 4.5H19.5V10.5" />
@@ -342,11 +406,16 @@ export const IconNote = (p: P) => (
   </Ico>
 );
 
+/* Three lines, not three outlined boxes.
+
+   Every icon here is stroked, so a rectangle is TWO horizontal lines a couple
+   of pixels apart. Three of them made twelve strokes inside a 15px square,
+   which at that size stopped being rows and became a smudge. A line is one
+   stroke, and three lines with five points of air between them read as rows
+   at any size this console uses. */
 export const IconRows = (p: P) => (
   <Ico {...p}>
-    <rect x="3" y="4.5" width="18" height="4.2" rx="1.4" />
-    <rect x="3" y="10.9" width="18" height="4.2" rx="1.4" />
-    <rect x="3" y="17.3" width="18" height="2.2" rx="1.1" />
+    <path d="M4 7h16M4 12h16M4 17h16" />
   </Ico>
 );
 
@@ -360,12 +429,15 @@ export const IconPanel = (p: P) => (
   </Ico>
 );
 
+/* Four squares with a real gap between them, and the same size each. They
+   were 8.5 and 6 tall on the two rows with 2.5 between — at 15px that gap was
+   under two pixels and the four tiles ran together into a grid of mush. */
 export const IconGrid = (p: P) => (
   <Ico {...p}>
-    <rect x="3.5" y="3.5" width="7" height="8.5" rx="1.5" />
-    <rect x="13.5" y="3.5" width="7" height="8.5" rx="1.5" />
-    <rect x="3.5" y="14.5" width="7" height="6" rx="1.5" />
-    <rect x="13.5" y="14.5" width="7" height="6" rx="1.5" />
+    <rect x="3.8" y="3.8" width="7.4" height="7.4" rx="1.8" />
+    <rect x="12.8" y="3.8" width="7.4" height="7.4" rx="1.8" />
+    <rect x="3.8" y="12.8" width="7.4" height="7.4" rx="1.8" />
+    <rect x="12.8" y="12.8" width="7.4" height="7.4" rx="1.8" />
   </Ico>
 );
 

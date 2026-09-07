@@ -148,8 +148,7 @@ type Scan = {
         | "same-grader-interpolated"
         | "same-grader-nearest"
         | "modelled-cross-grader"
-        | "ask-over-suspect-sale"
-        | "estimated-from-listings";
+        | "ask-over-suspect-sale";
       method: string;
       explain: string;
       suspect?: boolean | null;
@@ -266,7 +265,7 @@ function MarketTicker() {
         aria-controls="market-ticker"
         title={open ? "Hide market prices" : "Show market prices"}
       >
-        <span className="label-mono accent-text">MARKET</span>
+        <span className="label-mono accent-text">Market</span>
         <Chevron open={open} />
       </button>
       <div id="market-ticker" className="reveal-x" aria-hidden={!open}>
@@ -325,7 +324,7 @@ function NewsLine() {
         aria-controls="hobby-wire"
         title={open ? "Hide hobby news" : "Show hobby news"}
       >
-        <span className="label-mono violet-text">HOBBY WIRE</span>
+        <span className="label-mono violet-text">Hobby wire</span>
         <Chevron open={open} />
       </button>
       <div id="hobby-wire" className="reveal-y" aria-hidden={!open}>
@@ -400,7 +399,7 @@ function CritCard({
           </div>
         </>
       ) : (
-        <div className="muted small">{note ?? "—"}</div>
+        <div className="muted small">{note ?? "None"}</div>
       )}
     </div>
   );
@@ -558,7 +557,7 @@ function Money({
   showSource?: boolean;
 }) {
   const { code, fx } = useCurrency();
-  if (v == null) return <>—</>;
+  if (v == null) return <>n/a</>;
   const converted = convert(v, unit, code, fx);
   if (converted == null) return <>{formatMoney(v, unit)}</>;
   return (
@@ -575,7 +574,7 @@ function Money({
 function useMoneyFmt() {
   const { code, fx } = useCurrency();
   return (v: number | null | undefined, unit = "USD") => {
-    if (v == null) return "—";
+    if (v == null) return "n/a";
     const c = convert(v, unit, code, fx);
     return c == null ? formatMoney(v, unit) : formatMoney(c, code);
   };
@@ -776,7 +775,7 @@ function GradePanel({ scan }: { scan: Scan }) {
       )}
       <div className="verdict-head">
         <div>
-          <div className="label-mono accent-text">GC ESTIMATE</div>
+          <div className="label-mono accent-text">GC estimate</div>
           <div className="gc-num" style={{ color: gradeColor(g.overall) }}>
             {g.overall.toFixed(1)}
           </div>
@@ -1081,10 +1080,10 @@ function EbayComps({ scan }: { scan: Scan }) {
 function EstimateNote({ source }: { source: string }) {
   const text =
     source === "web-search"
-      ? "Estimated from system data — read off public web pages by our own lookup, not a pricing API. Each figure was re-checked against the page it came from; confirm via the sources before acting."
+      ? "Estimated from system data, read off public web pages by our own lookup rather than a pricing service. Each figure was re-checked against the page it came from; confirm via the sources before acting."
       : source === "cardgrader"
-        ? "Estimated from system data — a third-party model's comps, not a pricing API. Confirm with the eBay sold links before acting."
-        : "Estimated from system data — our own multiples off the raw price, not a pricing API. Treat it as a ballpark and confirm with the eBay sold links below.";
+        ? "Estimated from system data, using a third-party model's comparable sales rather than a pricing service. Confirm with the eBay sold links before acting."
+        : "Estimated from system data, using our own multiples off the raw price rather than a pricing service. Treat it as a ballpark and confirm with the eBay sold links below.";
   return (
     <div className="est-note">
       <span className="badge warn">estimated</span>
@@ -1178,7 +1177,7 @@ function ValuationPanel({ scan }: { scan: Scan }) {
             <span className="small">
               {v.graded.estimated
                 ? v.graded.source === "cardgrader"
-                  ? "(third-party estimate — CardGrader comps)"
+                  ? "(third-party estimate, CardGrader comps)"
                   : v.graded.source === "web-search"
                     ? "(read from public web pages, verified against source)"
                     : "(estimated from raw price multiples)"
@@ -1205,7 +1204,7 @@ function ValuationPanel({ scan }: { scan: Scan }) {
         <div className="muted small" style={{ marginTop: 8 }}>
           <span className="badge info">slab premium</span> The prices above are for{" "}
           <b>raw, ungraded copies</b>. A {scan.slab.company}-certified{" "}
-          {scan.slab.gradeText} slab sells for a large premium over raw —{" "}
+          {scan.slab.gradeText} slab sells for a large premium over raw.{" "}
           {scan.slab.verifyUrl ? (
             <a href={scan.slab.verifyUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
               see {scan.slab.company}&apos;s own value estimate on the cert page
@@ -1353,7 +1352,7 @@ function QuotaChip({ q }: { q: Quota | null }) {
               </div>
               <div className="quota-ledger-row muted small">
                 <span>
-                  {q.scans.billableToday} of today&apos;s cost credits — the rest were
+                  {q.scans.billableToday} of today&apos;s cost credits. The rest were
                   already in the store
                 </span>
               </div>
@@ -1386,7 +1385,7 @@ function QuotaChip({ q }: { q: Quota | null }) {
 
           {b?.limitedBy && (
             <p className="muted small quota-note" style={{ marginTop: 0 }}>
-              Capped by <b style={{ color: "var(--text)" }}>{b.limitedBy}</b> — a scan is
+              Capped by <b style={{ color: "var(--text)" }}>{b.limitedBy}</b>. A scan is
               only as available as its tightest provider.
             </p>
           )}
@@ -1445,7 +1444,7 @@ function QuotaChip({ q }: { q: Quota | null }) {
 
           <p className="muted small quota-note">
             {out
-              ? "Budget spent. Cards still scan and identify, and anything already cached still prices — but a card we have not priced before will show no market value until the reset."
+              ? "Budget spent. Cards still scan and identify, and anything already cached still prices, but a card we have not priced before will show no market value until the reset."
               : "Only cards we have not priced before spend credits. Repeat scans are served from cache and cost nothing."}
           </p>
         </div>
@@ -1471,7 +1470,7 @@ function QuotaBanner({ scan, q }: { scan: Scan; q: Quota | null }) {
     <div className="quota-banner">
       <span className="badge warn">price budget spent</span>
       <span>
-        The card was identified correctly — the missing value is our price
+        The card was identified correctly. The missing value is our price
         provider&apos;s daily credit budget, not the scan.
         {q.resetsAt ? ` Resets in ${untilReset(q.resetsAt)}.` : ""}
       </span>
@@ -1645,20 +1644,7 @@ function priceView(scan: Scan): PriceView {
   // having a caveat above it. The listings below are the honest answer.
   const identSuspect = v?.identificationSuspect ?? null;
 
-  // The warning is about the RAW price, so it only suppresses a raw headline.
-  //
-  // It fires when a trivial ungraded price sits under a substantial graded
-  // market — which usually means the raw figure belongs to the base print
-  // while the card in hand is a promo or parallel sharing its number. That is
-  // a true and useful thing to say about the raw number. It says nothing about
-  // a figure drawn from listings already filtered to this grader and grade: a
-  // Portgas.D.Ace BGS 9.5 with $1.60 raw and two BGS 9.5 asks at $1,600 had
-  // its perfectly good graded figure blanked because the raw price beneath it
-  // was for a different printing.
-  const headlineFromGraded = Boolean(slabPrice || (ask && !ask.raw));
-  const suppressForSuspect = Boolean(identSuspect) && !headlineFromGraded;
-
-  const headline = suppressForSuspect
+  const headline = identSuspect
     ? null
     : slabPrice
     ? slabPrice.price
@@ -1672,14 +1658,14 @@ function priceView(scan: Scan): PriceView {
   // asks and graded comps are USD; only `raw` can be EUR
   const headlineUnit = headline === raw && !scan.slab ? rawUnit : "USD";
 
-  const headlineLabel = suppressForSuspect
-    ? "we can't price this one — see below"
+  const headlineLabel = identSuspect
+    ? "we can't price this one, see below"
     : slabPrice
     ? slabPrice.basis === "ask-over-suspect-sale"
-      ? `median asking price · ${slabPrice.sampleSize} live ${scan.slab?.company ?? ""} ${slabGradeNum(scan)} listings — our recorded sales for this grade contradict the grade below it`
+      ? `median asking price · ${slabPrice.sampleSize} live ${scan.slab?.company ?? ""} ${slabGradeNum(scan)} listings. Our recorded sales for this grade contradict the grade below it`
       : slabPrice.basis === "observed"
         ? blendedVariant
-          ? `${scan.slab!.company} ${scan.slab!.gradeText} — BLACK LABEL. Our ${scan.slab!.company} ${slabGradeNum(scan)} figure blends label variants and understates a Black Label. Check Black Label sold listings before pricing.`
+          ? `${scan.slab!.company} ${scan.slab!.gradeText}, BLACK LABEL. Our ${scan.slab!.company} ${slabGradeNum(scan)} figure blends label variants and understates a Black Label. Check Black Label sold listings before pricing.`
           : `in its ${scan.slab!.company} ${scan.slab!.gradeText} slab`
         : slabPrice.explain
     : headlineIsAsk
@@ -1695,9 +1681,9 @@ function priceView(scan: Scan): PriceView {
       } listings`
     : slabValue
       ? blendedVariant
-        ? `${scan.slab!.company} ${scan.slab!.gradeText} — BLACK LABEL. Our ${scan.slab!.company} ${slabGradeNum(scan)} figure blends label variants and understates a Black Label. Check Black Label sold listings before pricing.`
+        ? `${scan.slab!.company} ${scan.slab!.gradeText}, BLACK LABEL. Our ${scan.slab!.company} ${slabGradeNum(scan)} figure blends label variants and understates a Black Label. Check Black Label sold listings before pricing.`
         : crossGrader
-        ? `${scan.slab!.company} ${scan.slab!.gradeText} — priced at the nearest PSA tier`
+        ? `${scan.slab!.company} ${scan.slab!.gradeText}, priced at the nearest PSA tier`
         : `in its ${scan.slab!.company} ${scan.slab!.gradeText} slab`
       : raw != null
         ? "raw, ungraded market price"
@@ -1738,20 +1724,7 @@ function priceView(scan: Scan): PriceView {
         ? slabPrice.basis === "observed"
         : Boolean(g && !g.estimated),
     slabPrice,
-    // A figure built from live listings HAS a source; it just is not a
-    // sold-comp provider. Reporting "no pricing source" under a number we had
-    // just explained came from nine eBay listings read as a denial that the
-    // number came from anywhere.
-    source:
-      g?.source ??
-      (v?.slabPrice?.basis === "estimated-from-listings" ||
-      v?.slabPrice?.basis === "ask-over-suspect-sale"
-        ? "ebay-live"
-        : v?.tcgplayer
-          ? "tcgplayer"
-          : v?.cardmarket
-            ? "cardmarket"
-            : null),
+    source: g?.source ?? (v?.tcgplayer ? "tcgplayer" : v?.cardmarket ? "cardmarket" : null),
   };
 }
 
@@ -1759,8 +1732,7 @@ const SOURCE_LABEL: Record<string, string> = {
   pokemonpricetracker: "eBay sold comps · PokemonPriceTracker",
   cardgrader: "CardGrader comps",
   "web-search": "read from public web pages, verified against source",
-  estimate: "our own multiples off the raw price — not a pricing API",
-  "ebay-live": "eBay live listings — asking prices, not sales",
+  estimate: "our own multiples off the raw price, not a pricing service",
   tcgplayer: "TCGplayer market",
   cardmarket: "Cardmarket trend",
 };
@@ -1777,33 +1749,6 @@ const GRADER_LABEL: Record<string, string> = {
   BGS: "BECKETT", PSA: "PSA", CGC: "CGC", SGC: "SGC", TAG: "TAG", ACE: "ACE",
   Ungraded: "Ungraded",
 };
-
-/** Say where the headline figure actually came from.
- *
- *  This sentence was a constant. It claimed the number had been taken from
- *  "the nearest PSA tier, which is a different grading scale" no matter what
- *  had produced it — so on a sealed 1st Edition Jungle pack it sat directly
- *  underneath "estimated from 9 live listings" and described a provenance that
- *  had not been used, while calling PSA a different scale from PSA.
- *
- *  A figure and the sentence explaining it must not be able to disagree. */
-function headlineProvenance(pv: PriceView): string {
-  switch (pv.slabPrice?.basis) {
-    case "estimated-from-listings":
-      return "the figure above is estimated from what copies are listed at now, not from any recorded sale.";
-    case "ask-over-suspect-sale":
-      return "the figure above is the current asking market, used because our recorded sales at this grade sit below the grade beneath them.";
-    case "modelled-cross-grader":
-      return "the figure above is modelled from another company's sales, which use a different scale.";
-    case "same-grader-interpolated":
-    case "same-grader-nearest":
-      return "the figure above comes from the nearest grade we hold for this same company.";
-    case "observed":
-      return "the figure above is a recorded sale at this exact grade.";
-    default:
-      return "we have no sold-comp source for it, so nothing above is a sale.";
-  }
-}
 
 function GraderTabs({ scan, pv }: { scan: Scan; pv: PriceView }) {
   const v = scan.valuation;
@@ -1898,7 +1843,7 @@ function GraderTabs({ scan, pv }: { scan: Scan; pv: PriceView }) {
                 </div>
                 {thin && (
                   <div className="ph-grade-warn">
-                    Too few sales to be a market price — treat as an anecdote.
+                    Too few sales to be a market price. Treat it as an anecdote.
                   </div>
                 )}
               </div>
@@ -1909,7 +1854,7 @@ function GraderTabs({ scan, pv }: { scan: Scan; pv: PriceView }) {
         <p className="grader-empty muted small">
           <b>No {GRADER_LABEL[active] ?? active} sales data available to us.</b>{" "}
           {active === slabGrader
-            ? `This card is a ${GRADER_LABEL[active]} ${slabGradeStr ?? ""} — ${headlineProvenance(pv)}`
+            ? `This card is a ${GRADER_LABEL[active]} ${slabGradeStr ?? ""}. The figure above is taken from the nearest PSA tier, which is a different grading scale.`
             : "Our sold-comp source publishes PSA sales only."}
         </p>
       )}
@@ -2007,7 +1952,6 @@ function SearchPanel() {
     setPricing(true); setPrice(null);
     const p = new URLSearchParams({ name: picked.name });
     if (picked.setName) p.set("set", picked.setName);
-    if (picked.game) p.set("game", picked.game);
     if (picked.localId) p.set("number", picked.localId);
     if (grader !== "Ungraded") { p.set("grader", grader); p.set("grade", grade); }
     if (picked.nameLocal) p.set("lang", "ja");
@@ -2025,7 +1969,7 @@ function SearchPanel() {
   return (
     <section className={`search-panel ${open ? "open" : ""}`}>
       <button className="search-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <span className="label-mono accent-text">SEARCH BY NAME</span>
+        <span className="label-mono accent-text">Search by name</span>
         <span className="muted small">
           {open ? "hide" : "price a card without scanning it"}
         </span>
@@ -2048,20 +1992,20 @@ function SearchPanel() {
 
           {state === "error" && (
             <p className="note">
-              Search didn&apos;t run — {why ?? "the request failed"}. Try again; if it keeps
+              Search didn&apos;t run. {why ?? "The request failed"}. Try again; if it keeps
               failing the API may not be running.
             </p>
           )}
           {state === "done" && hits?.length === 0 && (
             <p className="note">
-              Nothing matched “{q}” — not in any catalogue we hold, and no listings for it
+              Nothing matched “{q}” . Not in any catalogue we hold, and no listings for it
               either. Try the card&apos;s printed name, or its number.
             </p>
           )}
           {hits?.length === 1 && hits[0].cardId === "market" && (
             <p className="note">
               No catalogue we hold covers this card, so it is priced straight from what the
-              market is doing with it. Identification is yours, not ours — check the listing
+              market is doing with it. You identify the card, not us, so check the listing
               titles below match the copy you have.
             </p>
           )}
@@ -2182,7 +2126,7 @@ function SearchPanel() {
 
               {!pricing && (price?.listings?.length ?? 0) > 0 && (
                 <div className="search-listings">
-                  <div className="label-mono">WHAT THESE ARE</div>
+                  <div className="label-mono">What these are</div>
                   {price!.listings.slice(0, 6).map((l) => (
                     <a key={l.url} className="search-listing" href={l.url} target="_blank" rel="noreferrer">
                       {l.imageUrl && <img src={l.imageUrl} alt="" loading="lazy" />}
@@ -2254,22 +2198,22 @@ function PriceHero({ scan }: { scan: Scan }) {
 
       {scan.slab && !pv.slabGradeUnknown && pv.headline == null ? (
         <div className="ph-figure">
-          <div className="label-mono accent-text">NO SALES DATA FOR THIS GRADE</div>
-          <div className="ph-price ph-price-none">—</div>
+          <div className="label-mono accent-text">No sales data for this grade</div>
+          <div className="ph-price ph-price-none">n/a</div>
           <p className="muted small" style={{ margin: 0 }}>
             This is a <b>{scan.slab.company} {scan.slab.gradeText}</b>, and we hold no
             completed sales for it. Our graded-sales source covers Pokémon only, so cards
             from other games have no sold comps here yet. The live listings below are real
-            asking prices for this card — the closest signal we can honestly give you.
+            asking prices for this card, which is the closest signal we can honestly give you.
           </p>
         </div>
       ) : pv.slabGradeUnknown ? (
         <div className="ph-figure">
-          <div className="label-mono accent-text">GRADE NOT READABLE</div>
-          <div className="ph-price ph-price-none">—</div>
+          <div className="label-mono accent-text">Grade not readable</div>
+          <div className="ph-price ph-price-none">n/a</div>
           <p className="muted small" style={{ margin: "0 0 4px" }}>
             This is a <b>{scan.slab?.company}</b> slab, but the grade on the label
-            couldn&apos;t be read from this photo — so we won&apos;t quote a price for it.
+            couldn&apos;t be read from this photo, so we won&apos;t quote a price for it.
             A raw price would understate a graded card badly. Pick the grade below to
             see what it sells for, or re-shoot with the full label in focus.
           </p>
@@ -2346,7 +2290,7 @@ function PriceHero({ scan }: { scan: Scan }) {
                   <Money v={pv.ask!.staleCeiling} unit="USD" showSource={false} />
                 </b>{" "}
                 for {pv.ask!.staleCeilingDays} days with no buyer, so the market is below
-                that. Asking prices drift upward on their own — the copies that sell
+                that. Asking prices drift upward on their own, because the copies that sell
                 disappear from the listings, and the overpriced ones stay.
               </div>
             )}
@@ -2355,7 +2299,7 @@ function PriceHero({ scan }: { scan: Scan }) {
                 <summary>
                   {pv.ask!.otherPrintings!.length} other printing
                   {pv.ask!.otherPrintings!.length === 1 ? "" : "s"} of this card number
-                  {" — priced separately, not averaged in"}
+                  {", priced separately rather than averaged in"}
                 </summary>
                 <ul>
                   {pv.ask!.otherPrintings!.map((o) => (
@@ -2389,13 +2333,13 @@ function PriceHero({ scan }: { scan: Scan }) {
                     {pv.ask!.raw ? (
                       <>
                         This is the <b>{pv.ask!.printing ?? "special"}</b> printing, which the
-                        catalog price above does not cover — it quotes the base print of the
+                        catalog price above does not cover. It quotes the base print of the
                         same card number.
                       </>
                     ) : pv.slabPrice?.basis === "ask-over-suspect-sale" ? (
                       <>
                         We <b>do</b> hold completed sales at this grade, and they price it
-                        below the grade beneath it — which cannot be right, and means those
+                        below the grade beneath it. That cannot be right, and it means those
                         comps are too thin or not all this card. Using the live market for
                         this exact grader and grade instead.
                       </>
@@ -2405,7 +2349,7 @@ function PriceHero({ scan }: { scan: Scan }) {
                         {pv.ask!.printing ? ` ${pv.ask!.printing}` : ""} of this card.
                       </>
                     )}{" "}
-                    This is what sellers are asking today — not what one sold for. Sold
+                    This is what sellers are asking today, not what one sold for. Sold
                     prices usually land below the asks.
                   </span>
                 </>
@@ -2426,8 +2370,8 @@ function PriceHero({ scan }: { scan: Scan }) {
         </>
       ) : (
         <div className="ph-empty">
-          <div className="label-mono accent-text">ESTIMATED VALUE</div>
-          <div className="ph-price ph-price-none">—</div>
+          <div className="label-mono accent-text">Estimated value</div>
+          <div className="ph-price ph-price-none">n/a</div>
           <QuotaBanner scan={scan} q={quota} />
           <p className="muted small" style={{ margin: 0 }}>
             No market price for this exact card in any feed we reach. The eBay sold
@@ -2441,28 +2385,28 @@ function PriceHero({ scan }: { scan: Scan }) {
           Sale comps available to us are <b>PSA</b> sales. This card is
           certified by <b>{pv.slabCompany}</b>, so the figure above is the closest PSA
           tier rather than a recorded sale of a {pv.slabCompany} {scan.slab?.gradeText}.
-          Beckett and PSA grades are not interchangeable — check the {pv.slabCompany} sold
+          Beckett and PSA grades are not interchangeable, so check the {pv.slabCompany} sold
           listings below before pricing to sell.
         </p>
       )}
 
       <div className="ph-method">
-        <div className="ph-method-title label-mono">HOW THIS NUMBER WAS REACHED</div>
+        <div className="ph-method-title label-mono">How this number was reached</div>
         <ol className="ph-method-list">
           <li>
             <b>Identified</b> the exact printing
-            {scan.identification?.setName ? ` — ${scan.identification.setName}` : ""}
+            {scan.identification?.setName ? ` · ${scan.identification.setName}` : ""}
             {scan.identification?.localId ? ` #${scan.identification.localId}` : ""}.
           </li>
           {scan.slab ? (
             <li>
-              <b>Read the grading label</b> — {scan.slab.company} {scan.slab.gradeText}
+              <b>Read the grading label:</b> {scan.slab.company} {scan.slab.gradeText}
               {scan.slab.certNumber ? `, cert ${scan.slab.certNumber}` : ""}. We do not
               grade a card that is already certified.
             </li>
           ) : (
             <li>
-              <b>No grading label found</b> — priced as a raw, ungraded copy. We
+              <b>No grading label found.</b> Priced as a raw, ungraded copy. We
               don&apos;t judge this card&apos;s condition, so the figure is the market
               price for the card, not for this particular copy.
             </li>
@@ -2524,7 +2468,6 @@ function LiveListings({ scan }: { scan: Scan }) {
     if (!id?.name) { setState("done"); return; }
     const q = new URLSearchParams({ name: id.name });
     if (id.setName) q.set("set", id.setName);
-    if (id.game) q.set("game", id.game);
     if (id.localId) q.set("number", id.localId);
     if (v?.slabGrader) q.set("grader", v.slabGrader);
     if (v?.slabGrade != null) q.set("grade", String(v.slabGrade));
@@ -2551,17 +2494,17 @@ function LiveListings({ scan }: { scan: Scan }) {
     <div className="panel">
       <div className="listings-head">
         <div>
-          <div className="label-mono accent-text">CURRENTLY LISTED</div>
+          <div className="label-mono accent-text">Currently listed</div>
           <p className="note" style={{ margin: "4px 0 0" }}>
             Live asking prices on eBay{data?.filteredToGrade && label ? <> for <b>{label}</b> copies</> : null}
             {data?.filteredToPrinting && data.printing ? <> of the <b>{data.printing}</b> printing</> : null}.
-            These are what sellers <b>want</b>, not what cards <b>sold</b> for — sold prices
+            These are what sellers <b>want</b>, not what cards <b>sold</b> for. Sold prices
             usually land below the asks.
           </p>
         </div>
         {data?.medianAsk != null && (
           <div className="ask-figure">
-            <div className="label-mono">MEDIAN ASK</div>
+            <div className="label-mono">Median ask</div>
             <div className="ask-price">
               <Money v={data.medianAsk} showSource={false} />
             </div>
@@ -2635,7 +2578,7 @@ function Result({ scan }: { scan: Scan }) {
   if (scan.status === "rejected" && scan.rejection) {
     return (
       <div className="panel" style={{ borderColor: "var(--warn)" }}>
-        <span className="badge warn">scan failed — no charge</span>
+        <span className="badge warn">scan failed, no charge</span>
         <h3 style={{ marginBottom: 4 }}>{scan.rejection.userMessage}</h3>
         <p className="muted" style={{ margin: 0 }}>{scan.rejection.retryHint}</p>
         {scan.identification?.name && (
@@ -2656,7 +2599,7 @@ function Result({ scan }: { scan: Scan }) {
       {scan.slab && (
         <div className="panel" style={{ borderColor: "var(--green)" }}>
           <span className="badge pass" style={{ fontSize: 16, padding: "6px 16px" }}>
-            {scan.slab.company} CERTIFIED — {scan.slab.gradeText}
+            {scan.slab.company} CERTIFIED · {scan.slab.gradeText}
           </span>
           {scan.slab.certNumber && (
             <span className="muted" style={{ marginLeft: 10 }}>
@@ -2664,7 +2607,7 @@ function Result({ scan }: { scan: Scan }) {
             </span>
           )}
           <p className="muted" style={{ margin: "8px 0 0" }}>
-            This card is already professionally graded, so we don&apos;t grade it ourselves —
+            This card is already professionally graded, so we don&apos;t grade it ourselves.
             a condition opinion formed through the case would add nothing to the certified
             grade on the label. We read the label and value the card at that grade.{" "}
             {scan.slab.verifyUrl && (
@@ -2693,7 +2636,7 @@ function Result({ scan }: { scan: Scan }) {
                   m.centering.passesAt.psa10 ? (
                     <span className="badge pass">passes PSA 10 centering</span>
                   ) : m.centering.passesAt.psa9 ? (
-                    <span className="badge warn">PSA 9 centering — misses 10</span>
+                    <span className="badge warn">PSA 9 centering, misses 10</span>
                   ) : (
                     <span className="badge fail">fails PSA 9 centering</span>
                   )
@@ -2740,7 +2683,7 @@ function Result({ scan }: { scan: Scan }) {
                 <div className="related-name">{c.name}</div>
                 <div className="muted small">#{c.localId}</div>
                 <div className="related-price">
-                  {c.price != null ? `$${c.price.toFixed(2)}` : "—"}
+                  {c.price != null ? `$${c.price.toFixed(2)}` : "n/a"}
                 </div>
               </div>
             ))}
@@ -2860,7 +2803,7 @@ function HomeInner() {
       <div className="capture-head">
         <h1>Place the card. We do the measuring.</h1>
         <p className="tagline">
-          Centering, measured — not guessed. Bad photos get rejected, not graded.
+          Centering is measured, not guessed. Bad photos get rejected rather than graded.
         </p>
       </div>
 
@@ -2873,9 +2816,9 @@ function HomeInner() {
           <span className="paste-ok">Pasted into the {pastedInto} slot.</span>
         ) : (
           <>
-            You can paste a screenshot straight in — press <kbd>⌘</kbd><kbd>V</kbd>{" "}
+            You can paste a screenshot straight in. Press <kbd>⌘</kbd><kbd>V</kbd>{" "}
             anywhere on this page. To put a screenshot on the clipboard on a Mac use{" "}
-            <kbd>⌘</kbd><kbd>⌃</kbd><kbd>⇧</kbd><kbd>4</kbd> — adding Control sends it
+            <kbd>⌘</kbd><kbd>⌃</kbd><kbd>⇧</kbd><kbd>4</kbd>, where adding Control sends it
             to the clipboard instead of saving a file.
           </>
         )}

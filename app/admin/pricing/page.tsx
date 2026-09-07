@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { aud, DUNNING_LADDER, shortDate } from "../lib/data";
+import { aud, shortDate } from "../lib/data";
 import {
   ApiError,
   applyBoost,
@@ -10,7 +10,6 @@ import {
   fetchCommerce,
   type AdminBillingEvent,
   type AdminBoost,
-  type AdminBoostTier,
   type AdminPlan,
   type BillingEventKind,
   type BoostState,
@@ -20,7 +19,6 @@ import {
   BlockHead,
   Card,
   CardBody,
-  CardHead,
   DL,
   Empty,
   Modal,
@@ -92,6 +90,16 @@ const EVENT_TONE: Record<BillingEventKind, "ok" | "warn" | "bad" | "idle" | "gol
   refunded: "warn",
 };
 
+/**
+ * The plan's name without the company on the front of it.
+ *
+ * Stripe holds the product as "GrailMarket Collector", which is right on an
+ * invoice and wrong in a 90px chip on a page inside GrailMarket: the prefix
+ * is the same on all three, so it spends the chip's width on the only word
+ * that does not tell them apart. Anything that is not prefixed is left alone.
+ */
+const shortPlanName = (name: string) => name.replace(/^GrailMarket\s+/i, "");
+
 function PricingPage() {
   const [tab, setTab] = useState<Tab>("plans");
   /* Secondary filters, one per section. They live beside the section itself in
@@ -109,7 +117,6 @@ function PricingPage() {
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [boosts, setBoosts] = useState<AdminBoost[]>([]);
   const [billing, setBilling] = useState<AdminBillingEvent[]>([]);
-  const [tiers, setTiers] = useState<AdminBoostTier[]>([]);
   /* Whether Stripe is reachable, and whether this operator may write to it.
      Both come from the API — the console keeps a copy of the capability table
      so it can hide controls, but the answer is the API's. */
@@ -131,7 +138,6 @@ function PricingPage() {
         setPlans(r.plans);
         setBoosts(r.boosts);
         setBilling(r.billing);
-        setTiers(r.boostTiers);
         setStripe(r.stripe);
         setLoadError(null);
       })
@@ -145,6 +151,11 @@ function PricingPage() {
   const mrr = useMemo(() => plans.reduce((s, p) => s + p.mrr, 0), [plans]);
   const subscribers = useMemo(() => plans.reduce((s, p) => s + p.subscribers, 0), [plans]);
   const pastDue = useMemo(() => plans.reduce((s, p) => s + p.pastDue, 0), [plans]);
+
+  /* The bands are all the same now. The stronger wash marked whichever plan
+     had the most subscribers—a real fact, but one the card already states in
+     its own corner. Three plans in a row comparing on price read better when
+     nothing is shouting. */
   const stuck = boosts.filter((b) => b.state === "paid-not-applied");
 
   /* A plan with no Stripe price behind it cannot be sold, whatever the page
@@ -422,24 +433,40 @@ function PricingPage() {
             <div className="gm-grid gm-grid--3 gm-plans">
               {plans.map((p) => (
                 <Card key={p.id}>
-                  <CardHead
-                    title={p.name}
-                    sub={p.blurb}
-                    right={
-                      p.subscribers > 0 ? (
-                        <Badge tone="ok">{p.subscribers.toLocaleString("en-US")} on it</Badge>
-                      ) : (
-                        <Badge tone="idle">Nobody yet</Badge>
-                      )
-                    }
-                  />
-                  <CardBody>
-                    <div className="gm-row" style={{ gap: 8, marginBottom: 4, alignItems: "baseline" }}>
-                      <b style={{ fontSize: 26, letterSpacing: "-0.02em" }}>{aud(p.price)}</b>
-                      <span className="gm-muted">
-                        {p.currency !== "AUD" ? `${p.currency} ` : ""}a {p.interval}
+                  {/* The name and the price in a tinted band, rather than a
+                      heading over a figure buried in the body. Three plans
+                      side by side are read by comparing one number across
+                      them, and that number should be the first thing on the
+                      card and the largest — see `.gm-plan-band`. */}
+                  <div
+                    className="gm-plan-band"
+                  >
+                    <div className="gm-plan-band-top">
+                      {/* Just "Starter", not "GrailMarket Starter". Every plan
+                          carries the company's name at Stripe, where it is
+                          what a member sees on their invoice; on a page inside
+                          the company it is the same word three times, and it
+                          pushes the part that differs out of a small chip. */}
+                      <span className="gm-plan-name">{shortPlanName(p.name)}</span>
+                      <span className="gm-spacer">
+                        {p.subscribers > 0 ? (
+                          <Badge tone="ok">{p.subscribers.toLocaleString("en-US")} on it</Badge>
+                        ) : (
+                          <Badge tone="idle">Nobody yet</Badge>
+                        )}
                       </span>
                     </div>
+                    <div className="gm-plan-price">
+                      <b>{aud(p.price)}</b>
+                      <span className="gm-plan-per">
+                        {p.currency !== "AUD" ? `${p.currency} ` : ""}/{p.interval}
+                      </span>
+                    </div>
+                  </div>
+                  <CardBody>
+                    <p className="gm-sm gm-muted" style={{ margin: "0 0 4px" }}>
+                      {p.blurb}
+                    </p>
                     {/* Where the figure above came from. A price Stripe has
                         confirmed and one the API fell back to look identical,
                         and only one of them is what anybody is charged. */}
@@ -474,13 +501,11 @@ function PricingPage() {
                       ]}
                     />
 
-                    <div className="gm-person-tags" style={{ marginTop: 10 }}>
-                      {p.perks.map((f) => (
-                        <span key={f} className="gm-scope">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
+                    {/* These perks are marketing copy restating what each plan
+                        includes — the words a member reads on the pricing page
+                        before subscribing — on a console screen whose job is
+                        what the plans currently earn and how many people are on
+                        each. */}
 
                     <div className="gm-row gm-plan-actions">
                       {/* Only an operator who may write settings sees this,
@@ -503,36 +528,26 @@ function PricingPage() {
             </div>
             )}
 
-            <Note tone="gold">
-              <b>Stripe is still the only copy of the price.</b> Editing a plan here calls Stripe
-              and then reads the answer back, so the figure on the card is what Stripe says it
-              charges, never a second number kept beside it. A price cannot be edited in place at
-              Stripe, so changing one creates a new price and retires the old:{" "}
-              <b>anybody already subscribed keeps the price they signed up on</b> until their
-              subscription is moved, which is not something this page does.
-            </Note>
+            {/* The panel that used to sit here explaining that Stripe holds the
+                price, and what happens to existing subscribers when one
+                changes, is gone. It was six lines of standing explanation
+                under a page you visit to read three figures — and the two
+                facts in it that a person acts on are already where the action
+                is: each card says where its figure came from and when it was
+                read, and the edit dialog says, at the point of changing a
+                price, that it creates a new one and leaves existing
+                subscribers on the old. */}
           </>
         ) : null}
 
         {/* =================================================== boosts */}
         {tab === "boosts" ? (
           <>
-            <div className="gm-grid gm-grid--3">
-              {tiers.map((t) => (
-                <Card key={t.key}>
-                  <CardHead
-                    title={t.name}
-                    sub={`${aud(t.amountCents / 100)} · ${t.days} day${t.days === 1 ? "" : "s"}`}
-                    right={t.featured ? <Badge tone="gold">Featured rail</Badge> : null}
-                  />
-                  <CardBody>
-                    <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                      {t.detail}
-                    </p>
-                  </CardBody>
-                </Card>
-              ))}
-            </div>
+            {/* The three product cards were removed because they restated
+                fixed configuration — the price and duration of each boost
+                product — on a page whose job is the ledger of boosts
+                actually bought, and every row of that ledger already names
+                its own tier. */}
 
             {stuck.length > 0 ? (
               <Note tone="bad">
@@ -557,7 +572,7 @@ function PricingPage() {
                   title={boosts.length === 0 ? "No boost has been bought yet" : "Nothing in that state"}
                   body={
                     boosts.length === 0
-                      ? "Nothing has been charged for a featured listing. The three products above are live; this fills as they sell."
+                      ? "Nothing has been charged for a featured listing yet. This fills as boosts are bought."
                       : "No boost currently sits in that state. Clear the filter to see the whole ledger."
                   }
                 />
@@ -642,26 +657,11 @@ function PricingPage() {
         {/* ================================================== billing */}
         {tab === "billing" ? (
           <>
-            <Card>
-              <CardHead
-                title="What happens when a payment fails"
-                sub="The retry schedule a failed charge goes through before the plan lapses"
-              />
-              <CardBody>
-                <div className="gm-row" style={{ gap: 8 }}>
-                  {DUNNING_LADDER.map((step, i) => (
-                    <span key={step} className="gm-scope">
-                      {i + 1}. {step}
-                    </span>
-                  ))}
-                </div>
-                <p className="gm-sm gm-muted" style={{ marginTop: 10, marginBottom: 0 }}>
-                  Access is unchanged while a charge is retrying. A member whose card failed has not
-                  done anything wrong. The plan lapses only after the last attempt, and the listing
-                  quota drops with it.
-                </p>
-              </CardBody>
-            </Card>
+            {/* This panel stood as an explanation of Stripe's retry and dunning
+                behaviour. That behaviour does not change and is the same on every
+                visit. The billing ledger below is where a person opens to see what
+                actually happened to a particular charge. Anything actionable
+                appears on the row itself. */}
 
             {shownBilling.length === 0 ? (
               <Card>
