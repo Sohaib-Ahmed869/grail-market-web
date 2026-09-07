@@ -1,0 +1,2461 @@
+/* ==========================================================================
+   GrailMarket Admin — theme-aware surfaces and the composed pieces.
+
+   Loaded after admin.css. Two jobs:
+   1. the few surfaces that paint a literal gradient rather than a token, and
+      so need a dark counterpart of their own;
+   2. the components the reference layouts are built from — the greeting band,
+      the pill filter row, the linked stat rail, the case card, the member
+      card, the plan card.
+
+   House rules these all follow: no solid-filled icon chips, one border
+   weight, one radius scale, and a shadow only where something genuinely sits
+   above the page.
+   ========================================================================== */
+
+/* ==========================================================================
+   1 · DARK COUNTERPARTS
+   ========================================================================== */
+
+:root[data-gm-theme="dark"] .gm-shell::before {
+  background:
+    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.05), transparent 66%),
+    radial-gradient(760px 520px at 88% 6%, rgba(120, 100, 70, 0.04), transparent 62%),
+    radial-gradient(900px 700px at 4% 100%, rgba(56, 83, 111, 0.05), transparent 64%),
+    linear-gradient(158deg, #121922 0%, #0e141b 44%, #0b1017 100%);
+}
+
+:root[data-gm-theme="dark"] .gm-side {
+  background:
+    radial-gradient(420px 300px at 118% -6%, rgba(168, 141, 96, 0.12), transparent 66%),
+    radial-gradient(360px 420px at -20% 108%, rgba(56, 83, 111, 0.14), transparent 62%),
+    linear-gradient(168deg, #18212c 0%, #141c25 52%, #111820 100%);
+  border-right-color: var(--line);
+  box-shadow: none;
+}
+
+/* On a dark ground `--grad-navy` finishes almost the colour of the panel it
+   sits on, so the selected row stopped reading as selected. It gets a lighter
+   fill and a gold edge instead — the same job the gradient does in light. */
+:root[data-gm-theme="dark"] .gm-nav-item.is-active,
+:root[data-gm-theme="dark"] .gm-nav-item.is-active:hover {
+  background: linear-gradient(135deg, #354b62 0%, #263647 100%);
+  border-color: rgba(191, 162, 115, 0.42);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-gm-theme="dark"] .gm-rail-item.is-active,
+:root[data-gm-theme="dark"] .gm-rail-item.is-active:hover {
+  background: linear-gradient(135deg, #354b62 0%, #263647 100%);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.42), inset 0 0 0 1px rgba(191, 162, 115, 0.38);
+}
+
+/* the floating rail card, on the dark ground */
+:root[data-gm-theme="dark"] .gm-rail-inner {
+  background: linear-gradient(172deg, #1c2632 0%, #18212c 60%, #151d26 100%);
+  border-color: var(--line-2);
+  box-shadow: var(--sh-2);
+}
+
+/* One rule, now the header is the same card whether the nav is open or not. */
+:root[data-gm-theme="dark"] .gm-top {
+  background: linear-gradient(120deg, rgba(24, 33, 44, 0.92), rgba(20, 28, 37, 0.88));
+  border-color: var(--line-2);
+  box-shadow: var(--sh-2);
+}
+
+:root[data-gm-theme="dark"] .gm-dialog {
+  background: var(--surface);
+  border-color: var(--line-2);
+}
+
+/* the slab case is a physical object — it stays light, but its label sits on
+   a dimmer white so it does not glare out of a dark page */
+:root[data-gm-theme="dark"] .gm-slab-label {
+  background: linear-gradient(180deg, #e6eaef, #d3dae2);
+  color: #16202b;
+}
+
+:root[data-gm-theme="dark"] .gm-slab {
+  background: linear-gradient(158deg, #dfe4ea 0%, #c3ccd6 100%);
+}
+
+:root[data-gm-theme="dark"] .gm-ctile-media {
+  background: var(--surface-2);
+}
+
+:root[data-gm-theme="dark"] .gm-hero {
+  background: var(--surface);
+}
+
+/* ==========================================================================
+   2 · THEME SWITCH — in the sidebar header, beside the brand
+   ========================================================================== */
+
+.gm-themeswitch {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--r-pill);
+}
+
+.gm-themeswitch-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 46px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.gm-themeswitch-track svg {
+  position: relative;
+  z-index: 1;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-4);
+  transition: color 0.2s ease;
+}
+
+/* the knob rides over whichever icon is not the current theme */
+.gm-themeswitch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  transition: transform 0.22s cubic-bezier(0.22, 0.9, 0.34, 1);
+}
+
+.gm-themeswitch.is-dark .gm-themeswitch-track {
+  background: var(--navy-600);
+  border-color: var(--navy-500);
+}
+
+.gm-themeswitch.is-dark .gm-themeswitch-knob {
+  transform: translateX(20px);
+}
+
+/* whichever side the knob is on shows the darker glyph */
+.gm-themeswitch:not(.is-dark) .gm-themeswitch-track svg:first-of-type {
+  color: var(--gold-600);
+}
+
+.gm-themeswitch.is-dark .gm-themeswitch-track svg:last-of-type {
+  color: var(--gold-300);
+}
+
+.gm-themeswitch:hover .gm-themeswitch-track {
+  border-color: var(--gold);
+}
+
+.gm-themeswitch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ==========================================================================
+   2b · TOPBAR CONTROLS — round icon buttons and the account menu
+   ========================================================================== */
+
+/* A circle, not a rounded rectangle: these sit beside an avatar, and matching
+   its shape is what makes the group read as one cluster of controls. */
+.gm-iconbtn {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+  color: var(--ink-2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.gm-iconbtn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.gm-iconbtn:hover {
+  color: var(--ink);
+  box-shadow: var(--sh-2);
+  transform: translateY(-1px);
+}
+
+.gm-iconbtn:focus-visible {
+  outline: none;
+  box-shadow: var(--sh-1), var(--focus-ring);
+}
+
+/* unread marker — a dot, not a count: the number belongs in the panel */
+.gm-iconbtn--dot::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.gm-account {
+  position: relative;
+  flex: none;
+}
+
+.gm-account-btn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.gm-account-btn:hover {
+  transform: translateY(-1px);
+}
+
+.gm-account-btn.is-open,
+.gm-account-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--gold-100), 0 0 0 4px var(--gold);
+}
+
+.gm-account-av {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-pill);
+  background: var(--grad-navy);
+  color: #f0e7d8;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: var(--sh-1), inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.gm-account-av--lg {
+  width: 42px;
+  height: 42px;
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------- the menu
+
+   One popover treatment, shared by the account menu and the select below it,
+   so a dropdown anywhere in the console has the same radius, the same border
+   and the same shadow. */
+.gm-menu {
+  position: absolute;
+  z-index: 60;
+  min-width: 210px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--sh-3);
+  animation: gm-menu-in 0.14s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+}
+
+@keyframes gm-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.gm-account-menu {
+  top: calc(100% + 10px);
+  right: 0;
+}
+
+.gm-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 10px;
+}
+
+.gm-menu-head-meta {
+  min-width: 0;
+}
+
+.gm-menu-head-meta b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-menu-head-meta span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-menu-sep {
+  height: 1px;
+  margin: 2px 6px 6px;
+  background: var(--line);
+}
+
+.gm-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink-2);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.gm-menu-item svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--ink-4);
+}
+
+.gm-menu-item:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-menu-item:hover svg {
+  color: var(--gold);
+}
+
+.gm-menu-item:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+  box-shadow: var(--focus-ring);
+}
+
+.gm-menu-item--danger:hover {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.gm-menu-item--danger:hover svg {
+  color: var(--bad);
+}
+
+/* ==========================================================================
+   3 · GREETING BAND — the dashboard opener
+   ========================================================================== */
+
+.gm-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  padding: 22px 26px;
+  min-height: 138px;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+}
+
+.gm-hero-copy {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  max-width: 32ch;
+}
+
+.gm-hero-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-4);
+  margin-bottom: 9px;
+}
+
+.gm-hero h2 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.14;
+  color: var(--ink);
+}
+
+.gm-hero h2 em {
+  font-style: normal;
+  color: var(--gold);
+}
+
+.gm-hero p {
+  margin: 9px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.gm-hero-actions {
+  margin-top: 13px;
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+/* The trail of cards fanning off the right edge of the greeting. A flex
+   sibling of the copy rather than absolutely pinned right: it takes the
+   leftover width and centres the fan in it, which closes the gap after the
+   text instead of parking the cards on the far edge. Fixed in place — the
+   cards are the subject of the greeting, not an animation. */
+.gm-hero-trail {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(0.78);
+  pointer-events: none;
+}
+
+.gm-hero-trail > span {
+  margin-left: -56px;
+  transform-origin: bottom center;
+  transform: rotate(var(--fan, 0deg));
+}
+
+.gm-hero-trail > span:first-child {
+  margin-left: 0;
+}
+
+@media (max-width: 1320px) {
+  .gm-hero-trail {
+    transform: scale(0.64);
+  }
+}
+
+@media (max-width: 760px) {
+  .gm-hero-trail {
+    display: none;
+  }
+
+  .gm-hero h2 {
+    font-size: 22px;
+  }
+}
+
+/* ==========================================================================
+   4 · PILL FILTER ROW — the segmented row from the case-board reference
+   ========================================================================== */
+
+/* ==========================================================================
+   SEGMENTED SECTION SWITCH
+
+   For a page made of two or three different tables — Plans / Boosts /
+   Billing, or the five settings sections. Not a filter: there is no
+   "everything" to fall back to, so it stays on screen rather than going
+   behind the Filter button, which would hide two thirds of the page under a
+   control that says it narrows one.
+
+   One container, and the selected item is filled with the same corner radius
+   as every button and card in the console.
+   ========================================================================== */
+
+.gm-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-1), var(--edge);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.gm-segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.gm-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 32px;
+  padding: 0 13px;
+  border: 0;
+  /* the same radius as a button, which is what was asked for */
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.gm-segment:hover:not(.is-active) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-segment:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: -2px;
+}
+
+.gm-segment.is-active {
+  background: var(--grad-navy);
+  color: #fff;
+  box-shadow: var(--sh-navy);
+}
+
+.gm-segment-n {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* white on the navy fill, in both themes — see the note in admin.css about
+   the two hardcoded whites that are correct */
+.gm-segment.is-active .gm-segment-n {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* ==========================================================================
+   5 · LINKED STAT RAIL — the right column of the dashboard reference
+   ========================================================================== */
+
+.gm-linkstat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-1), var(--edge);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+
+.gm-linkstat-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* both are spans — without display:block they run together on one line */
+.gm-linkstat-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.gm-linkstat-value {
+  display: block;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.gm-linkstat-go {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-2);
+  color: var(--ink-4);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.gm-linkstat-go svg {
+  width: 13px;
+  height: 13px;
+}
+
+.gm-linkstat:hover .gm-linkstat-go {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ==========================================================================
+   6 · META BOX — the small labelled pairs inside a case card
+   ========================================================================== */
+
+.gm-metagrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gm-metabox {
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.gm-metabox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+
+.gm-metabox-label svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-metabox-value {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   7 · CASE CARD — conflicts, laid out like the reference's offer board
+   ========================================================================== */
+
+.gm-caseboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.gm-case {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+
+.gm-case-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gm-case-who {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-case-who b {
+  font-size: 13.2px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-case-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.gm-case-body {
+  font-size: 12.6px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gm-case-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.gm-case-actions .gm-btn {
+  flex: 1 1 0;
+}
+
+/* severity, as an outline pill rather than a filled block */
+.gm-sev {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.gm-sev svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-sev--high {
+  color: var(--bad);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-sev--med {
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-sev--low {
+  color: var(--info);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* the resolved confirmation that slides in at the top right */
+/* Above the scrim and above the dialog.
+
+   It was 80, under the scrim's 90 and the dialog's 91 — so a toast raised
+   while any dialog was open was painted behind a blurred sheet and could not
+   be read. That is exactly when most of them are raised: a reply sent, a
+   decision taken, a plan saved. A status message about something that just
+   happened has to be readable whether or not the thing that caused it is
+   still on screen. */
+.gm-toast {
+  position: fixed;
+  top: 84px;
+  right: 26px;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-3);
+  animation: gm-toast-in 0.3s cubic-bezier(0.22, 0.9, 0.34, 1) both;
+}
+
+.gm-toast-ico {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ok);
+  color: var(--ok);
+}
+
+.gm-toast-ico svg {
+  width: 15px;
+  height: 15px;
+}
+
+.gm-toast b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.gm-toast span {
+  display: block;
+  font-size: 11.8px;
+  color: var(--ink-3);
+}
+
+@keyframes gm-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   8 · SECTION HEAD — "Best for you (24) … See all"
+   ========================================================================== */
+
+.gm-sectionhead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.gm-sectionhead h3 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+
+.gm-sectionhead-n {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   9 · SELECT — the console's own dropdown, trigger and list
+   ========================================================================== */
+
+.gm-sel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.2px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.gm-sel-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-sel-caret {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--ink-4);
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+
+.gm-sel:hover .gm-sel-caret,
+.gm-sel.is-open .gm-sel-caret {
+  color: var(--ink-2);
+}
+
+.gm-sel.is-open .gm-sel-caret {
+  transform: rotate(180deg);
+}
+
+/* the bordered control, used anywhere a lone dropdown sits beside a button */
+.gm-sel--field {
+  height: var(--control-h);
+  padding: 0 11px 0 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+
+.gm-sel--field:hover {
+  border-color: var(--ink-4);
+}
+
+.gm-sel--field.is-open,
+.gm-sel--field:focus-visible {
+  outline: none;
+  border-color: var(--focus-line);
+  box-shadow: var(--sh-1), var(--focus-ring);
+}
+
+/* the frameless one, for a row of fields inside a single bordered bar */
+.gm-sel--bare {
+  width: 100%;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 550;
+}
+
+.gm-sel--bare:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 3px;
+  border-radius: var(--r-xs);
+}
+
+/* The list portals into the overlay host, so it shares a stacking context
+   with the scrim (90) and the drawer/modal (91). It has to clear both: a
+   dropdown opened inside a drawer is exactly where this matters. */
+.gm-sel-menu {
+  z-index: 120;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.gm-sel-opt {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gm-sel-opt svg {
+  color: var(--gold);
+}
+
+/* keyboard and pointer share one highlight, so arrowing down and hovering
+   never disagree about which row is next */
+.gm-sel-opt.is-active {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-sel-opt.is-picked {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+/* The filter bar is gone. It was the console's third filter idiom — a row of
+   bare dropdowns with their captions astride the top border, a "More filters"
+   fold, and a row of removable chips to undo what the fold hid. Members was
+   its last user and now opens the same `FilterMenu` as every other page, so
+   the bar, the fold, the chips and `FilterField` went with it. */
+
+/* ==========================================================================
+   14 · REPORTS
+
+   The catalogue rail is gone. Reports was a list of nine down the left and one
+   panel on the right that changed when you picked a row — so eight of the nine
+   were a name and a sparkline, and reading the marketplace meant clicking
+   through all of them. The page now draws the figures instead of a way to
+   reach them, out of the same grid, stat tile, chart and table pieces every
+   other page uses. Only `.gm-panels` and the two small readouts inside a panel
+   are still its own.
+   ========================================================================== */
+
+/* The three-across panel row, spread to a common height rather than letting
+   the shortest card trail a block of white under its last line. */
+.gm-panels > .gm-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-panels .gm-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* the gauge, centred in whatever height its panel ends up with */
+.gm-panel-figure {
+  display: grid;
+  place-items: center;
+  padding: 4px 0;
+}
+
+/* two figures under it, side by side, on one rule */
+.gm-factstrip {
+  display: flex;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-factstrip span {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gm-factstrip i {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.gm-factstrip b {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+@media (max-width: 1180px) {
+  .gm-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   10 · MEMBER CARD
+   ========================================================================== */
+
+.gm-people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.gm-person {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 17px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+
+.gm-person-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.gm-person-id {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-person-id b {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-person-id span {
+  display: block;
+  font-size: 12.2px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-person-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.2px;
+  color: var(--ink-3);
+}
+
+.gm-person-fact {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gm-person-fact svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--ink-4);
+}
+
+.gm-person-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.gm-scope {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+.gm-person-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-top: auto;
+}
+
+/* the rating chip, outlined */
+.gm-rating {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.gm-rating svg {
+  width: 11px;
+  height: 11px;
+}
+
+.gm-rating--mid {
+  color: var(--warn);
+}
+
+.gm-rating--low {
+  color: var(--bad);
+}
+
+/* ==========================================================================
+   11 · PLAN CARD — the pricing page, editable in place
+   ========================================================================== */
+
+.gm-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.gm-plan {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+
+
+
+/* a floor under the head keeps the price on the same line across the row
+   even when one tagline wraps to two and another does not */
+.gm-plan-head {
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+.gm-plan-name {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-3);
+  margin-bottom: 14px;
+}
+
+
+
+.gm-plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.gm-plan-cur {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+/* the price is an input that does not look like one until you reach for it —
+   the admin edits the number in place rather than in a separate form */
+.gm-plan-amount {
+  width: 4.5ch;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.18s ease;
+}
+
+.gm-plan-amount:hover {
+  border-bottom-color: var(--line-2);
+}
+
+.gm-plan-amount:focus {
+  outline: none;
+  border-bottom-color: var(--focus-line);
+}
+
+.gm-plan-amount--wide {
+  width: 7ch;
+  font-size: 28px;
+}
+
+.gm-plan-per {
+  font-size: 13px;
+  color: var(--ink-4);
+  font-weight: 500;
+}
+
+.gm-plan-tag {
+  margin: 12px 0 0;
+  font-size: 12.6px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* the price band is a fixed height so "Custom" and "$39" sit on one line */
+.gm-plan-price {
+  min-height: 46px;
+  align-items: baseline;
+}
+
+.gm-plan-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1 1 auto;
+}
+
+.gm-plan-feat {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.8px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.gm-plan-feat svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--gold);
+}
+
+.gm-plan-feat input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  background: transparent;
+  padding: 0 0 1px;
+  font: inherit;
+  font-size: 12.8px;
+  color: var(--ink-2);
+  transition: border-color 0.18s ease;
+}
+
+.gm-plan-feat input:hover {
+  border-bottom-color: var(--line-2);
+}
+
+.gm-plan-feat input:focus {
+  outline: none;
+  border-bottom-color: var(--focus-line);
+}
+
+/* the CTA is pushed to the bottom of the card, so every button in the row
+   lands on the same line regardless of how many features sit above it */
+.gm-plan-foot {
+  padding: 0 20px 20px;
+  margin-top: auto;
+}
+
+/* the live/stripe state strip */
+.gm-plan-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 11px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+.gm-plan-state code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+   12 · SHARED — the tighter, quieter defaults the reference layouts imply
+   ========================================================================== */
+
+/* a bare heading used between blocks, no card chrome around it */
+.gm-blockhead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gm-blockhead h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.gm-blockhead p {
+  margin: 0;
+  font-size: 12.4px;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+   13 · DASHBOARD LAYOUT
+
+   The greeting, the chart and the overdue list stack in one column; the rail
+   runs the full height beside them rather than sitting under the chart. That
+   is what pulls "Where things stand", the review mix and the overdue table up
+   into the first screen instead of below the fold.
+   ========================================================================== */
+
+.gm-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  gap: 16px;
+  align-items: start;
+}
+
+.gm-dash-main,
+.gm-dash-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* the rail holds position while the column beside it scrolls */
+.gm-dash-rail {
+  position: sticky;
+  top: calc(var(--topbar-h) + 16px);
+}
+
+/* The rail drops below the content sooner than it used to.
+   
+   It held its 300px down to 1180px, which left the queue table beside it about
+   605px to fit six columns into — and it cannot, whatever the padding, so the
+   dashboard grew a sideways scrollbar through most of a laptop's width. Below
+   1400 the content takes the whole width and the table fits with room over. */
+@media (max-width: 1400px) {
+  .gm-dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-dash-rail {
+    position: static;
+  }
+}
+
+
+/* ==========================================================================
+   14 · RAIL PANEL — groups the linked stats into one block
+
+   A tinted ground with raised rows on top, so the section reads as a unit
+   rather than four loose cards floating on the page.
+   ========================================================================== */
+
+.gm-railbox {
+  padding: 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  box-shadow: var(--sh-2), var(--edge);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* ==========================================================================
+   15 · RAISED SURFACES
+
+   Everything that is a box gets the shadow-plus-edge pair, so it separates
+   from the page rather than reading as a rectangle drawn on it.
+   ========================================================================== */
+
+.gm-well {
+  padding: 18px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-well--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.gm-hero,
+.gm-case,
+.gm-person,
+.gm-plan,
+.gm-ctile,
+.gm-toast {
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+/* One hover for every card-shaped surface, and it is the public site's:
+   a 2px lift and the border picking up the accent, in 0.15s. The console used
+   to lift 3-5px, bloom a heavier shadow, and — on the listing tiles — rotate
+   half a degree and scale the slab. Six variations of the same gesture across
+   two products; this is the one the rest of the site already uses. */
+.gm-card--lift:hover,
+.gm-stat:hover,
+.gm-linkstat:hover,
+.gm-case:hover,
+.gm-person:hover,
+.gm-ctile:hover,
+.gm-plan:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-2);
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-metabox,
+.gm-scope {
+  box-shadow: var(--sh-1), var(--edge);
+}
+
+.gm-toast {
+  box-shadow: var(--sh-4), var(--edge);
+}
+
+/* ==========================================================================
+   17 · DASHBOARD — MONEY AND THE FUNNEL
+
+   Two panels that sit side by side under the greeting: what the plans are
+   earning, and where a new account stops before it can trade. They pair
+   because both are read at a glance and neither is worth a full row on its
+   own; below 1080px they stack, since the funnel's bars stop being
+   comparable once the column is narrower than its own labels.
+   ========================================================================== */
+
+.gm-dash-duo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 1080px) {
+  .gm-dash-duo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* the panel fills its half of the pair, so two unequal bodies still end level */
+.gm-dash-duo > section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gm-dash-duo > section > .gm-well {
+  flex: 1 1 auto;
+}
+
+/* -- the headline figure, above the split ---------------------------------- */
+
+.gm-money {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gm-money-value {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.gm-money-unit {
+  font-size: 12.4px;
+  font-weight: 550;
+  color: var(--ink-4);
+}
+
+/* -- one bar, split by share ----------------------------------------------- */
+
+.gm-stackbar {
+  display: flex;
+  height: 11px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--surface-3);
+  box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.09);
+  margin: 14px 0 4px;
+}
+
+/* A hairline between neighbours, so two adjacent golds still read as two. It
+   is painted in the track's own colour rather than white — a white rule is a
+   gap on a light page and a scratch on a dark one. */
+.gm-stackbar > i {
+  display: block;
+  height: 100%;
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
+  box-shadow: inset -1px 0 0 var(--surface-3);
+}
+
+.gm-stackbar > i:last-child {
+  box-shadow: none;
+}
+
+/* -- a plan, under the bar -------------------------------------------------- */
+
+.gm-planline {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.8px;
+}
+
+.gm-planline:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.gm-planline-key {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-xs);
+  box-shadow: 0 1px 2px rgba(21, 33, 47, 0.2);
+}
+
+.gm-planline-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gm-planline-name b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.gm-planline-name span {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+.gm-planline-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gm-planline-num b {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.gm-planline-num span {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+/* -- funnel ----------------------------------------------------------------- */
+
+.gm-funnel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.gm-funnel-step {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.gm-funnel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.gm-funnel-label {
+  font-size: 12.8px;
+  font-weight: 550;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-funnel-value {
+  margin-left: auto;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the bar is measured against the first stage, never against the one above:
+   against the neighbour every step looks nearly full and the fall vanishes */
+.gm-funnel-track {
+  height: 9px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(21, 33, 47, 0.09);
+}
+
+.gm-funnel-track > i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--grad-navy);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.gm-funnel-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+.gm-funnel-lost {
+  margin-left: auto;
+  color: var(--warn);
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   18 · DASHBOARD — DECIDING ON THE ROW
+
+   The awaiting-review table is worked from the dashboard, so its last column
+   is a pair of buttons rather than a link. They hold their width against the
+   row's own hover so the two never shift under the pointer.
+   ========================================================================== */
+
+.gm-rowact {
+  display: flex;
+  gap: 6px;
+  /* The cell is now shrink-to-fit (`gm-rowend`), so the buttons already sit
+     at the right edge of the table and can pack from the left inside it —
+     which is what puts the "Action" heading directly over the first one. */
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+/* the confirmation that replaces the buttons once the row is decided, kept
+   the same height so the table does not jump as the queue empties */
+.gm-rowdone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  font-size: 12.2px;
+  color: var(--ink-4);
+}
+
+.gm-rowdone svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ==========================================================================
+   19 · AUTOMATIC CHECKS — the rule list inside the review drawer
+
+   Passes are quiet and failures are not, but both keep the same row shape:
+   the eye should be able to run down the icon column and count how many rules
+   ran before it reads a single word.
+   ========================================================================== */
+
+.gm-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gm-check {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12.8px;
+}
+
+.gm-check.is-fail {
+  background: var(--warn-bg);
+}
+
+.gm-check--bad.is-fail {
+  background: var(--bad-bg);
+}
+
+.gm-check-ico {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-2);
+  color: var(--ink-4);
+  background: var(--surface);
+}
+
+.gm-check-ico svg {
+  width: 12px;
+  height: 12px;
+}
+
+.gm-check.is-pass .gm-check-ico {
+  color: var(--ok);
+  border-color: rgba(31, 138, 91, 0.34);
+}
+
+.gm-check--warn.is-fail .gm-check-ico {
+  color: var(--warn);
+  border-color: rgba(176, 118, 29, 0.34);
+}
+
+.gm-check--bad.is-fail .gm-check-ico {
+  color: var(--bad);
+  border-color: rgba(192, 57, 47, 0.34);
+}
+
+.gm-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.gm-check-body b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* a passed rule is a statement of fact, not news — it steps back */
+.gm-check.is-pass .gm-check-body b {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.gm-check-body span {
+  font-size: 11.8px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+/* who raised it: a rule, or a person */
+.gm-check-tag {
+  flex: none;
+  font-size: 10.4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  padding-top: 4px;
+}
+
+/* ==========================================================================
+   SIGN IN
+
+   One card on a navy field. The reference this follows put a white card on a
+   flat colour and nothing else on the screen, which is right for a page with
+   one job — so the only changes are the palette and the missing sign-up
+   button, because console accounts are made by an owner, not claimed.
+   ========================================================================== */
+
+.gm-login {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  /* Navy, with the gold bloom the console uses for its own ground — kept
+     stronger here than on the console because this screen has nothing else
+     on it to read against. */
+  background:
+    radial-gradient(760px 480px at 76% -4%, rgba(212, 185, 137, 0.62), transparent 58%),
+    radial-gradient(620px 480px at 6% 104%, rgba(168, 141, 96, 0.22), transparent 62%),
+    radial-gradient(700px 520px at 50% 50%, rgba(56, 83, 111, 0.35), transparent 70%),
+    linear-gradient(158deg, #24344a 0%, #1a2632 52%, #121a24 100%);
+}
+
+.gm-login-card {
+  position: relative;
+  z-index: 1;
+  width: min(392px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 30px 30px 26px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(9, 14, 20, 0.42), 0 2px 6px rgba(9, 14, 20, 0.3);
+}
+
+/* A gold hairline along the top edge. The one place the brand colour touches
+   the card, which is enough on a screen with a single control on it. */
+.gm-login-card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 18px;
+  right: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.gm-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 2px;
+}
+
+.gm-login-mark {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--grad-navy);
+  color: var(--gold);
+  box-shadow: var(--sh-navy);
+}
+
+.gm-login-mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.gm-login-brand b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.gm-login-brand span {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* the eye sits inside the field rather than beside it, so the input keeps its
+   full width and the control cannot be mistaken for a second field */
+.gm-login-secret {
+  position: relative;
+}
+
+.gm-login-secret .gm-input {
+  padding-right: 40px;
+}
+
+.gm-login-reveal {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.gm-login-reveal:hover {
+  color: var(--gold-600);
+  background: var(--surface-2);
+}
+
+.gm-login-reveal:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 1px;
+}
+
+.gm-login-reveal svg {
+  width: 15px;
+  height: 15px;
+}
+
+.gm-login-forgot {
+  align-self: flex-end;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  text-decoration: none;
+}
+
+.gm-login-forgot:hover {
+  color: var(--gold-600);
+}
+
+.gm-login-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: 12.6px;
+  line-height: 1.5;
+}
+
+.gm-login-go {
+  height: 42px;
+  font-size: 13.5px;
+}
+
+.gm-login-foot {
+  margin: 0;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-4);
+}
+
+/* ==========================================================================
+   FILTER BUTTON
+
+   One button, and every filter over the list behind it. It replaced a row of
+   outlined pills that was the widest thing on the page, put the least-used
+   control at the top of the most-used screen, and grew by one every time a
+   filter was added.
+
+   The count on the button is what keeps that honest: a hidden filter that
+   leaves no mark is how an empty list gets mistaken for a quiet day.
+   ========================================================================== */
+
+.gm-filterbtn.is-open {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--ink);
+}
+
+.gm-filterbtn-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+/* The panel has to fit on the screen, whatever it holds.
+
+   `--gm-filter-max` is written by the component from the space actually left
+   below (or above) the button, so the panel is capped to the viewport rather
+   than running off the bottom of it. Members opens eight groups at once; with
+   no cap the last four were simply unreachable. The groups scroll and the
+   footer stays put, so "Clear filters" is never the thing that scrolled away. */
+.gm-filterpanel {
+  width: 268px;
+  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--gm-filter-max, 70vh);
+  overflow: hidden;
+}
+
+.gm-filterscroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.gm-filtergroup {
+  padding: 7px 12px 8px;
+}
+
+.gm-filtergroup + .gm-filtergroup {
+  border-top: 1px solid var(--line);
+}
+
+.gm-filtergroup .gm-label {
+  margin-bottom: 4px;
+}
+
+.gm-filteropts {
+  display: grid;
+  gap: 1px;
+}
+
+/* A row per option rather than a dropdown inside a dropdown: with five of
+   them the whole set is readable at once, and the count sits beside each. */
+.gm-filteropt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12.8px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.gm-filteropt > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-filteropt:hover {
+  background: var(--surface-2);
+  color: var(--gold-600);
+}
+
+.gm-filteropt.is-active {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.gm-filteropt-n {
+  flex: none;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-filteropt.is-active .gm-filteropt-n {
+  background: var(--navy);
+  color: #fff;
+}
+
+.gm-filterfoot {
+  flex: none;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-filterfoot .gm-btn {
+  width: 100%;
+}
+
+/* ==========================================================================
+   LOADING — the brand mark, waiting
+
+   Distinct from `.gm-empty` on purpose. An empty list and a list that has not
+   arrived are opposite answers, and they used to be the same grey box with
+   different words in it.
+
+   The arc is what moves. The mark is two filled paths rather than an outline,
+   so there is no stroke to draw on; it breathes instead, slowly, while a gold
+   arc sweeps round it. Two animations and nothing else — a spinner that also
+   pulses and fades is a busy way of saying "wait".
+   ========================================================================== */
+
+.gm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 48px 20px;
+}
+
+.gm-loading--sm {
+  padding: 22px 12px;
+  gap: 10px;
+}
+
+.gm-loading-mark {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+}
+
+.gm-loading--sm .gm-loading-mark {
+  width: 34px;
+  height: 34px;
+}
+
+.gm-loading-mark img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  animation: gm-breathe 2.4s ease-in-out infinite;
+}
+
+.gm-loading--sm .gm-loading-mark img {
+  width: 17px;
+  height: 17px;
+}
+
+/* the light mark on a light panel, the white-and-gold one on a dark panel */
+.gm-loading-mark .gm-mark-dark {
+  display: none;
+}
+
+:root[data-gm-theme="dark"] .gm-loading-mark .gm-mark-light {
+  display: none;
+}
+
+:root[data-gm-theme="dark"] .gm-loading-mark .gm-mark-dark {
+  display: block;
+}
+
+.gm-loading-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 2;
+  animation: gm-spin 1.15s linear infinite;
+}
+
+.gm-loading-track {
+  stroke: var(--line);
+}
+
+/* A quarter of the circle. `stroke-dasharray` is in user units, so this is
+   measured against the r=24 circumference (~151) rather than in percent. */
+.gm-loading-arc {
+  stroke: var(--gold);
+  stroke-linecap: round;
+  stroke-dasharray: 38 113;
+}
+
+.gm-loading b {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+@keyframes gm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gm-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ==========================================================================
+   PLAN CARDS
+
+   Three cards side by side holding different numbers of perks, so the action
+   row landed at three different heights and the eye had to hunt for the same
+   button on each. The cards stretch to a common height and the actions are
+   pushed to the floor of each — one row, straight across.
+   ========================================================================== */
+
+.gm-plans > .gm-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-plans .gm-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-plan-actions {
+  gap: 8px;
+  /* the whole point: whatever is above, the buttons sit on the floor */
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+/* ==========================================================================
+   THE BELL
+
+   Not a member's notifications — those belong to the member. This is the work
+   that has gone past a line: overdue reviews, tickets past their first reply,
+   cases nobody picked up, boosts charged for and never run. Nothing in it is
+   dismissible, so there is no read/unread styling to carry.
+   ========================================================================== */
+
+/* Gold for something merely due, red for something already past its target.
+   A bell that goes red for ordinary volume is one people stop looking at. */
+.gm-iconbtn--dot.is-bad::after {
+  background: var(--bad);
+}
+
+.gm-bellpanel {
+  width: 320px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.gm-bellhead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.gm-bellhead b {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gm-bellhead span {
+  font-size: 11.5px;
+  color: var(--ink-4);
+  line-height: 1.45;
+}
+
+.gm-belllist {
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gm-bellrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 12.8px;
+  line-height: 1.45;
+  text-decoration: none;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.gm-bellrow:last-child {
+  border-bottom: 0;
+}
+
+.gm-bellrow:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.gm-belldot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+
+.gm-belldot--bad {
+  background: var(--bad);
+}
+
+.gm-belldot--warn {
+  background: var(--gold);
+}
+
+/* Nothing late is an answer worth drawing, not an empty box. */
+.gm-bellclear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 26px 18px;
+}
+
+.gm-bellclear svg {
+  width: 22px;
+  height: 22px;
+  color: var(--ok);
+  margin-bottom: 2px;
+}
+
+.gm-bellclear b {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.gm-bellclear span {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}

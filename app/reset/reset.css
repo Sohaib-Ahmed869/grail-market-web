@@ -1,0 +1,102 @@
+.reset-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: var(--bg);
+  background-image: var(--bg-glow);
+}
+
+.reset-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  border-radius: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.reset-brand {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.reset-card h1 {
+  margin: 22px 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.reset-card p.sub {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.reset-field { display: block; margin-bottom: 16px; }
+
+.reset-field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.reset-field input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  outline: none;
+}
+
+/* Focus is colour, never width — a border that grows on focus moves the box's
+   edge and the whole form shuffles as you tab through it. */
+.reset-field input:focus { border-color: var(--accent); }
+.reset-field input[aria-invalid="true"] { border-color: var(--red); }
+
+.reset-error {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--red);
+}
+
+.reset-btn {
+  width: 100%;
+  height: 48px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.reset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.reset-done {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.reset-done strong { color: var(--text); }
