@@ -265,7 +265,7 @@ function MarketTicker() {
         aria-controls="market-ticker"
         title={open ? "Hide market prices" : "Show market prices"}
       >
-        <span className="label-mono accent-text">MARKET</span>
+        <span className="label-mono accent-text">Market</span>
         <Chevron open={open} />
       </button>
       <div id="market-ticker" className="reveal-x" aria-hidden={!open}>
@@ -324,7 +324,7 @@ function NewsLine() {
         aria-controls="hobby-wire"
         title={open ? "Hide hobby news" : "Show hobby news"}
       >
-        <span className="label-mono violet-text">HOBBY WIRE</span>
+        <span className="label-mono violet-text">Hobby wire</span>
         <Chevron open={open} />
       </button>
       <div id="hobby-wire" className="reveal-y" aria-hidden={!open}>
@@ -775,7 +775,7 @@ function GradePanel({ scan }: { scan: Scan }) {
       )}
       <div className="verdict-head">
         <div>
-          <div className="label-mono accent-text">GC ESTIMATE</div>
+          <div className="label-mono accent-text">GC estimate</div>
           <div className="gc-num" style={{ color: gradeColor(g.overall) }}>
             {g.overall.toFixed(1)}
           </div>
@@ -1969,7 +1969,7 @@ function SearchPanel() {
   return (
     <section className={`search-panel ${open ? "open" : ""}`}>
       <button className="search-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <span className="label-mono accent-text">SEARCH BY NAME</span>
+        <span className="label-mono accent-text">Search by name</span>
         <span className="muted small">
           {open ? "hide" : "price a card without scanning it"}
         </span>
@@ -2126,7 +2126,7 @@ function SearchPanel() {
 
               {!pricing && (price?.listings?.length ?? 0) > 0 && (
                 <div className="search-listings">
-                  <div className="label-mono">WHAT THESE ARE</div>
+                  <div className="label-mono">What these are</div>
                   {price!.listings.slice(0, 6).map((l) => (
                     <a key={l.url} className="search-listing" href={l.url} target="_blank" rel="noreferrer">
                       {l.imageUrl && <img src={l.imageUrl} alt="" loading="lazy" />}
@@ -2198,7 +2198,7 @@ function PriceHero({ scan }: { scan: Scan }) {
 
       {scan.slab && !pv.slabGradeUnknown && pv.headline == null ? (
         <div className="ph-figure">
-          <div className="label-mono accent-text">NO SALES DATA FOR THIS GRADE</div>
+          <div className="label-mono accent-text">No sales data for this grade</div>
           <div className="ph-price ph-price-none">n/a</div>
           <p className="muted small" style={{ margin: 0 }}>
             This is a <b>{scan.slab.company} {scan.slab.gradeText}</b>, and we hold no
@@ -2209,7 +2209,7 @@ function PriceHero({ scan }: { scan: Scan }) {
         </div>
       ) : pv.slabGradeUnknown ? (
         <div className="ph-figure">
-          <div className="label-mono accent-text">GRADE NOT READABLE</div>
+          <div className="label-mono accent-text">Grade not readable</div>
           <div className="ph-price ph-price-none">n/a</div>
           <p className="muted small" style={{ margin: "0 0 4px" }}>
             This is a <b>{scan.slab?.company}</b> slab, but the grade on the label
@@ -2370,7 +2370,7 @@ function PriceHero({ scan }: { scan: Scan }) {
         </>
       ) : (
         <div className="ph-empty">
-          <div className="label-mono accent-text">ESTIMATED VALUE</div>
+          <div className="label-mono accent-text">Estimated value</div>
           <div className="ph-price ph-price-none">n/a</div>
           <QuotaBanner scan={scan} q={quota} />
           <p className="muted small" style={{ margin: 0 }}>
@@ -2391,7 +2391,7 @@ function PriceHero({ scan }: { scan: Scan }) {
       )}
 
       <div className="ph-method">
-        <div className="ph-method-title label-mono">HOW THIS NUMBER WAS REACHED</div>
+        <div className="ph-method-title label-mono">How this number was reached</div>
         <ol className="ph-method-list">
           <li>
             <b>Identified</b> the exact printing
@@ -2494,7 +2494,7 @@ function LiveListings({ scan }: { scan: Scan }) {
     <div className="panel">
       <div className="listings-head">
         <div>
-          <div className="label-mono accent-text">CURRENTLY LISTED</div>
+          <div className="label-mono accent-text">Currently listed</div>
           <p className="note" style={{ margin: "4px 0 0" }}>
             Live asking prices on eBay{data?.filteredToGrade && label ? <> for <b>{label}</b> copies</> : null}
             {data?.filteredToPrinting && data.printing ? <> of the <b>{data.printing}</b> printing</> : null}.
@@ -2504,7 +2504,7 @@ function LiveListings({ scan }: { scan: Scan }) {
         </div>
         {data?.medianAsk != null && (
           <div className="ask-figure">
-            <div className="label-mono">MEDIAN ASK</div>
+            <div className="label-mono">Median ask</div>
             <div className="ask-price">
               <Money v={data.medianAsk} showSource={false} />
             </div>

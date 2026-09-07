@@ -7,43 +7,29 @@ import {
   can,
   commsTemplates,
   dateOnly,
-  knownTags,
   LAPSED_DAYS,
   money,
   planLabel,
-  planQuota,
-  billingLabel,
-  revokeReasons,
   roleLabel,
   scopesOf,
   segments,
   verificationLabel,
   type Member,
-  type PlanKey,
-  type VerificationLevel,
 } from "../lib/data";
 import {
-  annotateMember,
   ApiError,
-  fetchMember,
   fetchMembers,
   fetchStaff,
   messageMembers,
-  setMemberStanding,
   type AdminStaff,
-  type TimelineEntry,
 } from "../lib/api";
 import { exportCsv } from "../lib/csv";
-import { MemberTimeline } from "../components/MemberTimeline";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
 import {
   Badge,
   Card,
-  CardBody,
-  CardHead,
   DL,
-  RecordModal,
   Empty,
   MemberBadge,
   Modal,
@@ -55,79 +41,20 @@ import {
   BlockHead,
   FilterMenu,
   Toast,
-  Toggle,
 } from "../components/ui";
 import {
-  IconBan,
-  IconCheck,
   IconDownload,
-  IconExternal,
-  IconKey,
   IconLock,
   IconMail,
-  IconNote,
-  IconRefresh,
   IconSend,
   IconSearch,
   IconShield,
-  IconTag,
   IconUsers,
-  IconX,
 } from "../components/icons";
 
 type Scope = "team" | "market";
-type Action =
-  | "revoke"
-  | "restrict"
-  | "reinstate"
-  | "suspend"
-  | "reset-verification"
-  | "change-plan";
-
-/** Actions that stand on their own reason rather than the revoke list. */
-const REASON_FREE: Action[] = ["reset-verification", "change-plan"];
-
 /** What a console role can reach, in the words the team cards use. */
 const TEAM_SCOPES = ["Verification", "Conflicts", "Members", "Pricing", "Support", "Settings"];
-
-const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls: string }> = {
-  revoke: {
-    title: "Revoke marketplace access",
-    sub: "The member is signed out everywhere and cannot buy, sell or bid.",
-    cta: "Revoke access",
-    cls: "gm-btn--danger",
-  },
-  restrict: {
-    title: "Restrict this member",
-    sub: "Selling and listing are paused. Buying and browsing continue.",
-    cta: "Apply restriction",
-    cls: "gm-btn--gold",
-  },
-  reinstate: {
-    title: "Reinstate this member",
-    sub: "Full access is returned. The strike record stays on file.",
-    cta: "Reinstate",
-    cls: "gm-btn--primary",
-  },
-  "reset-verification": {
-    title: "Reset verification",
-    sub: "Their ID check starts again. They cannot buy or sell until it passes.",
-    cta: "Reset verification",
-    cls: "gm-btn--gold",
-  },
-  "change-plan": {
-    title: "Change plan",
-    sub: "Moves the subscription. Billing is corrected on the next cycle, not retroactively.",
-    cta: "Apply plan change",
-    cls: "gm-btn--primary",
-  },
-  suspend: {
-    title: "Suspend this admin account",
-    sub: "Their sessions end and every scope is withdrawn until a lead restores it.",
-    cta: "Suspend account",
-    cls: "gm-btn--danger",
-  },
-};
 
 const ROLE_LABEL: Record<string, string> = {
   buyer: "Buyer",
@@ -182,22 +109,11 @@ function MembersPage() {
   const seeId = can(viewerRole, "id.exceptions");
   const canAct = can(viewerRole, "members.act");
 
-  const [openMember, setOpenMember] = useState<Member | null>(null);
-  const [openStaff, setOpenStaff] = useState<AdminStaff | null>(null);
-  const [action, setAction] = useState<Action | null>(null);
-  const [reasonKey, setReasonKey] = useState(revokeReasons[0]);
-  const [reasonNote, setReasonNote] = useState("");
-  const [freezeListings, setFreezeListings] = useState(true);
-  const [retireHandle, setRetireHandle] = useState(true);
-  const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
-
-  /* The plan a change-plan action moves to, and the level a reset drops to. */
-  const [nextPlan, setNextPlan] = useState<PlanKey>("collector");
-  const RESET_TO: VerificationLevel = "mobile";
-
-  /* Notes and tags on the open record. */
-  const [noteDraft, setNoteDraft] = useState("");
-  const [tagDraft, setTagDraft] = useState("");
+  const [toast, setToast] = useState<{
+    title: string;
+    body: string;
+    tone?: "ok" | "bad";
+  } | null>(null);
 
   /* Who a message goes to. Handles, not indexes — the list re-sorts. */
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -215,7 +131,6 @@ function MembersPage() {
   const [team, setTeam] = useState<AdminStaff[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [writes, setWrites] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -232,7 +147,7 @@ function MembersPage() {
     return () => {
       live = false;
     };
-  }, [writes]);
+  }, []);
 
   const teamRows = useMemo(
     () =>
@@ -314,6 +229,7 @@ function MembersPage() {
       setToast({
         title: "Nothing was sent",
         body: e instanceof ApiError ? e.message : String(e),
+        tone: "bad",
       });
     } finally {
       setSending(false);
@@ -333,57 +249,6 @@ function MembersPage() {
 
   function toggleAll() {
     setPicked(allPicked ? new Set() : new Set(marketRows.map((m) => m.handle)));
-  }
-
-  /* The open record. Re-read from the API rather than lifted out of the list,
-     because the record carries a timeline the directory row does not. */
-  const [live, setLive] = useState<Member | null>(null);
-  const [record, setRecord] = useState<TimelineEntry[]>([]);
-
-  useEffect(() => {
-    if (!openMember) {
-      setLive(null);
-      setRecord([]);
-      return;
-    }
-    let alive = true;
-    setLive(openMember);
-    fetchMember(openMember.id)
-      .then((r) => {
-        if (!alive) return;
-        setLive(r.member);
-        setRecord(r.timeline);
-      })
-      .catch(() => null);
-    return () => {
-      alive = false;
-    };
-  }, [openMember]);
-
-  async function addNote() {
-    if (!live || noteDraft.trim().length < 4) return;
-    const updated = await annotateMember(live.id, { note: noteDraft.trim() }).catch(() => null);
-    if (updated) setLive(updated);
-    setNoteDraft("");
-    setWrites((n) => n + 1);
-  }
-
-  async function addTag() {
-    const t = tagDraft.trim().toLowerCase().replace(/\s+/g, "-");
-    if (!live || !t || live.tags.includes(t)) return;
-    const updated = await annotateMember(live.id, { tags: [...live.tags, t] }).catch(() => null);
-    if (updated) setLive(updated);
-    setTagDraft("");
-    setWrites((n) => n + 1);
-  }
-
-  async function dropTag(t: string) {
-    if (!live) return;
-    const updated = await annotateMember(live.id, {
-      tags: live.tags.filter((x) => x !== t),
-    }).catch(() => null);
-    if (updated) setLive(updated);
-    setWrites((n) => n + 1);
   }
 
   /* What is on, in the words the dropdowns use, so a folded row can still be
@@ -421,92 +286,6 @@ function MembersPage() {
     [people]
   );
   const titles = useMemo(() => Array.from(new Set(team.map((p) => p.title))).sort(), [team]);
-
-  function startAction(a: Action) {
-    setReasonKey(revokeReasons[0]);
-    setReasonNote("");
-    if (a === "change-plan" && live) setNextPlan(live.plan);
-    setAction(a);
-  }
-
-  const target = openStaff?.name ?? openMember?.handle ?? "";
-
-  /** A plan whose ceiling is below what they already have live. */
-  const quota = planQuota[nextPlan];
-  const overQuota =
-    action === "change-plan" && live !== null && quota !== null && live.liveListings > quota;
-
-  const canCommit =
-    action === "reinstate" ||
-    (action === "change-plan" && live !== null && nextPlan !== live.plan) ||
-    reasonNote.trim().length >= 10;
-
-  /**
-   * Apply the action.
-   *
-   * Staff suspensions have no member record to write to, so they stop at the
-   * toast. Everything else lands on the timeline — an action nobody can point
-   * to later is the thing this record exists to prevent.
-   */
-  async function commit() {
-    if (!action) return;
-
-    if (openStaff || !live) {
-      setToast({
-        title: "Not done",
-        body: `${target} is a staff account. Change what they can reach under Settings, Team and access.`,
-      });
-      setAction(null);
-      setOpenStaff(null);
-      return;
-    }
-
-    const detail = reasonNote.trim();
-
-    /* Restrict, revoke and reinstate are the three the store can take today,
-       and they are the three the feature set calls conduct actions. Plan
-       changes and a verification reset are Stripe's and the provider's to
-       make — the console cannot fake either, so they say so rather than
-       writing a line that claims something happened. */
-    if (action === "change-plan" || action === "reset-verification") {
-      setToast({
-        title: "Not wired up yet",
-        body:
-          action === "change-plan"
-            ? "A plan change has to be made in Stripe. The console cannot do it yet."
-            : "The company that checks IDs makes this decision, and the console cannot reach them yet.",
-      });
-      setAction(null);
-      return;
-    }
-
-    const standing =
-      action === "revoke" ? "revoked" : action === "restrict" ? "restricted" : "active";
-    const reason =
-      action === "reinstate" ? detail || "Reinstated" : `${reasonKey}${detail ? `. ${detail}` : ""}`;
-
-    try {
-      const updated = await setMemberStanding(live.id, standing, reason);
-      setLive(updated);
-      setWrites((n) => n + 1);
-      setToast({
-        title:
-          standing === "revoked"
-            ? "Account closed"
-            : standing === "restricted"
-              ? "Account restricted"
-              : "Access returned",
-        body: `${target} · the reason is on their record`,
-      });
-    } catch (e) {
-      setToast({
-        title: "That did not go through",
-        body: e instanceof ApiError ? e.message : String(e),
-      });
-    }
-    setAction(null);
-    setOpenMember(null);
-  }
 
   /** Swapping template rewrites the draft, but never a draft you have edited. */
   function pickTemplate(key: string) {
@@ -689,26 +468,19 @@ function MembersPage() {
                         ) : null}
                       </div>
 
-                      <div className="gm-person-tags">
-                        {scopesOf(p.role).slice(0, 3).map((sc: string) => (
-                          <span key={sc} className="gm-scope">
-                            {sc}
-                          </span>
-                        ))}
-                        {scopesOf(p.role).length > 3 ? (
-                          <span className="gm-scope">+{scopesOf(p.role).length - 3}</span>
-                        ) : null}
-                      </div>
+                      {/* Three scopes and a "+2" told neither what the account can
+                          reach nor what it cannot. The card already names the role,
+                          which is what the scopes are derived from, and the record
+                          behind it lists them in full. */}
 
                       <div className="gm-person-foot">
                         <span className="gm-tiny gm-dim">{roleLabel(p.role)}</span>
-                        <button
-                          type="button"
+                        <Link
                           className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
-                          onClick={() => setOpenStaff(p)}
+                          href={`/admin/members/${p.id}?scope=team`}
                         >
                           View account
-                        </button>
+                        </Link>
                       </div>
                     </article>
                   ))}
@@ -973,13 +745,16 @@ function MembersPage() {
                         <span className="gm-tiny gm-dim">
                           {m.lastSeenDays === 0 ? "Active today" : `Active ${dateOnly(m.lastSeen)}`}
                         </span>
-                        <button
-                          type="button"
+                        {/* A link, not a button that opens a window over the
+                            directory. The record is a page with an address of
+                            its own now, so it can be sent to a colleague and
+                            left with the browser's own back. */}
+                        <Link
                           className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
-                          onClick={() => setOpenMember(m)}
+                          href={`/admin/members/${m.id}`}
                         >
                           Open record
-                        </button>
+                        </Link>
                       </div>
                     </article>
                     );
@@ -991,565 +766,6 @@ function MembersPage() {
           </>
         )}
       </div>
-
-      {/* ==================================================== staff record */}
-      <RecordModal
-        open={!!openStaff}
-        onClose={() => setOpenStaff(null)}
-        title={openStaff ? openStaff.name : ""}
-        sub={openStaff ? openStaff.title : ""}
-        footer={
-          openStaff ? (
-            openStaff.status === "active" ? (
-              <>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--danger"
-                  onClick={() => startAction("suspend")}
-                >
-                  <IconBan />
-                  Suspend account
-                </button>
-              </>
-            ) : (
-              <span className="gm-sm gm-muted">Restricted.</span>
-            )
-          ) : null
-        }
-      >
-        {openStaff ? (
-          <>
-            <div className="gm-row" style={{ gap: 13, flexWrap: "nowrap" }}>
-              <div className="gm-cell2" style={{ flex: "1 1 auto" }}>
-                <b style={{ fontSize: 15 }}>{openStaff.name}</b>
-                <span>{openStaff.email}</span>
-              </div>
-              <MemberBadge status={openStaff.status} />
-            </div>
-
-            <Card>
-              <CardHead title="Account" />
-              <CardBody>
-                <DL
-                  rows={[
-                    ["Role", openStaff.title],
-                    ["Email", openStaff.email],
-                    ["On the team since", dateOnly(openStaff.since)],
-                    ["Scoped by", openStaff.grantedBy ?? "Not recorded"],
-                  ]}
-                />
-              </CardBody>
-            </Card>
-
-            <Card>
-              <CardHead title="Scopes" sub="What this account can reach" />
-              <CardBody>
-                <div className="gm-person-tags">
-                  {scopesOf(openStaff.role).map((sc: string) => (
-                    <span key={sc} className="gm-scope">
-                      {sc}
-                    </span>
-                  ))}
-                </div>
-              </CardBody>
-            </Card>
-
-          </>
-        ) : null}
-      </RecordModal>
-
-      {/* =================================================== member record */}
-      <RecordModal
-        open={!!openMember}
-        onClose={() => setOpenMember(null)}
-        title={openMember ? openMember.name : ""}
-        sub={openMember ? openMember.handle : ""}
-        footer={
-          /* Reading a record and changing someone's standing are different
-             permissions. A moderator gets the first and not the second. */
-          !canAct ? (
-            <span className="gm-sm gm-muted">
-              Read only. Changing standing, plan or verification is Trust and safety.
-            </span>
-          ) : live ? (
-            live.status === "revoked" ? (
-              <>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
-                  onClick={() => startAction("reinstate")}
-                >
-                  <IconCheck />
-                  Reinstate access
-                </button>
-                <span className="gm-spacer gm-tiny gm-dim">Strike record kept</span>
-              </>
-            ) : (
-              <>
-                {live.status !== "restricted" ? (
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--gold"
-                    onClick={() => startAction("restrict")}
-                  >
-                    <IconLock />
-                    Restrict selling
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary"
-                    onClick={() => startAction("reinstate")}
-                  >
-                    <IconCheck />
-                    Lift restriction
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="gm-btn"
-                  onClick={() => startAction("change-plan")}
-                >
-                  <IconKey />
-                  Change plan
-                </button>
-                <button
-                  type="button"
-                  className="gm-btn"
-                  onClick={() => startAction("reset-verification")}
-                >
-                  <IconRefresh />
-                  Reset verification
-                </button>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--danger gm-spacer"
-                  onClick={() => startAction("revoke")}
-                >
-                  <IconBan />
-                  Revoke access
-                </button>
-              </>
-            )
-          ) : null
-        }
-      >
-        {live ? (
-          <>
-            <div className="gm-row" style={{ gap: 13, flexWrap: "nowrap" }}>
-              <div className="gm-cell2" style={{ flex: "1 1 auto" }}>
-                <b style={{ fontSize: 15 }}>{live.name}</b>
-                <span>{live.email}</span>
-              </div>
-              <MemberBadge status={live.status} />
-            </div>
-
-            {live.note ? (
-              <Note tone={live.status === "revoked" ? "bad" : "warn"}>
-                <b>Moderator note.</b> {live.note}
-              </Note>
-            ) : null}
-
-            <Card>
-              <CardHead
-                title="Account"
-                sub={
-                  seeBilling && seeId
-                    ? `${planLabel[live.plan]} · ${verificationLabel[live.verification]}`
-                    : `${live.sales} sales · ${live.listed} listings published`
-                }
-              />
-              <CardBody>
-                <DL
-                  rows={[
-                    ["Role", ROLE_LABEL[live.role]],
-                    ...(seeBilling
-                      ? ([
-                          [
-                            "Plan",
-                            <span className="gm-row" style={{ gap: 6 }}>
-                              {planLabel[live.plan]}
-                              <span className="gm-dim">
-                                {planQuota[live.plan] === null
-                                  ? "no listing ceiling"
-                                  : `${live.liveListings} of ${planQuota[live.plan]} live`}
-                              </span>
-                            </span>,
-                          ],
-                        ] as [React.ReactNode, React.ReactNode][])
-                      : []),
-                    /* A moderator opens this record to judge a listing, and
-                       the roles table gives them no billing and no ID. Both
-                       rows are dropped rather than blanked — a greyed field
-                       still tells you the account has one. */
-                    ...(seeBilling
-                      ? ([
-                          [
-                            "Billing",
-                            live.billing === "past-due" ? (
-                              <Badge tone="warn">{billingLabel[live.billing]}</Badge>
-                            ) : live.billing === "cancelled" ? (
-                              <Badge tone="bad">{billingLabel[live.billing]}</Badge>
-                            ) : (
-                              billingLabel[live.billing]
-                            ),
-                          ],
-                        ] as [React.ReactNode, React.ReactNode][])
-                      : []),
-                    ...(seeId
-                      ? ([
-                          [
-                            "Verification",
-                            live.verification === "id-verified" ? (
-                              <Badge tone="ok">{verificationLabel[live.verification]}</Badge>
-                            ) : (
-                              <Badge tone="warn">{verificationLabel[live.verification]}</Badge>
-                            ),
-                          ],
-                        ] as [React.ReactNode, React.ReactNode][])
-                      : []),
-                    ["Verified seller", live.verifiedSeller ? "Yes" : "No"],
-                    ["Country", live.country],
-                    ["Member since", dateOnly(live.joined)],
-                    [
-                      "Last seen",
-                      live.lastSeenDays >= LAPSED_DAYS ? (
-                        <span className="gm-row" style={{ gap: 6 }}>
-                          {live.lastSeen}
-                          <Badge tone="warn">Lapsed</Badge>
-                        </span>
-                      ) : (
-                        live.lastSeen
-                      ),
-                    ],
-                    ["Lifetime volume", money(live.volume)],
-                    ["Sales · purchases", `${live.sales} · ${live.purchases}`],
-                    [
-                      "Listings published",
-                      live.listed === 0 ? <Badge tone="warn">Never listed</Badge> : live.listed,
-                    ],
-                    [
-                      "Strikes",
-                      live.strikes === 0 ? (
-                        <Badge tone="ok">None</Badge>
-                      ) : (
-                        <Badge tone={live.strikes >= 3 ? "bad" : "warn"}>
-                          {live.strikes} in the last 30 days
-                        </Badge>
-                      ),
-                    ],
-                  ]}
-                />
-              </CardBody>
-            </Card>
-
-            {/* ------------------------------------------------------ tags */}
-            <Card>
-              <CardHead
-                title="Tags"
-                sub="Internal only. Never shown to the member, and searchable from the directory."
-              />
-              <CardBody>
-                <div className="gm-person-tags" style={{ marginBottom: 10 }}>
-                  {live.tags.length === 0 ? (
-                    <span className="gm-sm gm-muted">No tags on this record.</span>
-                  ) : (
-                    live.tags.map((t) => (
-                      <span key={t} className="gm-scope" style={{ gap: 5 }}>
-                        #{t}
-                        <button
-                          type="button"
-                          onClick={() => dropTag(t)}
-                          aria-label={`Remove the ${t} tag`}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            border: 0,
-                            background: "transparent",
-                            cursor: "pointer",
-                            padding: 0,
-                            color: "inherit",
-                            opacity: 0.7,
-                          }}
-                        >
-                          <IconX style={{ width: 11, height: 11 }} />
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
-                <div className="gm-row" style={{ gap: 8, flexWrap: "nowrap" }}>
-                  <input
-                    className="gm-input"
-                    style={{ flex: "1 1 auto" }}
-                    value={tagDraft}
-                    list="gm-taglist"
-                    onChange={(e) => setTagDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
-                    placeholder="Add a tag, such as chargeback-risk or consignment"
-                    aria-label="Add a tag"
-                  />
-                  <datalist id="gm-taglist">
-                    {knownTags().map((t) => (
-                      <option key={t} value={t} />
-                    ))}
-                  </datalist>
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--sm"
-                    onClick={addTag}
-                    disabled={!tagDraft.trim()}
-                  >
-                    <IconTag />
-                    Add
-                  </button>
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* -------------------------------------------------- timeline */}
-            <MemberTimeline handle={live.handle} entries={record}>
-              <div className="gm-field" style={{ marginBottom: 14 }}>
-                <label className="gm-label" htmlFor="gm-note">
-                  Add a staff note
-                </label>
-                <textarea
-                  id="gm-note"
-                  className="gm-textarea"
-                  value={noteDraft}
-                  onChange={(e) => setNoteDraft(e.target.value)}
-                  placeholder="What the next person reading this record needs to know."
-                />
-                <div className="gm-row" style={{ gap: 8, marginTop: 7 }}>
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--sm gm-btn--primary"
-                    onClick={addNote}
-                    disabled={noteDraft.trim().length < 4}
-                  >
-                    <IconNote />
-                    File note
-                  </button>
-                  <span className="gm-spacer gm-tiny gm-dim">
-                    Internal only · stamped {me?.name ?? "you"}
-                  </span>
-                </div>
-              </div>
-            </MemberTimeline>
-
-            <Card>
-              <CardHead title="What revoking does" sub="So it is clear before you use it" />
-              <CardBody>
-                <ul
-                  style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 7 }}
-                  className="gm-sm gm-muted"
-                >
-                  <li>Every session ends and sign-in is blocked.</li>
-                  <li>Live listings are pulled and open offers cancelled.</li>
-                  <li>Messaging closes, including threads already open with other members.</li>
-                  <li>
-                    Trades already agreed are between the two members. No money passed through us,
-                    so there is nothing here to unwind. Both sides are told the account is closed.
-                  </li>
-                  <li>The member is emailed the reason recorded at the time.</li>
-                </ul>
-              </CardBody>
-            </Card>
-
-            {/* Both of these had no handler at all. */}
-            <div className="gm-row" style={{ gap: 8 }}>
-              <button
-                type="button"
-                className="gm-btn gm-btn--sm"
-                onClick={() => {
-                  /* The same composer the segment uses, aimed at one person.
-                     A second message dialog would be a second thing to keep
-                     in step with what sending actually does. */
-                  setPicked(new Set([live.handle]));
-                  setOpenMember(null);
-                  setComposing(true);
-                }}
-              >
-                <IconMail />
-                Message
-              </button>
-            </div>
-          </>
-        ) : null}
-      </RecordModal>
-
-      {/* ============================================================ modal */}
-      <Modal
-        open={!!action}
-        onClose={() => setAction(null)}
-        title={action ? ACTION_COPY[action].title : ""}
-        sub={action ? ACTION_COPY[action].sub : ""}
-        footer={
-          <>
-            <button
-              type="button"
-              className={`gm-btn ${action ? ACTION_COPY[action].cls : ""}`}
-              disabled={!canCommit}
-              onClick={commit}
-            >
-              {action === "revoke" || action === "suspend" ? <IconBan /> : <IconCheck />}
-              {action ? ACTION_COPY[action].cta : ""}
-            </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setAction(null)}>
-              Cancel
-            </button>
-            <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
-          </>
-        }
-      >
-        <Card pad>
-          <div className="gm-row" style={{ gap: 11, flexWrap: "nowrap" }}>
-            <div className="gm-cell2">
-              <b>{openStaff?.name ?? openMember?.name}</b>
-              <span>{openStaff?.title ?? openMember?.handle}</span>
-            </div>
-          </div>
-        </Card>
-
-        {action === "revoke" ? (
-          <Note tone="bad">
-            <b>{openMember?.handle} loses access immediately.</b> Live listings are pulled and open
-            offers cancelled. Any trade the two of them already agreed is between those members.
-            Nothing passed through us, so there is nothing here to unwind.
-          </Note>
-        ) : action === "suspend" ? (
-          <Note tone="bad">
-            <b>Everything this account could reach is withdrawn.</b> Work already assigned to it
-            returns to the unclaimed queue. Their past decisions stay in the audit log under their
-            name, since suspending someone does not retract what they did.
-          </Note>
-        ) : action === "restrict" ? (
-          <Note tone="warn">
-            Selling and listing stop. The member keeps browsing and buying, and is told which
-            behaviour caused it.
-          </Note>
-        ) : action === "reset-verification" ? (
-          <Note tone="warn">
-            <b>They will have to prove who they are again.</b> Their ID check is set back to the
-            start, and they cannot buy or sell until it passes. We never held a copy of their
-            documents, so nothing of theirs is deleted here.
-            <br />
-            Use this when you doubt who the person is. If the problem is how they have behaved,
-            restrict the account instead.
-          </Note>
-        ) : action === "change-plan" ? (
-          <Note tone={overQuota ? "warn" : "gold"}>
-            {overQuota ? (
-              <>
-                <b>This plan is smaller than what they have live.</b> {live?.liveListings} listings
-                are on the market against a ceiling of {quota}. The oldest come off at the next
-                cycle unless they upgrade again first, so say so in the reason.
-              </>
-            ) : (
-              <>Billing corrects on the next cycle. Nothing already listed is affected.</>
-            )}
-          </Note>
-        ) : (
-          <Note tone="gold">
-            Access returns in full. The strike record and every past action stay on file.
-          </Note>
-        )}
-
-        {action === "change-plan" && live ? (
-          <div className="gm-field">
-            <label className="gm-label" htmlFor="gm-plan-next">
-              Move to
-            </label>
-            <Select
-              id="gm-plan-next"
-              value={nextPlan}
-              onChange={(v) => setNextPlan(v as PlanKey)}
-              options={(["none", "starter", "collector", "dealer"] as PlanKey[]).map((k) => ({
-                value: k,
-                label:
-                  planQuota[k] === null
-                    ? `${planLabel[k]}, no listing ceiling`
-                    : `${planLabel[k]}, ${planQuota[k]} live listing${planQuota[k] === 1 ? "" : "s"}`,
-              }))}
-              style={{ width: "100%" }}
-            />
-            <span className="gm-hint">
-              Currently on {planLabel[live.plan]}, with {live.liveListings} live.
-            </span>
-          </div>
-        ) : null}
-
-        {action !== "reinstate" ? (
-          <>
-            {action === "revoke" || action === "restrict" ? (
-              <div className="gm-field">
-                <label className="gm-label" htmlFor="gm-reason-key">
-                  Reason
-                </label>
-                <Select
-                  id="gm-reason-key"
-                  value={reasonKey}
-                  onChange={setReasonKey}
-                  options={[...revokeReasons]}
-                  style={{ width: "100%" }}
-                />
-              </div>
-            ) : null}
-
-            <div className="gm-field">
-              <label className="gm-label" htmlFor="gm-reason-note">
-                Detail for the record
-              </label>
-              <textarea
-                id="gm-reason-note"
-                className="gm-textarea"
-                value={reasonNote}
-                onChange={(e) => setReasonNote(e.target.value)}
-                placeholder={
-                  action === "change-plan"
-                    ? "Why the plan is moving: a support request, a downgrade they asked for, a comp."
-                    : action === "reset-verification"
-                      ? "What put the identity in doubt."
-                      : "Case references, dates, what the evidence showed."
-                }
-              />
-              <span className="gm-hint">
-                {action === "change-plan"
-                  ? "Optional, but it is what explains the charge later."
-                  : "At least 10 characters."}
-              </span>
-            </div>
-
-            {action === "revoke" ? (
-              <Card pad>
-                <div className="gm-setrow">
-                  <div className="gm-setrow-main">
-                    <b>Pull live listings</b>
-                    <span>Remove everything they have on the market right now.</span>
-                  </div>
-                  <div className="gm-setrow-ctl">
-                    <Toggle checked={freezeListings} onChange={setFreezeListings} label="Pull listings" />
-                  </div>
-                </div>
-                <div className="gm-setrow">
-                  <div className="gm-setrow-main">
-                    <b>Retire the handle</b>
-                    <span>Nobody can re-register it, so the record cannot be walked away from.</span>
-                  </div>
-                  <div className="gm-setrow-ctl">
-                    <Toggle checked={retireHandle} onChange={setRetireHandle} label="Retire handle" />
-                  </div>
-                </div>
-              </Card>
-            ) : null}
-          </>
-        ) : null}
-      </Modal>
 
       {/* ========================================================= comms */}
       <Modal
@@ -1657,7 +873,12 @@ function MembersPage() {
       </Modal>
 
       {toast ? (
-        <Toast title={toast.title} body={toast.body} onDone={() => setToast(null)} />
+        <Toast
+          title={toast.title}
+          body={toast.body}
+          tone={toast.tone}
+          onDone={() => setToast(null)}
+        />
       ) : null}
     </>
   );

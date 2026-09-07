@@ -74,8 +74,7 @@ main {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .accent-text { color: var(--accent); }
@@ -649,8 +648,7 @@ main {
 .news-source {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.01em;
   color: var(--accent-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -756,8 +754,7 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   margin-bottom: 10px;
 }
 
@@ -1065,8 +1062,7 @@ button.primary:disabled {
   color: var(--muted);
   font-size: 11.5px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
   padding: 6px 10px;
   border-bottom: 1px solid var(--border-strong);
 }
@@ -1288,8 +1284,7 @@ button.primary:disabled {
   color: var(--green);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .ph-figure,
@@ -1353,8 +1348,7 @@ button.primary:disabled {
 .ph-grade-label {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--muted);
   display: flex;
   align-items: center;
@@ -1594,8 +1588,7 @@ button.primary:disabled {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.3em;
   font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  letter-spacing: .01em;
   color: var(--muted);
   vertical-align: 0.9em;
   margin-left: 8px;
@@ -1751,9 +1744,8 @@ button.primary:disabled {
   margin-top: 5px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 10px;
-  letter-spacing: .04em;
+  letter-spacing: .01em;
   color: var(--muted);
-  text-transform: uppercase;
 }
 .eviq-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .eviq-high { background: var(--green); }
@@ -1849,8 +1841,7 @@ button.primary:disabled {
   margin-top: 4px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 9.5px;
-  letter-spacing: .05em;
-  text-transform: uppercase;
+  letter-spacing: .01em;
   color: var(--muted);
 }
 .listing-grade {

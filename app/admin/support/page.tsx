@@ -2,38 +2,17 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 /** The first-reply target by priority. The API is the authority; this mirrors
  *  it so a badge can be drawn before the first response lands. */
 const REPLY_TARGET: Record<string, number> = { urgent: 1, high: 4, normal: 12, low: 24 };
 
-import {
-  cannedReplies,
-  money,
-  nextTier,
-  shortDate,
-  supportTierDetail,
-  supportTierLabel,
-  type SupportTier,
-  type TicketStatus,
-} from "../lib/data";
-import {
-  ApiError,
-  fetchTicket,
-  fetchTickets,
-  openTicket,
-  replyToTicket,
-  setTicketState,
-  type AdminTicket,
-  type AdminTicketMessage,
-  type TicketContext,
-} from "../lib/api";
+import { type TicketStatus } from "../lib/data";
+import { ApiError, fetchTickets, openTicket, type AdminTicket } from "../lib/api";
 import {
   Badge,
   Card,
-  CardBody,
   CardHead,
-  DL,
   Empty,
   Modal,
   Loading,
@@ -41,27 +20,19 @@ import {
   PageHead,
   PriorityBadge,
   FilterMenu,
-  RecordModal,
-  TicketBadge,
   Toast,
 } from "../components/ui";
 import {
-  IconAlert,
-  IconArrowUp,
-  IconCard,
-  IconCheck,
   IconEye,
   IconInbox,
   IconMail,
   IconSearch,
-  IconSend,
-  IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
 
 /**
- * The support desk — one table, and a window over the ticket in hand.
+ * The support desk — one table, and a route per ticket.
  *
  * This used to be a split pane: a scrolling inbox down the left and the whole
  * ticket — member, context, conversation, reply box — stacked in a column on
@@ -69,9 +40,14 @@ import { useRole } from "../components/RoleContext";
  * four badges per row and truncated the subject they were about, and the
  * thread read in a 500px column with the reply box below the fold.
  *
- * So the queue is a table across the full width, carrying only what an agent
- * triages on, and everything behind a ticket is in the record window a row
- * opens. Same shape as the listing queue, for the same reason.
+ * Then it was a table with a window over the ticket, which fixed the width and
+ * broke something else: escalating or resolving from inside that window opened
+ * a second window on top of the first, so the longest job in this console was
+ * being done two overlays deep.
+ *
+ * So the queue is a table across the full width carrying only what an agent
+ * triages on, and the ticket is a page at `/admin/support/<id>` — an address
+ * that can be sent to whoever should really be answering it.
  */
 
 type Filter = "all" | TicketStatus;
@@ -92,15 +68,6 @@ function Sla({ t }: { t: AdminTicket }) {
   if (t.slaHours <= Math.max(1, target / 4))
     return <Badge tone="warn">{t.slaHours}h to first reply</Badge>;
   return <Badge tone="ok">{t.slaHours}h left</Badge>;
-}
-
-/** Tier as a chip. Trust and safety is the one worth spotting from the row. */
-function TierChip({ tier }: { tier: SupportTier }) {
-  return tier === "trust-safety" ? (
-    <Badge tone="bad">{supportTierLabel[tier]}</Badge>
-  ) : (
-    <span className="gm-scope">{supportTierLabel[tier]}</span>
-  );
 }
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -125,6 +92,7 @@ const PRIORITIES: { key: string; label: string }[] = [
 const STATUSES = FILTERS.map((f) => f.key as string);
 
 function SupportPage() {
+  const router = useRouter();
   const params = useSearchParams();
   const wanted = params.get("status");
   const fromUrl = (STATUSES.includes(wanted ?? "") ? wanted : "all") as Filter;
@@ -133,13 +101,11 @@ function SupportPage() {
   useEffect(() => setFilter(fromUrl), [fromUrl]);
   const [priority, setPriority] = useState("all");
   const [query, setQuery] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [reply, setReply] = useState("");
-  const [escalating, setEscalating] = useState(false);
-  const [resolving, setResolving] = useState(false);
-  const [handover, setHandover] = useState("");
-  const [outcome, setOutcome] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{
+    title: string;
+    body: string;
+    tone?: "ok" | "bad";
+  } | null>(null);
   const [writes, setWrites] = useState(0);
   /* The third intake route from the feature set: an agent raising one on a
      member's behalf, for the calls and emails that never reach in-app help. */
@@ -208,94 +174,6 @@ function SupportPage() {
     (t) => t.status !== "resolved" && !t.answered && t.slaHours < 0
   ).length;
 
-  /* ------------------------------------------------- the ticket in hand
-
-     Read by id from the API rather than lifted out of the list: the row
-     carries what a row needs, and the record needs the conversation and what
-     else the member has going on as well. It is also the authority on the
-     ticket's own state after a write, so the badges in the window cannot
-     disagree with what just happened to it. */
-  const [record, setRecord] = useState<AdminTicket | null>(null);
-  const [thread, setThread] = useState<AdminTicketMessage[]>([]);
-  const [context, setContext] = useState<TicketContext>({ listings: [], cases: [] });
-  const [recordError, setRecordError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!openId) {
-      setRecord(null);
-      setThread([]);
-      setContext({ listings: [], cases: [] });
-      setRecordError(null);
-      return;
-    }
-    let alive = true;
-    setRecordError(null);
-    fetchTicket(openId)
-      .then((r) => {
-        if (!alive) return;
-        setRecord(r.ticket);
-        setThread(r.thread);
-        setContext(r.context);
-      })
-      .catch((e) => {
-        if (alive) setRecordError(e instanceof ApiError ? e.message : String(e));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [openId, writes]);
-
-  const active = record;
-
-  /**
-   * Tier 1 gets the ticket and nothing behind it.
-   *
-   * This is about who is reading, not about which queue the ticket sits in —
-   * a Trust and safety ticket opened by a Tier 1 agent must not show the
-   * member's history either, and keying this off the ticket rather than the
-   * reader was exactly that hole. The API applies the same rule.
-   */
-  const canSeeContext = role !== "tier-1";
-
-  const up = active ? nextTier(active.tier) : null;
-
-  function openRow(id: string) {
-    setReply("");
-    setOpenId(id);
-  }
-
-  async function send(alsoResolve: boolean) {
-    if (!active || reply.trim().length < 4) return;
-    try {
-      await replyToTicket(active.id, reply.trim());
-      if (alsoResolve) {
-        setResolving(true);
-        return;
-      }
-      await setTicketState(active.id, { status: "waiting" });
-      setReply("");
-      setWrites((n) => n + 1);
-      setToast(`${active.subject} · replied`);
-    } catch (e) {
-      setToast(e instanceof ApiError ? e.message : String(e));
-    }
-  }
-
-  async function resolve() {
-    if (!active) return;
-    try {
-      if (outcome.trim()) await replyToTicket(active.id, outcome.trim(), true);
-      await setTicketState(active.id, { status: "resolved" });
-      setResolving(false);
-      setOutcome("");
-      setReply("");
-      setWrites((n) => n + 1);
-      setToast(`${active.subject} · resolved`);
-    } catch (e) {
-      setToast(e instanceof ApiError ? e.message : String(e));
-    }
-  }
-
   async function raise() {
     const t = newTicket;
     if (!t.memberId.trim() || t.subject.trim().length < 3 || t.body.trim().length < 3) return;
@@ -308,34 +186,16 @@ function SupportPage() {
       setRaising(false);
       setNewTicket({ memberId: "", subject: "", body: "" });
       setWrites((n) => n + 1);
-      openRow(created.id);
-      setToast(`${created.subject} · raised`);
+      /* Straight onto the ticket that was just raised. It is a page of its
+         own now, so this is a navigation rather than opening a window over
+         the queue the ticket has only just joined. */
+      router.push(`/admin/support/${created.id}`);
     } catch (e) {
-      setToast(e instanceof ApiError ? e.message : String(e));
-    }
-  }
-
-  async function doEscalate() {
-    if (!active || !up) return;
-    try {
-      await setTicketState(active.id, { tier: up, status: "open" });
-      if (handover.trim()) {
-        await replyToTicket(
-          active.id,
-          `Escalated to ${supportTierLabel[up]}. ${handover.trim()}`,
-          true,
-        );
-      }
-      setEscalating(false);
-      setHandover("");
-      /* It has left this agent's rung, so the window over it closes with it.
-         Leaving the record open on a ticket the queue behind it no longer
-         lists is how an agent carries on typing into somebody else's work. */
-      setOpenId(null);
-      setWrites((n) => n + 1);
-      setToast(`${active.subject} · now with ${supportTierLabel[up]}`);
-    } catch (e) {
-      setToast(e instanceof ApiError ? e.message : String(e));
+      setToast({
+        title: "It was not raised",
+        body: e instanceof ApiError ? e.message : String(e),
+        tone: "bad",
+      });
     }
   }
 
@@ -446,22 +306,26 @@ function SupportPage() {
             />
           ) : (
             <div className="gm-tablewrap">
-              {/* Seven columns, and the ticket itself is the wide one.
+              {/* Five columns, and two badges a row rather than four.
 
-                  What a row carries is what an agent picks the next ticket
-                  on: what it is about, who wrote in, where it is, how loud it
-                  is, whose rung it is on, and how long they have been
-                  waiting. Everything else — the conversation, the member's
-                  listings, their cases, the reply box — is behind the row,
-                  because none of it can be read at row height anyway. */}
-              <table className="gm-table" style={{ minWidth: 1040 }}>
+                  Every row was carrying a state chip, a priority chip, a tier
+                  chip and a clock chip, and then a line of small print under
+                  the last of them — four coloured pills per row, fifteen rows
+                  deep, none of which outranked the others. Colour that is on
+                  everything marks nothing.
+
+                  So: the state and the reply clock, which are the two an agent
+                  picks the next ticket on, and priority as a chip only when it
+                  is loud enough to jump the queue. The tier moved to the
+                  ticket itself — which rung a ticket sits on is a fact about
+                  handling it, not about choosing it, and the queue is already
+                  cut to the rungs this agent holds. */}
+              <table className="gm-table" style={{ minWidth: 840 }}>
                 <thead>
                   <tr>
                     <th>Ticket</th>
                     <th>Member</th>
-                    <th>State</th>
                     <th>Priority</th>
-                    <th>Tier</th>
                     <th>First reply</th>
                     <th className="gm-rowend">Action</th>
                   </tr>
@@ -482,36 +346,27 @@ function SupportPage() {
                         </div>
                       </td>
                       <td>
-                        <TicketBadge status={t.status} />
-                      </td>
-                      <td>
+                        {/* The ticket's state is what the filter above the
+                            table already selects and what the "First reply"
+                            column implies. How loud a ticket is, is what an
+                            agent picks the next one on. */}
                         <PriorityBadge priority={t.priority} />
                       </td>
                       <td>
-                        <TierChip tier={t.tier} />
-                      </td>
-                      <td>
+                        {/* The opening time and who holds the ticket live on
+                            the ticket's page, so keep this cell to one line to
+                            hold the priority chip and reply badge side-by-side. */}
                         <Sla t={t} />
-                        <div className="gm-tiny gm-dim" style={{ marginTop: 3 }}>
-                          {/* Which time this is has to be said. "2 days ago"
-                              on a resolved ticket and on one nobody has
-                              touched are opposite facts. */}
-                          {t.answered || t.status === "resolved"
-                            ? `Last reply ${shortDate(t.lastReply)}`
-                            : `Opened ${shortDate(t.opened)}`}
-                          {t.assignee ? ` · ${t.assignee}` : " · unassigned"}
-                        </div>
                       </td>
                       <td className="gm-rowend">
                         <div className="gm-rowact">
-                          <button
-                            type="button"
-                            className="gm-btn gm-btn--sm"
-                            onClick={() => openRow(t.id)}
-                          >
+                          {/* A link, not a button that opens a window over the
+                              queue. Answering a ticket is the longest job on
+                              this console and it now has a page to do it on. */}
+                          <Link className="gm-btn gm-btn--sm" href={`/admin/support/${t.id}`}>
                             <IconEye />
                             {t.status === "resolved" ? "Open" : "Answer"}
-                          </button>
+                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -522,396 +377,6 @@ function SupportPage() {
           )}
         </Card>
       </div>
-
-      {/* ===================================================== the record */}
-      <RecordModal
-        open={!!openId}
-        onClose={() => setOpenId(null)}
-        title={active ? active.subject : "Opening…"}
-        sub={
-          active
-            ? `${active.category} · opened ${new Date(active.opened).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-              })}`
-            : ""
-        }
-        footer={
-          active ? (
-            active.status === "resolved" ? (
-              <span className="gm-sm gm-muted">
-                This ticket is resolved. A reply from the member reopens it with the thread
-                intact.
-              </span>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
-                  disabled={reply.trim().length < 4}
-                  onClick={() => send(false)}
-                >
-                  <IconSend />
-                  Send reply
-                </button>
-                <button
-                  type="button"
-                  className="gm-btn"
-                  disabled={reply.trim().length < 4}
-                  onClick={() => send(true)}
-                >
-                  <IconCheck />
-                  Send and resolve
-                </button>
-                {up ? (
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--gold gm-spacer"
-                    onClick={() => setEscalating(true)}
-                  >
-                    <IconArrowUp />
-                    Escalate to {supportTierLabel[up]}
-                  </button>
-                ) : null}
-              </>
-            )
-          ) : null
-        }
-      >
-        {recordError ? (
-          <Note tone="bad">
-            <b>That ticket could not be read.</b> {recordError}
-          </Note>
-        ) : !active ? (
-          <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-            Reading the ticket…
-          </p>
-        ) : (
-          <>
-            {/* ------------------------------------------- who and where */}
-            <Card pad>
-              <div className="gm-row" style={{ gap: 7, marginBottom: 12 }}>
-                <TicketBadge status={active.status} />
-                <PriorityBadge priority={active.priority} />
-                <TierChip tier={active.tier} />
-                <Sla t={active} />
-                {active.assignee ? (
-                  <span className="gm-sm gm-muted gm-spacer">
-                    Assigned to {active.assignee}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--sm gm-btn--gold gm-spacer"
-                    onClick={async () => {
-                      await setTicketState(active.id, { assign: true }).catch(() => null);
-                      setWrites((n) => n + 1);
-                    }}
-                  >
-                    Assign to me
-                  </button>
-                )}
-              </div>
-              <div className="gm-row" style={{ gap: 11, flexWrap: "nowrap" }}>
-                <div className="gm-cell2" style={{ flex: "1 1 auto" }}>
-                  <b>{active.member.name}</b>
-                  <span>
-                    {active.member.handle} · {active.member.role.replace("-", " & ")}
-                  </span>
-                </div>
-                <Link
-                  className="gm-btn gm-btn--sm"
-                  href={`/admin/members?scope=market&q=${encodeURIComponent(
-                    active.member.handle,
-                  )}`}
-                  onClick={() => setOpenId(null)}
-                >
-                  <IconUsers />
-                  Member record
-                </Link>
-              </div>
-            </Card>
-
-            {/* --------------------------------------------- conversation */}
-            <Card>
-              <CardHead
-                title="Conversation"
-                sub={`${thread.length} message${thread.length === 1 ? "" : "s"}`}
-              />
-              <CardBody>
-                <div className="gm-thread">
-                  {thread.map((m) =>
-                    m.from === "system" ? (
-                      <div key={m.id} className="gm-feed-time" style={{ textAlign: "center" }}>
-                        {m.body}
-                      </div>
-                    ) : (
-                      <div
-                        key={m.id}
-                        className={`gm-msg${m.from === "admin" ? " gm-msg--out" : ""}`}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          {/* An internal note is on the same thread but is
-                              never sent to the member, so it has to be
-                              unmistakable from a reply that was. */}
-                          <div className="gm-msg-bubble">
-                            {m.internal ? (
-                              <>
-                                <b className="gm-tiny">Internal note · not sent</b>
-                                <br />
-                              </>
-                            ) : null}
-                            {m.body}
-                          </div>
-                          <div className="gm-msg-meta">
-                            {m.author} · {shortDate(m.at)}
-                          </div>
-                        </div>
-                      </div>
-                    ),
-                  )}
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* ---------------------------------------------------- reply */}
-            {active.status === "resolved" ? null : (
-              <Card>
-                <CardHead
-                  title="Reply"
-                  sub="The member sees this exactly as written."
-                  right={
-                    <span className="gm-tiny gm-dim">
-                      <span className="gm-kbd">⌘</span> <span className="gm-kbd">↵</span> to send
-                    </span>
-                  }
-                />
-                <CardBody>
-                  <div className="gm-row" style={{ gap: 6, marginBottom: 11 }}>
-                    {cannedReplies.map((c) => (
-                      <button
-                        key={c.key}
-                        type="button"
-                        className="gm-btn gm-btn--sm gm-btn--ghost"
-                        title={c.when}
-                        /* Appends rather than replaces: an agent who has
-                           already typed something specific should not lose it
-                           to a template. */
-                        onClick={() =>
-                          setReply((r) => (r.trim() ? `${r.trimEnd()}\n\n${c.body}` : c.body))
-                        }
-                      >
-                        {c.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* The header has promised this shortcut since the page
-                      was drawn and nothing ever listened for it. */}
-                  <textarea
-                    className="gm-textarea"
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
-                    onKeyDown={(e) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                        e.preventDefault();
-                        void send(false);
-                      }
-                    }}
-                    placeholder="Answer the question that was actually asked, and say what happens next."
-                    style={{ minHeight: 116 }}
-                  />
-                  <span className="gm-hint">
-                    Sending moves the ticket to waiting. The buttons are at the foot of this
-                    window.
-                  </span>
-                </CardBody>
-              </Card>
-            )}
-
-            {/* ------------------------------------------- member context
-
-                The agent should not have to leave the ticket to find out
-                who they are talking to. Tier 1 does not get this panel —
-                their scope is their own queue, and the role table says so.
-            */}
-            {canSeeContext ? (
-              <Card>
-                <CardHead title="Member context" sub="For this ticket only" />
-                <CardBody>
-                  {/* Their listings, from the store. The plan, verification
-                      and strike count that used to sit above this came from
-                      a fixture; the console does not invent them. */}
-                  <div>
-                    <div className="gm-label" style={{ marginBottom: 7 }}>
-                      Listings ({context.listings.length})
-                    </div>
-                    {context.listings.length === 0 ? (
-                      <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                        Nothing in the queue or on the market.
-                      </p>
-                    ) : (
-                      <div className="gm-feed">
-                        {context.listings.map((l) => (
-                          <div key={l.id} className="gm-feed-item">
-                            <span className="gm-feed-ico gm-feed-ico--gold">
-                              <IconCard />
-                            </span>
-                            <div className="gm-feed-body">
-                              <p>
-                                <b>{l.card}</b>
-                              </p>
-                              <div className="gm-feed-time">
-                                {l.grader ?? "Raw"} {l.grade ?? ""} · {money(l.price)} ·{" "}
-                                {l.status}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: 14 }}>
-                    <div className="gm-label" style={{ marginBottom: 7 }}>
-                      Cases ({context.cases.length})
-                    </div>
-                    {context.cases.length === 0 ? (
-                      <p className="gm-sm gm-muted" style={{ margin: 0 }}>
-                        No conduct case on record, raised or received.
-                      </p>
-                    ) : (
-                      <div className="gm-feed">
-                        {context.cases.map((c) => (
-                          <div key={c.id} className="gm-feed-item">
-                            <span className="gm-feed-ico gm-feed-ico--warn">
-                              <IconAlert />
-                            </span>
-                            <div className="gm-feed-body">
-                              <p>
-                                <b>{c.reason}</b>
-                              </p>
-                              <div className="gm-feed-time">
-                                {c.status} · {shortDate(c.at)}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardBody>
-              </Card>
-            ) : (
-              <p className="gm-sm gm-muted">
-                Tier 1 sees the ticket, not the member. Escalate if answering it needs the
-                history.
-              </p>
-            )}
-          </>
-        )}
-      </RecordModal>
-
-      {/* ==================================================== escalate */}
-      <Modal
-        open={escalating}
-        onClose={() => setEscalating(false)}
-        title={active && up ? `Escalate to ${supportTierLabel[up]}` : "Escalate"}
-        sub="One rung up. There is no way to hand a ticket sideways to another agent on the same tier."
-        footer={
-          <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--gold"
-              disabled={handover.trim().length < 10}
-              onClick={doEscalate}
-            >
-              <IconArrowUp />
-              Escalate
-            </button>
-            <button
-              type="button"
-              className="gm-btn gm-btn--ghost"
-              onClick={() => setEscalating(false)}
-            >
-              Cancel
-            </button>
-            <span className="gm-spacer gm-tiny gm-dim">Written to the member record</span>
-          </>
-        }
-      >
-        {active && up ? (
-          <>
-            <Card pad>
-              <DL
-                rows={[
-                  ["Ticket", active.subject],
-                  ["From", supportTierLabel[active.tier]],
-                  ["To", supportTierLabel[up]],
-                  ["They will see", supportTierDetail[up]],
-                ]}
-              />
-            </Card>
-
-            <div className="gm-field">
-              <label className="gm-label" htmlFor="gm-handover">
-                What the next tier needs to know
-              </label>
-              <textarea
-                id="gm-handover"
-                className="gm-textarea"
-                value={handover}
-                onChange={(e) => setHandover(e.target.value)}
-                placeholder="What you have already tried, what the member has said, and what you think it needs."
-              />
-              <span className="gm-hint">
-                At least 10 characters. It leaves your queue unassigned either way.
-              </span>
-            </div>
-          </>
-        ) : null}
-      </Modal>
-
-      {/* ===================================================== resolve */}
-      <Modal
-        open={resolving}
-        onClose={() => setResolving(false)}
-        title="Resolve this ticket"
-        sub="The outcome goes on the member's record, not only on the ticket."
-        footer={
-          <>
-            <button type="button" className="gm-btn gm-btn--primary" onClick={resolve}>
-              <IconCheck />
-              Resolve and file
-            </button>
-            <button
-              type="button"
-              className="gm-btn gm-btn--ghost"
-              onClick={() => setResolving(false)}
-            >
-              Go back
-            </button>
-          </>
-        }
-      >
-        {active ? (
-          <div className="gm-field">
-            <label className="gm-label" htmlFor="gm-outcome">
-              Outcome, for the record
-            </label>
-            <textarea
-              id="gm-outcome"
-              className="gm-textarea"
-              value={outcome}
-              onChange={(e) => setOutcome(e.target.value)}
-              placeholder="What was actually done, and what changed as a result."
-            />
-            <span className="gm-hint">
-              What the next agent reads when the same member writes in again. Reopening keeps the
-              thread.
-            </span>
-          </div>
-        ) : null}
-      </Modal>
 
       {/* ======================================================== raise */}
       <Modal
@@ -979,7 +444,14 @@ function SupportPage() {
         </div>
       </Modal>
 
-      {toast ? <Toast title="Ticket updated" body={toast} onDone={() => setToast(null)} /> : null}
+      {toast ? (
+        <Toast
+          title={toast.title}
+          body={toast.body}
+          tone={toast.tone}
+          onDone={() => setToast(null)}
+        />
+      ) : null}
     </>
   );
 }

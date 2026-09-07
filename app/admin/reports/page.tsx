@@ -8,6 +8,7 @@ import {
   type ReportSeries,
   type ReportsPayload,
 } from "../lib/api";
+import { aud, num } from "../lib/data";
 import {
   BarList,
   Card,
@@ -19,57 +20,56 @@ import {
   Loading,
   Note,
   PageHead,
-  RingChart,
   Select,
-  Spark,
-  StatTile,
   TrendChart,
 } from "../components/ui";
 import {
   IconCheckCircle,
   IconClock,
+  IconDollar,
   IconDownload,
   IconRefresh,
-  IconReport,
   IconScale,
+  IconShield,
   IconTrend,
+  IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 import { exportCsv } from "../lib/csv";
 
 /**
- * Reports — one screen, no clicking through.
+ * Reports — the owner's page, not the moderator's.
  *
- * This was a catalogue down the left and a panel on the right that changed
- * when you picked a row: nine reports, one visible at a time, and the eight
- * you were not looking at reduced to a name and a sparkline. Reading the
- * marketplace meant clicking nine times and holding the first eight in your
- * head.
+ * It has been three things. A catalogue down the left with one report visible
+ * at a time, so reading the marketplace meant clicking nine times and holding
+ * the first eight in your head. Then everything on one screen, which was
+ * better but ended in a nine-row table of report metadata — the name of each
+ * report, a two-line description of what it counts, its category and a
+ * sparkline — printed underneath the reports it had just drawn.
  *
- * So the page shows the figures instead of a way to reach them. What is on
- * screen is what somebody opening this page came for — the four headline
- * numbers, where the money came from, whether the queue is keeping up, and
- * where conflicts landed — with the rest of the catalogue as one compact
- * table at the foot rather than as a navigation column.
+ * The question that fixed it was who opens this page and what they came for.
+ * The answer is not "a moderator": a moderator works the listing queue and the
+ * conduct board, and both of those pages already tell them how they are doing.
+ * It is whoever owns the business, and their questions are short —
  *
- * Nothing here is behind an interaction except the period, which changes
- * everything at once.
+ *   what am I earning, and is it growing
+ *   how many people are paying me, and how fast is that number moving
+ *   how much is being traded here
+ *   how many of these accounts are real people
+ *   how much is going wrong, and is the desk keeping up
+ *
+ * So the page is seven panels, one per question, and nothing else. What went:
+ * the four moderation KPI tiles at the top (cleared, median time, rejection
+ * rate, conflict rate — the figures a moderator is measured on, restated above
+ * the charts that already contain them), the report catalogue, and the six
+ * small figure cards that replaced it, which were the catalogue again with the
+ * prose taken out. Where a figure from those was worth keeping it now sits
+ * inside the panel it belongs to rather than on a shelf of its own.
  */
 
-const KPI_ICONS: Record<string, React.ReactNode> = {
-  r1: <IconCheckCircle />,
-  r2: <IconClock />,
-  r3: <IconScale />,
-  r4: <IconTrend />,
-};
-
-/** Colour a report's spark by what it measures, not by its position. */
-const CHART_TONE: Record<ReportSeries["chart"], string> = {
-  "Area chart": "var(--gold)",
-  "Line chart": "var(--gold)",
-  "Column chart": "var(--navy-500)",
-  Table: "var(--ink-3)",
-};
+/** A series is only worth drawing if the API could build it and it has more
+ *  than one point. One point is a dot, not a trend. */
+const drawable = (r?: ReportSeries) => Boolean(r?.available && r.trend.length > 1);
 
 /** Axis and readout formatting, from what the report actually counts. */
 function formatterFor(unit: ReportSeries["unit"]) {
@@ -78,9 +78,66 @@ function formatterFor(unit: ReportSeries["unit"]) {
   return (n: number) => n.toLocaleString("en-AU");
 }
 
-/** A series is only worth drawing if the API could build it and it has more
- *  than one point. One point is a dot, not a trend. */
-const drawable = (r?: ReportSeries) => Boolean(r?.available && r.trend.length > 1);
+/**
+ * The big number a panel is built around, with what it is and what it means
+ * underneath it.
+ *
+ * The inspiration for this page puts one figure at the top of each card at a
+ * size nothing else competes with, and everything else on the card explains
+ * it. That is the right shape here: a panel answers one question, so it should
+ * open with the answer.
+ */
+function Figure({
+  value,
+  label,
+  foot,
+  icon,
+}: {
+  value: string;
+  label: string;
+  foot?: React.ReactNode;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="gm-figure">
+      <span className="gm-figure-top">
+        {icon ? <span className="gm-figure-ico">{icon}</span> : null}
+        {label}
+      </span>
+      <span className="gm-figure-value">{value}</span>
+      {foot ? <span className="gm-figure-foot">{foot}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * A movement, in the words of the thing that moved.
+ *
+ * Quiet at zero: "+0 this period" on four panels at once is four ways of
+ * saying nothing happened, and the point of colouring a delta is that it is
+ * worth looking at.
+ *
+ * The plural is passed in rather than built by adding an "s", which is how
+ * this first read "+8 news last 30 days".
+ */
+function Delta({
+  n,
+  one,
+  many,
+  period,
+}: {
+  n: number;
+  one: string;
+  many: string;
+  period: string;
+}) {
+  if (n <= 0) return <span className="gm-dim">none {period.toLowerCase()}</span>;
+  return (
+    <span style={{ color: "var(--ok)", fontWeight: 600 }}>
+      +{num(n)} {n === 1 ? one : many} {period.toLowerCase()}
+    </span>
+  );
+}
 
 function ReportsPage() {
   const [period, setPeriod] = useState("30d");
@@ -114,17 +171,20 @@ function ReportsPage() {
   const reports = data?.reports ?? [];
   const byId = (id: string) => reports.find((r) => r.id === id);
 
-  /* The three drawn in full. They are the three questions this page is opened
-     with: what came in, whether we kept up, and who is joining. */
+  /* The two series drawn in full: what came in, and who joined. */
   const gmv = byId("RP-01");
-  const throughput = byId("RP-02");
   const growth = byId("RP-05");
 
-  const decisionSplit = data?.decisionSplit ?? [];
-  const totalDecisions = decisionSplit.reduce((s, d) => s + d.value, 0);
-  const gameSplit = data?.gameSplit ?? [];
-  const conflictOutcomes = data?.conflictOutcomes ?? [];
+  const o = data?.owner;
   const sla = data?.throughput;
+  const decisionSplit = data?.decisionSplit ?? [];
+  const conflictOutcomes = data?.conflictOutcomes ?? [];
+  const label = data?.period.label ?? "the period";
+
+  /** Verified accounts as a share of members. A percentage of nothing is not
+   *  zero per cent — it is no answer, and a gauge at the bottom of its arc
+   *  would say every account on the marketplace is unverified. */
+  const verifiedPct = o && o.members > 0 ? Math.round((o.verified / o.members) * 100) : null;
 
   /** Every series on screen, as one spreadsheet. The period applies. */
   function exportAll() {
@@ -152,7 +212,7 @@ function ReportsPage() {
         title="Reports"
         sub={
           data
-            ? `Every figure computed over ${data.period.label.toLowerCase()}, from the marketplace itself.`
+            ? `Every figure computed over ${label.toLowerCase()}, from the marketplace itself.`
             : "The numbers behind the marketplace."
         }
         right={
@@ -198,230 +258,282 @@ function ReportsPage() {
             <Loading label="Reading the figures…" />
           </Card>
         ) : (
-          <>
-            {/* ------------------------------------------ the period, in four
+          <div className="gm-bento">
+            {/* ------------------------------------------------------ money
 
-                At the top rather than the foot. They are the summary the page
-                is opened for; underneath the charts they were the thing you
-                scrolled past twice. */}
-            {data && data.kpis.length > 0 ? (
-              <div className="gm-grid gm-grid--4">
-                {data.kpis.map((k) => (
-                  <StatTile
-                    key={k.key}
-                    label={k.label}
-                    value={k.value}
-                    delta={k.delta ?? undefined}
-                    foot={k.foot}
-                    tone={k.tone}
-                    icon={KPI_ICONS[k.key]}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-            {/* ------------------------------------------ money, and decisions */}
-            <div className="gm-grid gm-grid--2a">
-              <Card>
-                <CardHead
-                  title={gmv?.name ?? "GMV"}
-                  sub={gmv ? `${gmv.headline} · ${gmv.headlineLabel}` : ""}
-                />
-                <CardBody>
-                  {drawable(gmv) ? (
-                    <TrendChart
-                      labels={gmv!.labels}
-                      values={gmv!.trend}
-                      height={210}
-                      fill
-                      format={formatterFor(gmv!.unit)}
-                      seriesLabel={gmv!.headlineLabel}
-                    />
-                  ) : (
-                    <Empty
-                      icon={<IconTrend />}
-                      title="No completed sales"
-                      body={gmv?.unavailable ?? "Nothing sold in this period."}
-                    />
-                  )}
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardHead
-                  title="Decisions"
-                  sub={`${totalDecisions.toLocaleString("en-AU")} decided`}
-                />
-                <CardBody>
-                  {totalDecisions === 0 ? (
-                    <Empty icon={<IconCheckCircle />} title="Nothing decided" />
-                  ) : (
-                    <RingChart rings={decisionSplit} />
-                  )}
-                </CardBody>
-              </Card>
-            </div>
-
-            {/* --------------------------------------------- the three panels */}
-            <div className="gm-grid gm-grid--3 gm-panels">
-              <Card>
-                <CardHead title="GMV by game" sub="Share of the period, largest first" />
-                <CardBody>
-                  {gameSplit.length === 0 ? (
-                    <Empty icon={<IconTrend />} title="No completed sales" />
-                  ) : (
-                    <ColumnChart
-                      data={gameSplit.map((g) => ({ label: g.label, value: g.value }))}
-                      height={196}
-                      color="var(--gold)"
-                      format={(n) => `${n}%`}
-                    />
-                  )}
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardHead title="Inside the target" sub="Decided within 24h" />
-                <CardBody>
-                  {/* A percentage of nothing is not zero per cent — it is no
-                      answer, and a gauge at the bottom of its arc says the
-                      desk missed every one of them. */}
-                  {!sla || sla.onTime === null ? (
-                    <Empty
-                      icon={<IconClock />}
-                      title="Nothing to measure"
-                      body="No listing was decided in this period."
-                    />
-                  ) : (
+                Top left, because it is the first question. Recurring revenue
+                is what is true now rather than over the period — there is no
+                such thing as MRR for the last seven days — and the card says
+                so rather than letting the period control imply otherwise. */}
+            <Card>
+              <CardHead title="Recurring revenue" sub="Subscriptions, as they stand today" />
+              <CardBody>
+                <Figure
+                  value={aud(o?.mrr ?? 0)}
+                  label="Every month"
+                  icon={<IconDollar />}
+                  foot={
                     <>
-                      <div className="gm-panel-figure">
-                        <Gauge
-                          value={sla.onTime}
-                          label={`${sla.onTime}%`}
-                          caption="on time"
-                          size={128}
-                          thickness={12}
-                        />
-                      </div>
-                      <div className="gm-factstrip">
-                        <span>
-                          <i>Median</i>
-                          <b>{sla.medianLabel}</b>
-                        </span>
-                        <span>
-                          <i>Breached</i>
-                          <b>{sla.breached}</b>
-                        </span>
-                      </div>
+                      {num(o?.subscribers ?? 0)} subscriber
+                      {(o?.subscribers ?? 0) === 1 ? "" : "s"} ·{" "}
+                      <Delta
+                        n={o?.newSubscribers ?? 0}
+                        one="signed up"
+                        many="signed up"
+                        period={label}
+                      />
                     </>
-                  )}
-                </CardBody>
-              </Card>
+                  }
+                />
 
-              <Card>
-                <CardHead title="Conflict outcomes" sub="Where cases landed" />
-                <CardBody>
-                  {conflictOutcomes.every((o) => o.value === 0) ? (
-                    <Empty icon={<IconScale />} title="No case closed" />
-                  ) : (
-                    <BarList rows={conflictOutcomes} fill />
-                  )}
-                </CardBody>
-              </Card>
-            </div>
+                {o && o.plans.length > 0 ? (
+                  <div className="gm-figure-rows">
+                    {o.plans.map((p) => (
+                      <div key={p.name} className="gm-figure-row">
+                        <span className="gm-nowrap-ellipsis">{p.name}</span>
+                        <span className="gm-dim">{aud(p.price)}</span>
+                        <b>{num(p.subscribers)}</b>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
 
-            {/* ---------------------------------------- throughput and growth */}
-            <div className="gm-grid gm-grid--2">
-              {[throughput, growth].map((r, i) =>
-                r ? (
-                  <Card key={r.id}>
-                    <CardHead title={r.name} sub={`${r.headline} · ${r.headlineLabel}`} />
-                    <CardBody>
-                      {drawable(r) ? (
-                        <TrendChart
-                          labels={r.labels}
-                          values={r.trend}
-                          height={180}
-                          format={formatterFor(r.unit)}
-                          seriesLabel={r.headlineLabel}
-                        />
-                      ) : (
-                        <Empty
-                          icon={<IconReport />}
-                          title="No figures"
-                          body={r.unavailable ?? "Nothing recorded in this period."}
-                        />
-                      )}
-                    </CardBody>
-                  </Card>
+                {/* Collected is not MRR, and the gap between them is a real
+                    queue of work: cards that bounced and nobody has chased. */}
+                <div className="gm-factstrip">
+                  <span>
+                    <i>Collected</i>
+                    <b>{aud(o?.collected ?? 0)}</b>
+                  </span>
+                  <span>
+                    <i>Failed</i>
+                    <b style={(o?.failed ?? 0) > 0 ? { color: "var(--bad)" } : undefined}>
+                      {(o?.failed ?? 0) > 0
+                        ? `${aud(o!.failed)} · ${o!.failedAccounts} account${o!.failedAccounts === 1 ? "" : "s"}`
+                        : "None"}
+                    </b>
+                  </span>
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* ------------------------------------------ what is being traded */}
+            <Card className="gm-bento-wide">
+              <CardHead
+                title={gmv?.name ?? "Marketplace volume"}
+                sub={
+                  gmv
+                    ? `${gmv.headline} · ${gmv.headlineLabel}`
+                    : "Confirmed sales across the period"
+                }
+              />
+              <CardBody>
+                {/* Bars, not a line.
+
+                    GMV is money that arrived in a bucket, and a bucket is a
+                    countable thing with edges — a column says "this much, in
+                    that week" where a line says the figure was travelling
+                    continuously between the two, which is not what a sum over
+                    a week is. It also stops a period with one busy bucket
+                    reading as a curve sweeping upward off the top of the
+                    chart. */}
+                {drawable(gmv) ? (
+                  <ColumnChart
+                    data={gmv!.labels.map((l, i) => ({ label: l, value: gmv!.trend[i] ?? 0 }))}
+                    height={228}
+                    color="var(--grad-gold)"
+                    format={formatterFor(gmv!.unit)}
+                  />
                 ) : (
-                  <Card key={i}>
-                    <Empty icon={<IconReport />} title="Not available" />
-                  </Card>
-                ),
-              )}
-            </div>
+                  <Empty
+                    icon={<IconTrend />}
+                    title="No completed sales"
+                    body={gmv?.unavailable ?? "Nothing sold in this period."}
+                  />
+                )}
+              </CardBody>
+            </Card>
 
-            {/* --------------------------------------------- everything else
+            {/* ----------------------------------------------- who is real */}
+            <Card>
+              <CardHead title="Verified accounts" sub="Approved by the identity provider" />
+              <CardBody>
+                {verifiedPct === null ? (
+                  <Empty
+                    icon={<IconShield />}
+                    title="No members yet"
+                    body="Nothing to verify."
+                  />
+                ) : (
+                  <>
+                    <div className="gm-panel-figure">
+                      <Gauge
+                        value={verifiedPct}
+                        label={`${verifiedPct}%`}
+                        caption="verified"
+                        gradient={{ from: "var(--gold-lift)", to: "var(--gold-sink)" }}
+                        size={128}
+                        thickness={12}
+                      />
+                    </div>
+                    <div className="gm-factstrip">
+                      <span>
+                        <i>Verified</i>
+                        <b>
+                          {num(o!.verified)} of {num(o!.members)}
+                        </b>
+                      </span>
+                      <span>
+                        <i>{label}</i>
+                        <b>
+                          <Delta n={o!.newVerified} one="account" many="accounts" period="" />
+                        </b>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </CardBody>
+            </Card>
 
-                The catalogue, as a table rather than a column you click
-                through. Every report, its headline for the period and its
-                shape, all readable at once — which is exactly what the
-                nine-row sidebar was standing in the way of. */}
+            {/* -------------------------------------- is the desk keeping up */}
+            <Card>
+              <CardHead title="Review queue" sub="Decided inside the 24-hour target" />
+              <CardBody>
+                {/* A percentage of nothing is not zero per cent — it is no
+                    answer, and a gauge at the bottom of its arc says the desk
+                    missed every one of them. */}
+                {!sla || sla.onTime === null ? (
+                  <Empty
+                    icon={<IconClock />}
+                    title="Nothing to measure"
+                    body="No listing was decided in this period."
+                  />
+                ) : (
+                  <>
+                    <div className="gm-panel-figure">
+                      <Gauge
+                        value={sla.onTime}
+                        label={`${sla.onTime}%`}
+                        caption="on time"
+                        gradient={{ from: "var(--gold-lift)", to: "var(--gold-sink)" }}
+                        size={128}
+                        thickness={12}
+                      />
+                    </div>
+                    <div className="gm-factstrip">
+                      <span>
+                        <i>Median</i>
+                        <b>{sla.medianLabel}</b>
+                      </span>
+                      <span>
+                        <i>Breached</i>
+                        <b style={sla.breached > 0 ? { color: "var(--bad)" } : undefined}>
+                          {sla.breached}
+                        </b>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </CardBody>
+            </Card>
+
+            {/* --------------------------------------- how much is going wrong */}
+            <Card>
+              <CardHead title="Conflicts" sub="Raised by members against each other" />
+              <CardBody>
+                <Figure
+                  value={num(o?.casesOpened ?? 0)}
+                  label={`Raised ${label.toLowerCase()}`}
+                  icon={<IconScale />}
+                  foot={
+                    (o?.casesResolved ?? 0) > 0
+                      ? `${num(o!.casesResolved)} closed in the same window`
+                      : "None closed in the same window"
+                  }
+                />
+                {conflictOutcomes.some((c) => c.value > 0) ? (
+                  <div style={{ marginTop: 4 }}>
+                    <div className="gm-label" style={{ marginBottom: 8 }}>
+                      Where they landed
+                    </div>
+                    <BarList rows={conflictOutcomes} fill />
+                  </div>
+                ) : (
+                  <p className="gm-sm gm-muted" style={{ margin: "10px 0 0" }}>
+                    No case has been closed in this period, so there is nothing to say about
+                    outcomes yet.
+                  </p>
+                )}
+              </CardBody>
+            </Card>
+
+            {/* ---------------------------------------------- who is joining
+
+                The full width, now that "Volume by game" has gone from beside
+                it. That panel split the period's sales by trading card game,
+                which is a fact about the catalogue rather than about the
+                business — nobody decides anything differently for knowing it,
+                and on a marketplace whose listings are almost all one game it
+                was a single bar at 100%. */}
+            <Card className="gm-bento-wide">
+              <CardHead
+                title="Members"
+                sub={
+                  o
+                    ? `${num(o.members)} in total · ${o.newMembers > 0 ? `${num(o.newMembers)} joined` : "none joined"} ${label.toLowerCase()}`
+                    : "Sign-ups across the period"
+                }
+              />
+              <CardBody>
+                {drawable(growth) ? (
+                  <TrendChart
+                    labels={growth!.labels}
+                    values={growth!.trend}
+                    height={186}
+                    format={formatterFor(growth!.unit)}
+                    seriesLabel={growth!.headlineLabel}
+                  />
+                ) : (
+                  <Empty
+                    icon={<IconUsers />}
+                    title="No sign-ups"
+                    body={growth?.unavailable ?? "Nobody joined in this period."}
+                  />
+                )}
+              </CardBody>
+            </Card>
+
+            {/* ------------------------------------- what happened to submissions
+
+                This lived inside "Review queue", under the dial and the two
+                figures, and it was the reason that card ran 250px taller than
+                the two beside it — a row of three panels where one was half
+                again the height of its neighbours, and the short pair carried
+                the difference as white space.
+
+                It is a fair panel on its own: the dial says how FAST the desk
+                answered and this says WHAT it answered, which are two
+                questions. Beside the members chart it is also the right
+                height, which is the other half of why the row now reads as a
+                row. */}
             <Card>
               <CardHead
-                title="Every report"
-                sub={`${reports.length} computed over ${
-                  data?.period.label.toLowerCase() ?? "the period"
-                }`}
+                title="Listing decisions"
+                sub={`What was decided ${label.toLowerCase()}`}
               />
-              <div className="gm-tablewrap">
-                <table className="gm-table" style={{ minWidth: 860 }}>
-                  <thead>
-                    <tr>
-                      <th>Report</th>
-                      <th>Category</th>
-                      <th>Measures</th>
-                      <th className="gm-num">Headline</th>
-                      <th className="gm-rowend">Shape</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reports.map((r) => (
-                      <tr key={r.id}>
-                        <td>
-                          <div className="gm-cell2">
-                            <b>{r.name}</b>
-                            <span>{r.detail}</span>
-                          </div>
-                        </td>
-                        <td className="gm-sm gm-muted gm-nowrap">{r.category}</td>
-                        <td className="gm-sm gm-muted">{r.headlineLabel || "Nothing measured"}</td>
-                        <td className="gm-num gm-strong gm-nowrap">
-                          {r.available ? r.headline : <span className="gm-dim">Unavailable</span>}
-                        </td>
-                        <td className="gm-rowend">
-                          {/* No sparkline on a report with nothing behind it:
-                              a flat line at the baseline reads as a real,
-                              quiet series rather than as an absent one. */}
-                          {drawable(r) ? (
-                            <Spark
-                              points={r.trend}
-                              width={92}
-                              height={26}
-                              color={CHART_TONE[r.chart]}
-                            />
-                          ) : (
-                            <span className="gm-tiny gm-dim">{r.unavailable ?? "No data"}</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CardBody>
+                {decisionSplit.some((d) => d.value > 0) ? (
+                  <BarList rows={decisionSplit} fill />
+                ) : (
+                  <Empty
+                    icon={<IconCheckCircle />}
+                    title="Nothing decided"
+                    body="No listing was approved, rejected or sent back in this period."
+                  />
+                )}
+              </CardBody>
             </Card>
-          </>
+          </div>
         )}
       </div>
     </>

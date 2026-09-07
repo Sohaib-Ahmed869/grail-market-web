@@ -10,7 +10,6 @@ import {
   type AuditEntry,
 } from "../lib/api";
 import {
-  Badge,
   Card,
   CardHead,
   Empty,
@@ -20,11 +19,11 @@ import {
   PageHead,
 } from "../components/ui";
 import {
+  IconDollar,
   IconDownload,
   IconKey,
   IconListing,
   IconLock,
-  IconReport,
   IconScale,
   IconSearch,
   IconSettings,
@@ -58,8 +57,11 @@ function AreaIcon({ area }: { area: AuditArea }) {
       return <IconSupport />;
     case "billing":
       return <IconTag />;
+    /* Prices, not reports. `IconReport` became a dashboard of charts when the
+       Reports page took it, which is the wrong picture for a price change —
+       and a dollar keeps this area distinct from `billing`, which is the tag. */
     case "pricing":
-      return <IconReport />;
+      return <IconDollar />;
     case "staff":
       return <IconKey />;
     default:
@@ -250,10 +252,17 @@ function AuditPage() {
                     <AreaIcon area={e.area} />
                   </span>
                   <div className="gm-feed-body">
+                    {/* No "Consequential" chip. Roughly half the log carries
+                        the high weight — every standing change, every price,
+                        every comp — so the tag sat on half the rows saying
+                        nothing about which of them mattered, and put a red
+                        badge beside entries that were simply doing the job.
+                        The weight is still on the entry: it filters the log,
+                        it is counted in the heading, it is a column in the
+                        export, and it is what colours the mark on the left. */}
                     <p className="gm-row" style={{ gap: 8 }}>
                       <b>{e.action}</b>
                       <span className="gm-mono gm-sm gm-dim">{e.target}</span>
-                      {e.weight === "high" ? <Badge tone="bad">Consequential</Badge> : null}
                     </p>
                     {e.detail ? <p className="gm-sm gm-muted">{e.detail}</p> : null}
                     <div className="gm-feed-time">
