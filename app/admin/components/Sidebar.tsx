@@ -87,7 +87,7 @@ const NAV: Block[] = [
       {
         kind: "page",
         href: "/admin/listings",
-        label: "Listing queue",
+        label: "Verification",
         icon: IconListing,
         /* Filled in from the API at render — see `queueCount` below. NAV is a
            module constant, so a live figure cannot be baked into it. */
