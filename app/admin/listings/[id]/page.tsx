@@ -292,7 +292,7 @@ function ListingRecord() {
     }
   }
 
-  const back = { href: "/admin/listings", label: "Listing queue" };
+  const back = { href: "/admin/listings", label: "Verification" };
 
   if (error) {
     return (

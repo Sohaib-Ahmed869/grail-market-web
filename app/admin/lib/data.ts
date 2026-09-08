@@ -311,7 +311,7 @@ export const ROLES: {
     key: "moderator",
     label: "Moderator",
     who: "Grail Market",
-    sees: "Listing queue: approve, reject, ask for more photos. No billing, no ID.",
+    sees: "Verification: approve, reject, ask for more photos. No billing, no ID.",
   },
   {
     key: "trust-safety",
@@ -3230,7 +3230,7 @@ export const serviceAccounts: ServiceAccount[] = [
 
 export const scopesOf = (role: Role): string[] => {
   const out: string[] = [];
-  if (can(role, "listings.review")) out.push("Listing queue");
+  if (can(role, "listings.review")) out.push("Verification");
   if (can(role, "conduct.decide")) out.push("Reports & conduct");
   if (can(role, "support.read")) out.push("Support");
   if (can(role, "members.read")) out.push("Members");

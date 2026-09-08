@@ -151,7 +151,7 @@ function ListingsPage() {
   return (
     <>
       <PageHead
-        title="Listing queue"
+        title="Verification"
         sub="Approving a listing publishes it straight away."
         right={
           /* "Claim next in queue" is gone. It spent most of its life disabled,
