@@ -1,0 +1,876 @@
+/* ==========================================================================
+   THE DASHBOARD — three columns, six boxes, one window
+
+   Everything in this file belongs to /admin and nothing else uses it, which
+   is why it is imported by the page rather than added to admin.css. The one
+   exception is `.gm-volume`, which is the chart component's own frame: that
+   component is drawn on this page and no other, so its two rules live beside
+   the grid that gives it a height rather than in the shared sheet.
+
+   The page used to be a tall column with a rail beside it and half of itself
+   below the fold. What makes a dashboard a dashboard rather than a report is
+   that the whole state of the thing is in view at once, so the grid is handed
+   the height of the window and the columns and rows divide it between them.
+   Every card is a flex column with `min-height: 0` on it — without that, a
+   grid child refuses to shrink below the size of what is inside it and the
+   tallest card on the page decides how far it scrolls.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   `100vh` is not the window here, and the difference is 270 pixels
+
+   Above 1600 the console scales itself with `zoom` on :root — 1.1, then 1.25,
+   then 1.45 — so that a control drawn for a 1440 desktop is not a postage
+   stamp on a 4K panel. `zoom` reflows, which is why it was chosen, but it
+   does not touch the viewport units: `100vh` still resolves to the window's
+   height in CSS pixels, and that value is then scaled like everything else.
+   At 1920x1080 with `zoom: 1.25` a box asking for `100vh` is painted 1350
+   pixels tall, and 270 of them are below the bottom of the screen.
+
+   That is why every page of this console has a 270px scroll at 1920 that
+   nothing on it accounts for — `.gm-shell` is `min-height: 100vh` and
+   `.gm-side` is `height: 100vh`. A dashboard whose whole promise is that it
+   fits in the window cannot inherit that, so both are restated here in terms
+   the zoom is divided back out of, and only for the page that is making the
+   promise: `:has(.gm-dashpage)` keeps it off every other route.
+
+   `--dash-zoom` mirrors the ladder in admin.css. If those breakpoints move,
+   these move with them — there is no way to read the effective zoom from CSS,
+   so the two lists have to agree by hand. */
+.gm-shell:has(.gm-dashpage) {
+  --dash-zoom: 1;
+  min-height: calc(100vh / var(--dash-zoom));
+}
+
+.gm-shell:has(.gm-dashpage) .gm-side {
+  height: calc(100vh / var(--dash-zoom));
+}
+
+@media (min-width: 1600px) {
+  .gm-shell:has(.gm-dashpage) {
+    --dash-zoom: 1.1;
+  }
+}
+
+@media (min-width: 1900px) {
+  .gm-shell:has(.gm-dashpage) {
+    --dash-zoom: 1.25;
+  }
+}
+
+@media (min-width: 2300px) {
+  .gm-shell:has(.gm-dashpage) {
+    --dash-zoom: 1.45;
+  }
+}
+
+/* The window, less the chrome above and around it: the topbar with the 12px
+   it is inset by, and `.gm-content`'s own 26px/28px. Stated once here, so
+   the height is a subtraction anybody can check rather than a number that
+   happens to work. */
+.gm-dashpage {
+  --dash-chrome: calc(var(--topbar-h) + 54px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  height: calc(100vh / var(--dash-zoom) - var(--dash-chrome));
+}
+
+/* --------------------------------------------------------------------------
+   THE GREETING
+
+   The date and one line of welcome, above the grid. The panel this replaces
+   was a third of the window — a fanned trail of card art, a headline and a
+   button — and it is kept in components/GreetingHero.tsx rather than deleted.
+   What is left is the part that earns its height on a page whose whole
+   promise is that it fits: what day it is, and who is reading.
+
+   The line is two weights of one size. "Welcome back," is the page's ink and
+   the name is three steps lighter, so the sentence reads as one thing with
+   the person picked out of it rather than as a label and a value. The heading
+   is `h2` because `h1` is the shell's, and it is sentence case like every
+   other string in this console. */
+.gm-dash-hello {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.gm-dash-date {
+  font-size: 11.8px;
+  font-weight: 550;
+  color: var(--ink-4);
+}
+
+.gm-dash-hello h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The name carries the console's navy gradient — the same fill as a selected
+   sidebar row and a primary button — asked for by name. `CLAUDE.md` said no
+   gradient text, and this is the exception it now records: one word, at 19px
+   and weight 600, which is heavy enough to hold a ramp without it turning
+   into fringing on the strokes.
+
+   Stated twice because the fill has to be read against the page, not against
+   the sidebar. `--grad-navy` is dark at both ends in both themes, which on
+   the dark ground would be a name written in the background colour; the dark
+   theme lifts the same ramp toward `--ink` — near-white there — so it stays
+   the navy gradient going the way the light does. */
+.gm-dash-hello h2 span {
+  margin-left: 0.34em;
+  font-weight: 600;
+  background: var(--grad-navy);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+:root[data-gm-theme="dark"] .gm-dash-hello h2 span {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--navy-500) 26%, var(--ink)) 0%,
+    color-mix(in srgb, var(--navy-500) 62%, var(--ink)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.gm-dash3 {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 252px) minmax(0, 1fr) minmax(0, 292px);
+  /* The bottom row is `auto` — as tall as the queue actually is, and no
+     taller. It was a share of the window, which on a queue holding one
+     listing left most of a card of bare white under the single row and the
+     table looking like it had failed to load the rest. The queue is the one
+     card here whose content comes in fixed lumps: a listing is a row and a
+     row has a height, so it is the card that should state its own size.
+
+     The window is still filled, because the two rows above are `fr` and take
+     back whatever the queue does not use — a short queue makes the chart and
+     the money column taller rather than leaving a gap at the foot. The card
+     beside it, Members, shares the row and so shares its height. */
+  grid-template-rows: minmax(0, 1.3fr) minmax(0, 0.55fr) auto;
+  /* The queue runs under the chart AND the money column rather than sitting in
+     the middle column alone. `.gm-table` has a 720px floor and this extract
+     needs every one of them: six columns of triage crushed below that is how
+     the table grew a sideways scrollbar the last two times anything was added
+     to it, and the middle column never reaches 720 at any width the console is
+     used at — above 1600 the `zoom` ladder scales the layout up faster than
+     the screen grows, so the middle column sits between 620 and 690 from a
+     1600 laptop all the way to a 2300 panel. Two columns of the grid is the
+     only width that clears the floor everywhere. */
+  grid-template-areas:
+    "rev   chart stand"
+    "week  chart stand"
+    "queue queue members";
+}
+
+.gm-dash3 > .gm-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  /* The cards clip, so nothing inside one can push the grid past the window.
+     They used to clip AND scroll, which meant a card that had run out of room
+     grew a bar down its inside and carried on — the page still fitted and the
+     card was quietly lying about it. Everything on this page is now sized to
+     fit, and `hidden` is what turns a mistake into something you can see.
+     Nothing that has to escape a card is drawn inside one: `RowMenu` portals
+     to #gm-overlays, as every overlay in this console does. */
+  overflow: hidden;
+}
+
+.gm-dash-rev { grid-area: rev; }
+.gm-dash-week { grid-area: week; }
+.gm-dash-chart { grid-area: chart; }
+.gm-dash-queue { grid-area: queue; }
+.gm-dash-stand { grid-area: stand; }
+.gm-dash-members { grid-area: members; }
+
+/* A card head in a 252px column has to give its title the whole line, so the
+   two-line stack wraps rather than fighting whatever sits in the right slot.
+
+   No rule under it, asked for and only here. `.gm-card-head` draws a bottom
+   border everywhere in the console and keeps it — a record page stacks half a
+   dozen heads down one column and the line is what tells them apart. On this
+   page every head is the top edge of its own bordered card, so the rule was a
+   second horizontal line a few pixels below the first, six times over. The
+   heads are a size down here as well: six of them share one window, and at
+   the console's own 15.5px they were reading as page titles rather than as
+   the names of panels. */
+.gm-dash3 .gm-card-head {
+  flex: none;
+  padding: 9px 14px 5px;
+  gap: 8px;
+  border-bottom: 0;
+}
+
+.gm-dash3 .gm-card-head h3 {
+  font-size: 14.4px;
+}
+
+.gm-dash3 .gm-card-head p {
+  font-size: 12.1px;
+}
+
+/* ==========================================================================
+   LEFT · SUBSCRIPTION REVENUE
+
+   The recurring money, and which plan it is coming from. This is the figure
+   the pricing page reads too, from the same place, because two pages of one
+   console disagreeing about MRR is worse than either being wrong alone.
+   ========================================================================== */
+
+/* `overflow: hidden`, not `auto`, on every body on this page.
+
+   The bodies were set to scroll so that a card which ran out of room would
+   take the overflow on itself rather than push the grid past the window. That
+   worked and it was the wrong trade: a dashboard card with a scrollbar down
+   its inside is a card that is lying about fitting, and the answer to content
+   that does not fit is less of it, or smaller, not a second scroll. Every
+   figure below has been tightened until it fits at 1440x900, and `hidden`
+   here is the tripwire — if something ever does overflow again it clips
+   visibly instead of quietly growing a bar nobody reads. */
+.gm-dash-revbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 9px 14px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The headline, a size down from the one the money panels elsewhere use. The
+   figure has a 252px column to live in and a card that has to hold a bar and
+   a three-line key underneath it, and at 30px it was the reason the panel
+   scrolled inside itself on a 900-tall window. */
+.gm-dash-rev .gm-money-value {
+  font-size: 23px;
+}
+
+/* The bar's own margin is set for a panel where it separates a headline from
+   a plan table. Here the flex gap does that job, and the two together left a
+   visible step between the bar and the key under it. */
+.gm-dash-revfoot .gm-stackbar {
+  margin: 0;
+}
+
+/* The bar and its key, pushed to the foot of the card. See the note beside
+   the markup: evenly spreading three things down a tall column reads as a
+   panel with a piece missing, where a headline at the top and a breakdown at
+   the bottom reads as a card. */
+.gm-dash-revfoot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A key to the bar above it, not the plan table.
+
+   `.gm-planline` carries the price, the listing quota and the head count as
+   well, and it earns all four across half a page — in a column this narrow
+   every row wrapped onto three lines. The subscriptions page owns the detail;
+   what there is room to say here is which plan each band of the bar is and
+   what that plan is worth. */
+.gm-planmini {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gm-planmini li {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12.3px;
+}
+
+.gm-planmini li:first-child {
+  border-top: 0;
+}
+
+.gm-planmini i {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-xs);
+}
+
+.gm-planmini span {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-planmini b {
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   LEFT · WEEKLY REVENUE
+
+   The small money tile under the big one, and the one dark object on the
+   page. Collected is not MRR — the gap between them is the dunning pile — so
+   the two are stated apart, and this one names its period in the label rather
+   than leaving it to be assumed. The period is now the last seven days
+   against the seven before, which is why there is a pill beside the figure:
+   a week of revenue on its own is a number, and a week against the week
+   before it is a reading.
+
+   The tile was navy for several rounds and is now a gold wash — see the rule
+   below for why. What survives from that period is worth stating: while it
+   was dark, every colour inside had to be mixed off `--th-ink` rather than
+   `--ink`, because the tile was dark in BOTH themes and a theme-following ink
+   paints near-black text on navy the moment the lights go on. It is a light
+   surface now, so its contents are back on `--ink` and `--ink-3`. If it ever
+   goes dark again, they have to move back with it.
+   ========================================================================== */
+
+/* `--edge` is the one-pixel top highlight every raised box in the console
+   carries, and it is a near-white line meant to catch on a pale surface. On
+   the one card that is navy in both themes it was not a highlight, it was a
+   white rule drawn across the top of the tile. The shadow stays; the edge is
+   dropped here and only here. */
+/* A soft notice, not a navy slab.
+
+   This tile has been solid `--grad-navy`, then a lighter mix of it, then a
+   corner-lit ramp of it, and every time it was the heaviest object on a page
+   of white cards — a lot of weight for a figure nobody needs shouting at
+   them. It is a gold wash now: the console's own accent at a fifth strength
+   falling to plain surface, still lit from the top-left corner as asked, just
+   running through a far lighter pair of stops.
+
+   Everything inside it goes back to the page's own ink with it. `--th-ink` is
+   for surfaces that are dark in BOTH themes, and this one is no longer dark
+   in either — left on it, every word here would have been near-white on
+   cream. */
+.gm-dash-week {
+  background: linear-gradient(
+    118deg,
+    color-mix(in srgb, var(--navy-500) 20%, var(--surface)) 0%,
+    color-mix(in srgb, var(--navy-500) 11%, var(--surface)) 46%,
+    var(--surface) 100%
+  );
+  border-color: color-mix(in srgb, var(--navy-500) 30%, var(--line));
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-dash-weekbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+
+.gm-dash-weeklabel {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-3);
+}
+
+/* The figure and its pill on one line, the pill sitting on the baseline of
+   the number rather than centred against it — a 25px figure and a 20px chip
+   centred on each other leave the chip floating above the digits' feet. */
+.gm-dash-weekline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gm-dash-weekvalue {
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The change, in the console's own status colours mixed into the navy rather
+   than laid on it. `--ok` and `--bad` at full strength are a signal, and a
+   week that went up is not an alert; at this strength the pill reads as a
+   tint of the tile it sits on with the sign doing the work. */
+.gm-dash-weekpill {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ok) 30%, transparent);
+  color: var(--ok);
+  font-size: 11.6px;
+  font-weight: 650;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-dash-weekpill--down {
+  background: color-mix(in srgb, var(--bad) 30%, transparent);
+  color: var(--bad);
+}
+
+.gm-dash-weeknote {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+   MIDDLE · THE CHART
+
+   The body is the only thing on this page that is measured rather than
+   given: `VolumeChart` reads the height of `.gm-volume-plot` and draws an SVG
+   exactly that tall. The plot is `flex: 1` inside a box with a definite
+   height and it clips, so the drawing can never feed back into the size of
+   the thing that sized it.
+   ========================================================================== */
+
+.gm-dash-chartbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 12px 9px;
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-dash-chartbody > .gm-empty {
+  margin: auto;
+}
+
+.gm-volume {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.gm-volume-plot {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The legend doubles as the readout, so it cannot be cut — but its margin is
+   set for a chart with a page under it rather than a card that is sharing a
+   window with five others. Tightened here only. */
+.gm-dash-chart .gm-chart-legend {
+  margin-top: 6px;
+  font-size: 12.2px;
+}
+
+/* ==========================================================================
+   MIDDLE · THE QUEUE EXTRACT
+
+   The table already has a frame — the card is it — so the wrapper gives up
+   its own margin, border and radius the same way it does inside a flush
+   well. What it keeps is the scrolling: this is the one table on the console
+   that has repeatedly run out of horizontal room, and it takes that on itself
+   rather than handing it to the page.
+   ========================================================================== */
+
+.gm-dash-queuebody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-dash-queuebody > .gm-loading,
+.gm-dash-queuebody > .gm-empty {
+  margin: auto;
+}
+
+.gm-dash-queuebody > .gm-tablewrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  /* Sideways only. This is the one table on the console that has repeatedly
+     run out of horizontal room — `.gm-table` has a 720px floor and six
+     columns of triage below it is how the extract grew a bar the last two
+     times anything was added to a row — so it keeps that bar and takes it on
+     itself rather than handing it to the page. Vertically it must not scroll
+     at all: `SLA_ROWS` is set to what fits, and `hidden` is what makes a
+     mistake there visible instead of silent. */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   The row, at extract height
+
+   Everything below is scoped to this card. `--tight` is the console's own
+   compact table and the listings page uses it across a full window; here it
+   shares its width with two other columns and its height with five other
+   cards, so the row gives up what it can and keeps what a decision is taken
+   on. A 48px slab and three lines of type made a 79px row, and at that height
+   two of them filled the card. */
+.gm-dash-queuebody .gm-table--tight thead th,
+.gm-dash-queuebody .gm-table--tight tbody td {
+  padding: 5px 9px;
+}
+
+.gm-dash-queuebody .gm-slab--sm {
+  width: 26px;
+  height: 37px;
+}
+
+.gm-dash-queuebody .gm-cell-user {
+  gap: 8px;
+}
+
+.gm-dash-queuebody .gm-cell2 {
+  gap: 0;
+}
+
+.gm-dash-queuebody .gm-table--tight .gm-cell2 b {
+  font-size: 13.1px;
+  line-height: 1.35;
+}
+
+.gm-dash-queuebody .gm-table--tight .gm-cell2 span {
+  font-size: 11.6px;
+  line-height: 1.3;
+}
+
+/* The header band holds while the rows run under it. A queue you scroll
+   inside a 240px box loses its column names on the second row otherwise.
+   Stated on the row, matching admin.css: the band is one gradient across the
+   whole header, so the row is the thing that has to hold position. */
+.gm-dash-queuebody .gm-table thead tr {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   RIGHT · WHERE THINGS STAND
+
+   The heading and its line are inside the card now rather than floating over
+   it. A title outside a bordered box reads as a label for a region of the
+   page, and beside five cards that each name themselves on their own top edge
+   it was the only one that did not.
+   ========================================================================== */
+
+.gm-dash-standbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Tighter than the same row elsewhere, and the rows stretch to share the
+   card between them rather than each taking its own height and leaving a gap
+   at the foot. Four of them, so each gets a quarter and the panel is full
+   whatever the window is. The figure keeps its weight; it is the paper around
+   it that gives way. */
+/* The four keep the card's own surface. They were filled with `--grad-navy`
+   for a moment and it was four dark slabs down the tallest column on the
+   page — the gradient is now on the arrow alone, which is the one part of
+   the tile that is a control. */
+.gm-dash-standbody .gm-linkstat {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 4px 11px;
+}
+
+/* The arrow disc carries the navy, so the border it had would be a hairline
+   drawn on top of its own fill. `--th-ink` for the glyph, not `--ink`: this
+   disc is dark in both themes, and `--ink` inverts with the console. */
+.gm-dash-standbody .gm-linkstat-go {
+  background: var(--grad-navy);
+  border-color: transparent;
+  color: var(--th-ink);
+}
+
+/* Hover lifts the glyph to gold rather than swapping the disc's colours. The
+   shared rule recolours the border, which here is not visible. */
+.gm-dash-standbody .gm-linkstat:hover .gm-linkstat-go {
+  border-color: transparent;
+  color: var(--gold-300);
+}
+
+.gm-dash-standbody .gm-linkstat-value {
+  font-size: 17px;
+}
+
+/* ==========================================================================
+   RIGHT · MEMBERS
+
+   How many people are here, and a reminder that they are people. The count is
+   the database's answer, printed above the row; the faces are the first few
+   the directory returns and imply no ranking, which is why nothing is written
+   next to them but a name on hover.
+   ========================================================================== */
+
+.gm-dash-membersbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+
+.gm-dash-membersbody > .gm-empty {
+  margin: auto;
+}
+
+.gm-dash-memberscount {
+  font-size: 29px;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-dash-memberslabel {
+  font-size: 12.2px;
+  font-weight: 550;
+  color: var(--ink-4);
+}
+
+/* Overlapping circles, each with a ring of the card's own surface around it so
+   the one in front reads as in front rather than as a shape cut out of the one
+   behind. The row is nudged right by the overlap it starts with, so the first
+   face still lines up with the count above it. */
+.gm-faces {
+  display: flex;
+  align-items: center;
+  margin: 10px 0 0 10px;
+}
+
+.gm-faces > .gm-face {
+  position: relative;
+  display: inline-flex;
+  margin-left: -10px;
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* The last circle, and the only one that is not a person. It takes
+   `--grad-navy` — the second of the two places on this page the brand ramp
+   was asked for — because a "+N" in the same pale grey as the ring around
+   every face read as one more empty avatar. Navy makes it a full stop at the
+   end of the row: the same shape, obviously not a photograph. */
+.gm-face--more {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--grad-navy);
+  box-shadow: 0 0 0 2px var(--surface), var(--sh-navy);
+  color: var(--th-ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   NARROWER THAN THE REFERENCE
+
+   Two things decide the breakpoints, and neither is a device:
+
+   1. Below roughly 1180px there is no arrangement of three columns that fits
+      a window, so the height lock comes off and the page is allowed to
+      scroll. A phone cannot show a three-column dashboard and should not
+      pretend to.
+   2. Below 820px it is one column, in reading order: the money, then the
+      work, then the depths.
+   ========================================================================== */
+
+@media (max-width: 1180px) {
+  .gm-dashpage {
+    height: auto;
+  }
+
+  .gm-dash3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    grid-template-areas:
+      "chart stand"
+      "chart members"
+      "rev   week"
+      "queue queue";
+  }
+
+  /* With the rows sized by their content again, the two boxes that were
+     filling a share of the window need a floor of their own or they collapse
+     to a card head and a scrollbar. */
+  .gm-dash-chart {
+    min-height: 330px;
+  }
+
+  .gm-dash-queue {
+    min-height: 290px;
+  }
+
+  .gm-dash-rev {
+    min-height: 280px;
+  }
+}
+
+@media (max-width: 820px) {
+  .gm-dash3 {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "rev"
+      "week"
+      "chart"
+      "queue"
+      "stand"
+      "members";
+  }
+
+  .gm-dash-chart {
+    min-height: 260px;
+  }
+
+  .gm-dash-rev,
+  .gm-dash-week,
+  .gm-dash-members {
+    min-height: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   WHEN THERE IS NOT A SCREEN'S WORTH OF SCREEN
+
+   The whole page is built on a promise — everything in view at once — and
+   below about 700px of layout height that promise cannot be kept. The cards
+   clip rather than scroll, deliberately, so what happened next was that the
+   plan list lost its last row mid-line and the weekly tile lost the sentence
+   under its figure: a dashboard quietly showing less than it says it is.
+
+   So below the threshold the promise is dropped instead of the content. The
+   grid stops dividing a fixed height, every row sizes to what is in it, the
+   cards stop clipping, and the page scrolls like any other. Losing the fold
+   is a smaller lie than losing the last row of a table.
+
+   The thresholds are stated four times because a media query measures the
+   viewport BEFORE `zoom` is applied to `:root`, while everything on this page
+   is laid out after it. 700 layout pixels is 700 real ones at zoom 1, but 875
+   at 1.25 — so each rung of the ladder in admin.css needs its own height to
+   compare against, and this list has to move whenever that one does. This is
+   the second copy of that ladder in this file; there is no way to read an
+   effective zoom from CSS, and both say so.
+
+   Browser zoom lands here too, which is what surfaced this: at 125% on a
+   1080-tall screen the viewport is 864 CSS pixels, and on a wide enough
+   monitor `:root` is still scaling by 1.25 on top of that — 691 layout
+   pixels, well under the floor. */
+@media (max-height: 700px),
+  (min-width: 1600px) and (max-height: 770px),
+  (min-width: 1900px) and (max-height: 875px),
+  (min-width: 2300px) and (max-height: 1015px) {
+  .gm-dashpage {
+    height: auto;
+    min-height: calc(100vh / var(--dash-zoom) - var(--dash-chrome));
+  }
+
+  .gm-dash3 {
+    grid-template-rows: auto auto auto;
+  }
+
+  /* The clip is what turned "too little room" into "missing content". With
+     the rows sized to their contents there is nothing to clip, and leaving
+     it on would only reintroduce the bug at the next size down. */
+  .gm-dash3 > .gm-card {
+    overflow: visible;
+  }
+
+  /* The chart is measured by script rather than sized by CSS, so an auto row
+     would hand it a height of nothing and it would draw an empty box. */
+  .gm-dash-chartbody {
+    min-height: 210px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   TYPE GROWS WITH THE WINDOW, NOT JUST THE BOXES
+
+   `zoom` on :root scales everything by one factor, which keeps the page
+   readable on a large panel but cannot change a proportion: at 2560 the cards
+   are taller and the words in them are exactly as big, relative to their card,
+   as they were at 1440. What that buys is dead space — the subscription card
+   holding a headline at the top and a key at the foot with a hand's width of
+   nothing between them.
+
+   So the headings and the figures take a second, smaller step of their own at
+   the two widths where there is height going spare. Only the type that names
+   or states something moves: a card title, the greeting, and the numbers the
+   page exists to report. Labels, sub-lines and table text stay where they are
+   — scaling those as well would just be `zoom` again, and would put the dead
+   space back exactly where it was.
+
+   The rungs match the ladder in admin.css, for the third and last time in this
+   file. 1600 is deliberately not one of them: at `zoom: 1.1` a 1600 window is
+   1454 layout pixels, which is a 1440 desktop with no room to spare. */
+@media (min-width: 1900px) {
+  .gm-dash-hello h2 { font-size: 22px; }
+  .gm-dash3 .gm-card-head h3 { font-size: 16px; }
+  .gm-dash-rev .gm-money-value { font-size: 27px; }
+  .gm-dash-weekvalue { font-size: 29px; }
+  .gm-dash-standbody .gm-linkstat-value { font-size: 20px; }
+  .gm-dash-memberscount { font-size: 34px; }
+
+  /* The subscription card's gap is the widest on the page, because its
+     headline is pinned to the top and its breakdown to the foot. Type alone
+     does not close it — the answer is to let the breakdown take more of the
+     card, so the bar thickens and the three plan rows breathe rather than the
+     space between them growing. */
+  .gm-dash-revfoot .gm-stackbar { height: 14px; }
+  .gm-planmini li { padding: 5px 0; font-size: 13px; }
+  .gm-dash-membersbody .gm-face { --face-size: 50px; }
+}
+
+@media (min-width: 2300px) {
+  .gm-dash-hello h2 { font-size: 26px; }
+  .gm-dash3 .gm-card-head h3 { font-size: 18px; }
+  .gm-dash3 .gm-card-head p { font-size: 13px; }
+  .gm-dash-rev .gm-money-value { font-size: 32px; }
+  .gm-dash-weekvalue { font-size: 34px; }
+  .gm-dash-standbody .gm-linkstat-value { font-size: 23px; }
+  .gm-dash-standbody .gm-linkstat-label { font-size: 13.5px; }
+  .gm-dash-memberscount { font-size: 40px; }
+  .gm-dash-revfoot .gm-stackbar { height: 17px; }
+  .gm-planmini li { padding: 8px 0; font-size: 14px; }
+}

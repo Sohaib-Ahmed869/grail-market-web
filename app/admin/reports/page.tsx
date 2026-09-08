@@ -21,6 +21,7 @@ import {
   Note,
   PageHead,
   Select,
+  Spark,
   TrendChart,
 } from "../components/ui";
 import {
@@ -141,6 +142,15 @@ function Delta({
 
 function ReportsPage() {
   const [period, setPeriod] = useState("30d");
+  /* The same switch the listing queue carries, and the same default: the
+     figures as a list first, the panels behind the second button.
+
+     A table of reports has been here before and was removed for good reason —
+     it sat UNDERNEATH the charts it described, restating their names and a
+     two-line explanation of what each one counts below the drawn version of
+     the same thing. This is the other arrangement: one or the other, never
+     both, and it carries only what a row can be read on — the name, what it
+     counts, the current figure and its shape. */
 
   const [data, setData] = useState<ReportsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +214,21 @@ function ReportsPage() {
       { header: "Bucket", value: (r) => r.bucket },
       { header: "Value", value: (r) => r.value },
     ]);
+  }
+
+  /** One series, as a spreadsheet. The row's own action — the page-wide
+   *  Export writes all nine, and a row you are reading is rarely all nine. */
+  function exportSeries(r: ReportSeries) {
+    exportCsv(
+      `grailmarket-${r.id.toLowerCase()}-${period}`,
+      r.trend.map((value, i) => ({ bucket: r.labels[i] ?? `#${i + 1}`, value })),
+      [
+        { header: "Report", value: () => r.name },
+        { header: "Period", value: () => label },
+        { header: "Bucket", value: (x) => x.bucket },
+        { header: "Value", value: (x) => x.value },
+      ],
+    );
   }
 
   return (

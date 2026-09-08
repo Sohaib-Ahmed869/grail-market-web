@@ -108,7 +108,7 @@ const NAV: Block[] = [
         label: "Cases",
         icon: IconFlag,
         children: [
-          { href: "/admin/conflicts", label: "Reports & conduct", icon: IconScale },
+          { href: "/admin/conflicts", label: "Reports & Conduct", icon: IconScale },
           { href: "/admin/support", label: "Support", icon: IconSupport },
         ],
       },
@@ -131,7 +131,7 @@ const NAV: Block[] = [
           },
           {
             href: "/admin/members?scope=team",
-            label: "Admin team",
+            label: "Admin Team",
             icon: IconShield,
             param: { key: "scope", value: "team" },
             fallback: true,
@@ -150,12 +150,12 @@ const NAV: Block[] = [
       {
         kind: "page",
         href: "/admin/pricing",
-        label: "Subscriptions & boosts",
+        label: "Subscriptions & Boosts",
         icon: IconTag,
       },
       { kind: "page", href: "/admin/reports", label: "Reports", icon: IconReport },
       { kind: "page", href: "/admin/announcements", label: "Announcements", icon: IconMegaphone },
-      { kind: "page", href: "/admin/audit", label: "Audit log", icon: IconKey },
+      { kind: "page", href: "/admin/audit", label: "Audit Log", icon: IconKey },
     ],
   },
 ];

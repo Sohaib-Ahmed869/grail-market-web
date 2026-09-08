@@ -145,19 +145,14 @@ function Angle({ url, label }: { url: string; label: string }) {
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
+    /* The shadow and the radius moved to a class: an inline style cannot be
+       overridden by a stylesheet, and the front-and-back pair at the top of
+       the page needs a deeper one than an angle in the ten-up grid. */
     <img
+      className="gm-photo"
       src={url}
       alt={label}
       loading="lazy"
-      style={{
-        width: "100%",
-        aspectRatio: "3 / 4",
-        objectFit: "cover",
-        borderRadius: "var(--r-sm)",
-        background: "var(--surface-2)",
-        boxShadow: "var(--sh-1)",
-        display: "block",
-      }}
       onError={() => setFailed(true)}
     />
   );
@@ -170,7 +165,9 @@ function historyStatus(s: string): ListingStatus {
     ? "awaiting"
     : s === "info_requested"
       ? "info-requested"
-      : (["live", "sold", "paused", "rejected"].includes(s) ? s : "withdrawn") as ListingStatus;
+      : (["live", "sold", "reserved", "paused", "rejected"].includes(s)
+          ? s
+          : "withdrawn") as ListingStatus;
 }
 
 /** The minimum a reason has to be before it is worth recording. */
@@ -192,6 +189,27 @@ function ListingRecord() {
   const open = record?.listing ?? null;
   const priceComps = record?.comps ?? [];
   const photoSet = record?.photos ?? [];
+
+  /* The two angles a moderator looks at before anything else: is this the card
+     it says it is, and is the back the same card. They are pulled out of the
+     set by name rather than by position — the upload order is the seller's, so
+     `photoSet[0]` is whichever angle they happened to send first — and they
+     stay in the full set below as well, because that panel is a count of ten
+     angles and removing two from it would make a complete submission read as
+     short.
+
+     Exact label first, and only then a loose match. The corner angles are
+     named "front-tl" and "front-tr", so a plain `includes("front")` over a set
+     that happens to lead with a corner puts a photograph of one edge of the
+     slab at the top of the page as the front of the card. The loose pass is
+     still there because real submissions also carry "Front" and "front of
+     card". */
+  const face = (want: string) => {
+    const at = (p: { angle?: string | null }) => (p.angle ?? "").trim().toLowerCase();
+    return photoSet.find((p) => at(p) === want) ?? photoSet.find((p) => at(p).includes(want));
+  };
+  const front = face("front");
+  const backPhoto = face("back");
   const sellerRecord = record?.history ?? [];
 
   /* Read the record, and take it if it is still waiting on a decision, so a
@@ -328,6 +346,45 @@ function ListingRecord() {
       />
 
       <div className="gm-stack">
+        {/* ------------------------------------------- the card itself
+
+            Front and back, centred and large, above everything else. This
+            page used to open on the drawn slab beside the ask, with the
+            photographs eight hundred pixels down the page under the comps —
+            which put the two images the decision actually turns on below the
+            fold, and left the first screen showing a rendering of the card
+            rather than the card. A moderator opens a listing to look at it.
+
+            Only rendered when there is something to show: an empty pair of
+            tiles at the top of the page would be the loudest thing on it, and
+            the photo set below already reports a short submission as the
+            finding it is. */}
+        {front || backPhoto ? (
+          /* No card behind them. A photograph of a slab already has an edge, a
+             corner radius and a shadow of its own — a white panel around it
+             was a second card drawn round a picture of a card, and the page
+             opened on the panel rather than on the thing. The pair sits
+             straight on the page ground and casts its own shadow. */
+          <div className="gm-record-faces">
+              {front ? (
+                <figure>
+                  <Angle url={front.url} label={front.angle ?? "Front"} />
+                  <figcaption>Front</figcaption>
+                </figure>
+              ) : (
+                <div className="gm-photo-missing">front missing</div>
+              )}
+              {backPhoto ? (
+                <figure>
+                  <Angle url={backPhoto.url} label={backPhoto.angle ?? "Back"} />
+                  <figcaption>Back</figcaption>
+                </figure>
+              ) : (
+                <div className="gm-photo-missing">back missing</div>
+              )}
+          </div>
+        ) : null}
+
         {/* ------------------------------------------------ what it is */}
         <Card pad>
           <div className="gm-record-top">
@@ -655,7 +712,7 @@ function ListingRecord() {
               </button>
               <button
                 type="button"
-                className="gm-btn gm-btn--danger"
+                className="gm-btn gm-btn--danger gm-btn--withdraw"
                 onClick={() => setMarketStatus("withdraw", "Withdrawn")}
               >
                 <IconBan />

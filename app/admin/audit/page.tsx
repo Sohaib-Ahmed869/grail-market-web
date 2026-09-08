@@ -2,6 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { shortDate } from "../lib/data";
+
+/* The full moment, for the opened panel. The line above it carries the short
+   form because a column of dates is scanned, not read; an auditor who has
+   opened one entry wants the year and the seconds. */
+const stamp = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })}, ${d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })}`;
+};
 import {
   ApiError,
   AUDIT_AREAS,
@@ -12,6 +30,7 @@ import {
 import {
   Card,
   CardHead,
+  DL,
   Empty,
   FilterMenu,
   Loading,
@@ -19,6 +38,7 @@ import {
   PageHead,
 } from "../components/ui";
 import {
+  IconChevronDown,
   IconDollar,
   IconDownload,
   IconKey,
@@ -85,6 +105,9 @@ function AuditPage() {
   const [actor, setActor] = useState("all");
   const [weight, setWeight] = useState("all");
   const [query, setQuery] = useState("");
+  /* One entry open at a time. The log is read down, and a column with four
+     panels hanging out of it is no longer a column. */
+  const [expanded, setExpanded] = useState<string | null>(null);
   const debounced = useDebounced(query, 220);
 
   const [rows, setRows] = useState<AuditEntry[]>([]);
@@ -138,7 +161,7 @@ function AuditPage() {
   return (
     <>
       <PageHead
-        title="Audit log"
+        title="Audit Log"
         sub="Who approved, rejected, restricted, comped or escalated, and when. Nothing here can be edited or deleted by anyone."
         right={
           <button type="button" className="gm-btn" onClick={exportRows} disabled={rows.length === 0}>
@@ -242,38 +265,71 @@ function AuditPage() {
             />
           ) : (
             <div className="gm-feed" style={{ padding: "4px 16px 16px" }}>
-              {rows.map((e) => (
-                <div key={e.id} className="gm-feed-item">
-                  <span
-                    className={`gm-feed-ico ${
-                      e.weight === "high" ? "gm-feed-ico--bad" : "gm-feed-ico--gold"
-                    }`}
-                  >
-                    <AreaIcon area={e.area} />
-                  </span>
-                  <div className="gm-feed-body">
-                    {/* No "Consequential" chip. Roughly half the log carries
-                        the high weight — every standing change, every price,
-                        every comp — so the tag sat on half the rows saying
-                        nothing about which of them mattered, and put a red
-                        badge beside entries that were simply doing the job.
-                        The weight is still on the entry: it filters the log,
-                        it is counted in the heading, it is a column in the
-                        export, and it is what colours the mark on the left. */}
-                    <p className="gm-row" style={{ gap: 8 }}>
-                      <b>{e.action}</b>
-                      <span className="gm-mono gm-sm gm-dim">{e.target}</span>
-                    </p>
-                    {e.detail ? <p className="gm-sm gm-muted">{e.detail}</p> : null}
-                    <div className="gm-feed-time">
-                      <span className="gm-scope" style={{ marginRight: 6 }}>
-                        {AREA_LABEL[e.area]}
-                      </span>
-                      {e.actor} · {shortDate(e.at)}
+              {rows.map((e) => {
+                const open = expanded === e.id;
+                return (
+                  <div key={e.id} className="gm-feed-item">
+                    <span
+                      className={`gm-feed-ico ${
+                        e.weight === "high" ? "gm-feed-ico--bad" : "gm-feed-ico--gold"
+                      }`}
+                    >
+                      <AreaIcon area={e.area} />
+                    </span>
+                    <div className="gm-feed-body">
+                      {/* No "Consequential" chip. Roughly half the log carries
+                          the high weight — every standing change, every price,
+                          every comp — so the tag sat on half the rows saying
+                          nothing about which of them mattered, and put a red
+                          badge beside entries that were simply doing the job.
+                          The weight is still on the entry: it filters the log,
+                          it is counted in the heading, it is a column in the
+                          export, and it is what colours the mark on the left.
+
+                          The whole line is the control. An entry opens in
+                          place rather than in a dialog or on a route of its
+                          own: the log is read by running down it, and both of
+                          those take you off the line you were reading. */}
+                      <button
+                        type="button"
+                        className="gm-logline"
+                        aria-expanded={open}
+                        onClick={() => setExpanded(open ? null : e.id)}
+                      >
+                        <span className="gm-logline-main">
+                          <b>{e.action}</b>
+                          <span className="gm-mono gm-sm gm-dim">{e.target}</span>
+                        </span>
+                        <span className="gm-logline-end">
+                          <span className="gm-scope">{AREA_LABEL[e.area]}</span>
+                          <span className="gm-logline-at">{shortDate(e.at)}</span>
+                          <IconChevronDown
+                            className={open ? "gm-logline-caret is-open" : "gm-logline-caret"}
+                          />
+                        </span>
+                      </button>
+
+                      {/* Only what the line could not hold. The action and the
+                          area are already above it, so repeating them here
+                          would make opening a row look like it had done
+                          nothing. */}
+                      {open ? (
+                        <div className="gm-logdrop">
+                          <DL
+                            rows={[
+                              ["Taken by", e.actor],
+                              ["When", stamp(e.at)],
+                              ["Subject", e.target],
+                              ["Weight", e.weight === "high" ? "Consequential" : "Routine"],
+                            ]}
+                          />
+                          {e.detail ? <p className="gm-sm gm-muted">{e.detail}</p> : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>

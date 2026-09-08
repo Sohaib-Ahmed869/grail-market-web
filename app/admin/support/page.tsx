@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
  *  it so a badge can be drawn before the first response lands. */
 const REPLY_TARGET: Record<string, number> = { urgent: 1, high: 4, normal: 12, low: 24 };
 
-import { type TicketStatus } from "../lib/data";
+import { dateOnly, type TicketStatus } from "../lib/data";
 import { ApiError, fetchTickets, openTicket, type AdminTicket } from "../lib/api";
 import {
   Badge,
@@ -20,7 +20,9 @@ import {
   Pagination,
   PriorityBadge,
   FilterMenu,
+  TicketBadge,
   Toast,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconEye,
@@ -92,7 +94,7 @@ const PRIORITIES: { key: string; label: string }[] = [
 const STATUSES = FILTERS.map((f) => f.key as string);
 
 /** Rows per page. A queue is read a screenful at a time, not scrolled. */
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 6;
 
 function SupportPage() {
   const router = useRouter();
@@ -104,6 +106,11 @@ function SupportPage() {
   useEffect(() => setFilter(fromUrl), [fromUrl]);
   const [priority, setPriority] = useState("all");
   const [query, setQuery] = useState("");
+  /* The switch the listing queue carries, on the desk's queue too. The table
+     is the default and is the view this page was built as — the second option
+     is the same rows as cards, which is the shape that survives a narrow
+     window, where five columns become a sideways scroll. */
+  const [layout, setLayout] = useState<"table" | "gallery">("table");
   const [toast, setToast] = useState<{
     title: string;
     body: string;
@@ -294,6 +301,7 @@ function SupportPage() {
                 },
               ]}
             />
+            <ViewToggle value={layout} onChange={setLayout} />
           </div>
         </div>
 
@@ -310,6 +318,53 @@ function SupportPage() {
               title="Nothing here"
               body="No ticket matches that filter or search."
             />
+          ) : layout === "gallery" ? (
+            /* The same rows, one to a card. Nothing here is a fact the table
+               does not carry — it is the same four things in a shape that can
+               hold them stacked rather than side by side, which is what a
+               phone and a half-width window have room for. */
+            <div className="gm-people">
+              {shown.map((t) => (
+                <article key={t.id} className="gm-person">
+                  <div className="gm-person-top">
+                    <div className="gm-person-id">
+                      {/* The card's title line is one line and clips — it was
+                          built for a name. A subject is a sentence, so the
+                          whole of it is on the element for a pointer, and the
+                          table beside this shows it in full. */}
+                      <b title={t.subject}>{t.subject}</b>
+                      <span>{t.category}</span>
+                    </div>
+                    <TicketBadge status={t.status} />
+                  </div>
+
+                  <div className="gm-person-facts">
+                    <span className="gm-person-fact">
+                      {t.member.handle} · {t.member.role.replace("-", " & ")}
+                    </span>
+                    <span className="gm-person-fact">Opened {dateOnly(t.opened)}</span>
+                    {t.assignee ? (
+                      <span className="gm-person-fact">Held by {t.assignee}</span>
+                    ) : null}
+                  </div>
+
+                  <div className="gm-person-tags">
+                    <PriorityBadge priority={t.priority} />
+                    <Sla t={t} />
+                  </div>
+
+                  <div className="gm-person-foot">
+                    <span className="gm-tiny gm-dim">Last reply {dateOnly(t.lastReply)}</span>
+                    <Link
+                      className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                      href={`/admin/support/${t.id}`}
+                    >
+                      {t.status === "resolved" ? "Open" : "Answer"}
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
           ) : (
             <div className="gm-tablewrap">
               {/* Five columns, and two badges a row rather than four.

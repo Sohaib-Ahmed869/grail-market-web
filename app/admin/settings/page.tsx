@@ -45,6 +45,7 @@ import {
   SectionTabs,
   Toast,
   Toggle,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconCheck,
@@ -227,6 +228,12 @@ function SettingsPage() {
   const [teamWhy, setTeamWhy] = useState("");
   const [teamToast, setTeamToast] = useState<string | null>(null);
   const [teamBusy, setTeamBusy] = useState(false);
+  /* The switch the listing queue carries, on the one list this page holds.
+     The table stays the default and stays as it was — the second option is
+     the same accounts as cards, which is how the members directory already
+     draws the same people, and it has room for the scopes a role carries
+     without a column of run-together words. */
+  const [teamLayout, setTeamLayout] = useState<"table" | "gallery">("table");
 
   /* The real team, from the API.
 
@@ -467,7 +474,7 @@ function SettingsPage() {
           <div className="gm-stack">
             <Card>
               <CardHead
-                title="Reports and conduct"
+                title="Reports and Conduct"
                 sub="What happens on its own when one member reports another. No money passes through the platform, so every lever here acts on standing."
               />
               <CardBody>
@@ -958,21 +965,88 @@ function SettingsPage() {
                     : `${team.length} account${team.length === 1 ? "" : "s"} hold a console role`
                 }
                 right={
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--sm gm-btn--primary"
-                    onClick={() => {
-                      setInviteEmail("");
-                      setInviteCompany("");
-                      setInviteRole("tier-1");
-                      setInviting(true);
-                    }}
-                  >
-                    <IconMail />
-                    Grant access
-                  </button>
+                  <div className="gm-row" style={{ gap: 8 }}>
+                    <button
+                      type="button"
+                      className="gm-btn gm-btn--sm gm-btn--primary"
+                      onClick={() => {
+                        setInviteEmail("");
+                        setInviteCompany("");
+                        setInviteRole("tier-1");
+                        setInviting(true);
+                      }}
+                    >
+                      <IconMail />
+                      Grant access
+                    </button>
+                    <ViewToggle value={teamLayout} onChange={setTeamLayout} />
+                  </div>
                 }
               />
+              {teamLayout === "gallery" ? (
+                /* The same accounts, one to a card. Nothing here is a fact the
+                   table does not carry; the scopes are the one thing that reads
+                   better wrapped than as a single line of names joined by
+                   middots, so this is where they are legible. */
+                <div className="gm-people">
+                  {team.map((p) => (
+                    <article key={p.id} className="gm-person">
+                      <div className="gm-person-top">
+                        <div className="gm-person-id">
+                          <b>{p.name}</b>
+                          <span>{p.email}</span>
+                        </div>
+                        {p.role === "owner" ? (
+                          <Badge tone="gold">{roleLabel(p.role)}</Badge>
+                        ) : (
+                          <Badge tone="idle">{roleLabel(p.role)}</Badge>
+                        )}
+                      </div>
+
+                      <div className="gm-person-facts">
+                        <span className="gm-person-fact">
+                          On the team since {shortDate(p.since)}
+                        </span>
+                        <span className="gm-person-fact">
+                          {p.grantedBy ? `Scoped by ${p.grantedBy}` : "Grant not recorded"}
+                        </span>
+                      </div>
+
+                      <div className="gm-person-tags">
+                        {scopesOf(p.role).map((sc) => (
+                          <span key={sc} className="gm-scope">
+                            {sc}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="gm-person-foot">
+                        <button
+                          type="button"
+                          className="gm-btn gm-btn--sm"
+                          onClick={() => {
+                            setScoping(p);
+                            setScopeRole(p.role);
+                            setTeamWhy("");
+                          }}
+                        >
+                          Scope
+                        </button>
+                        <button
+                          type="button"
+                          className="gm-btn gm-btn--sm gm-btn--danger"
+                          onClick={() => {
+                            setRevoking(p);
+                            setTeamWhy("");
+                          }}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
               <div className="gm-tablewrap">
                 <table className="gm-table" style={{ minWidth: 820 }}>
                   <thead>
@@ -1036,6 +1110,7 @@ function SettingsPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </Card>
 
 

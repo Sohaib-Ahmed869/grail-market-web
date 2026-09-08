@@ -16,9 +16,21 @@
   /* -- corner radius ------------------------------------------------
      Four steps and a pill, which is the whole scale. Before this there
      were fifteen values between 1px and 15px, close enough to each other
-     that nothing looked broken and nothing lined up either. */
-  --r-xs: 9px;   /* chips, tags, inline controls */
-  --r-sm: 13px;  /* buttons, inputs, list rows */
+     that nothing looked broken and nothing lined up either.
+
+     The scale is anchored on the sidebar row. A nav item is 38px tall and
+     takes `--r-md`, which at that height clamps to a pill — and that shape,
+     asked for by name, is now what every control in the console is measured
+     against. `--r-sm` used to be 13px, which on a 34px button is a rounded
+     rectangle rather than a pill, so a button next to the nav read as a
+     squarer object from a different set. At 17px it clamps to a pill at
+     every control height we use, and the two agree.
+
+     A radius larger than half the box's shorter side is clamped by the
+     browser, not overflowed — which is why one value covers a 34px button,
+     a 30px chip and a 24px badge without a size-specific override. */
+  --r-xs: 11px;  /* chips, tags, inline controls */
+  --r-sm: 17px;  /* buttons, inputs, list rows */
   --r-md: 20px;  /* cards, panels, the sidebar, the topbar, dialogs */
   --r-pill: 999px;
 
@@ -48,6 +60,15 @@
   /* -- lines -------------------------------------------------------- */
   --line: #e2e8ef;
   --line-2: #d3dbe4;
+
+  /* -- the table header band -----------------------------------------
+     The one surface in the console that reads as a control rather than a
+     card, so it takes the control's own fill — `--grad-navy`, the same ramp
+     the sidebar's active row and every primary button are cut from — instead
+     of a flat colour of its own. Only the ink is still stated here: it is one
+     colour on both themes because the band is dark either way, so the label
+     on it is near-white either way. */
+  --th-ink: #eef3f8;
 
   /* -- status --------------------------------------------------------
      Three, and only three. Cleared, needs attention, wrong. `info` used to
@@ -85,6 +106,15 @@
   --gold-lift: #c9b189;
   --gold-sink: #8a7146;
   --grad-gold: linear-gradient(160deg, var(--gold-lift) 0%, var(--gold) 54%, var(--gold-sink) 100%);
+
+  /* The two ends of the page's ambient wash — see `.gm-shell::before`.
+     Gold cut with white rather than gold laid over paper: the top of the page
+     is the accent at a seventh of its strength mixed into the white the cards
+     are made of, and the bottom is barely more than the paper itself. Both
+     ends are mixed rather than written out, so the wash follows whatever
+     `--gold` is in the theme that is on. */
+  --wash-top: color-mix(in srgb, var(--gold) 13%, var(--surface));
+  --wash-bot: color-mix(in srgb, var(--gold) 5%, var(--paper));
 
   /* The plan band on the subscriptions page — blue, and the same on all three.
 
@@ -187,6 +217,8 @@
   --line: #232f3c;
   --line-2: #2f3d4c;
 
+  --th-ink: #eef3f8;
+
   --ok: #4cb98a;
   --ok-bg: #14291f;
   --warn: #d9a352;
@@ -203,6 +235,15 @@
   --gold-lift: #d9c096;
   --gold-sink: #9a8058;
   --band-plan: linear-gradient(140deg, #2a3c50 0%, #1a2531 58%, #131b24 100%);
+
+  /* The wash is mixed into the paper here rather than into `--surface`. On
+     the light theme the surface IS white, so mixing into it lifts the top of
+     the page towards the cards; on the dark theme the surface is LIGHTER than
+     the paper, and the same mix would have made the ground brighter than the
+     panels standing on it — the depth running backwards, which is the trap
+     the ramp tokens above already document. */
+  --wash-top: color-mix(in srgb, var(--gold) 11%, var(--paper));
+  --wash-bot: color-mix(in srgb, var(--gold) 3%, var(--paper));
 
   /* shadow does almost no work on a dark ground — depth comes from the
      surface stepping lighter, so these stay shallow and the borders carry it */
@@ -299,7 +340,7 @@
 }
 
 /* ==========================================================================
-   SHELL — the ambient light wash comes from the TOP RIGHT
+   SHELL — the ambient wash runs down the whole page
    ========================================================================== */
 
 .gm-shell {
@@ -317,21 +358,36 @@
   transition: grid-template-columns 0.24s cubic-bezier(0.22, 0.9, 0.34, 1);
 }
 
-/* The gradient field: the same warm bloom top-right and cool haze bottom-left,
-   turned down to roughly a fifth of what it was. It should register as a tint
-   in the paper rather than as a coloured wash you have to read the console
-   through — panels are white, and they need somewhere quiet to sit. */
+/* The gradient field: one wash, running the full height of the window.
+ *
+ * It used to be three radial blooms — a warm one hung off the top-right
+ * corner, a second just inside it and a cool one bottom-left — over a
+ * near-white base. Each of those has an edge where it fades out, and an edge
+ * inside a background is a shape: the console read as a page with a light
+ * switched on in one corner rather than as paper with a warmth to it, and the
+ * corner it was on had nothing in particular to do with what was on screen.
+ *
+ * A single vertical ramp has no such edge anywhere. It is the same colour
+ * across every pixel of a given row, so there is nothing to catch the eye at
+ * any width, and it is exactly as light as the old bloom's brightest point —
+ * the strength did not go up, it went everywhere. `--wash-top` is the gold cut
+ * with white and `--wash-bot` is barely off the paper, so the foot of the page
+ * still matches what `.gm-actionbar` fades into.
+ *
+ * Both tokens are stated per theme, so this rule is not theme-aware and the
+ * dark counterpart that used to live in parts.css is gone. */
 .gm-shell::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.07), transparent 66%),
-    radial-gradient(760px 520px at 88% 6%, rgba(203, 183, 148, 0.06), transparent 62%),
-    radial-gradient(900px 700px at 4% 100%, rgba(44, 65, 89, 0.03), transparent 64%),
-    linear-gradient(158deg, #fdfdfc 0%, #f9fafc 46%, #f5f7fa 100%);
+  background: linear-gradient(
+    180deg,
+    var(--wash-top) 0%,
+    color-mix(in srgb, var(--wash-top) 46%, var(--wash-bot)) 48%,
+    var(--wash-bot) 100%
+  );
 }
 
 .gm-main {
@@ -341,9 +397,24 @@
 }
 
 /* `main` is styled bare in globals.css (max-width 1000px, auto margins), so
-   every one of those properties is restated here rather than inherited */
+   every one of those properties is restated here rather than inherited.
+ *
+ * The tail used to be 60px. On a page that scrolls that is 60px of paper
+ * under the last card every single time, and on a tall window it sits on top
+ * of whatever the page has already left empty — which is what "why is there
+ * so much space down there" was. 28px still keeps the last card off the
+ * bottom edge, which is the whole job it has.
+ *
+ * `flex: 1` is about the OTHER half of that space. `.gm-side` is 100vh, so
+ * the shell's one grid row is always at least a full window; a short page —
+ * Verification with five rows, say — stopped 180px above the floor at
+ * 1440x900 and nearly 300px above it at 1440x1000, and that band belonged to
+ * nothing. It belongs to the content region now, which is what lets a sticky
+ * `.gm-actionbar` inside a short record reach the bottom of the window
+ * instead of parking halfway up it. */
 .gm-content {
-  padding: 26px 30px 60px;
+  flex: 1 1 auto;
+  padding: 26px 30px 28px;
   max-width: 1560px;
   margin: 0;
   width: 100%;
@@ -352,10 +423,10 @@
 
 /* A record page ends with its action bar, and the bar is sticky — so once you
    have scrolled to the bottom it stops being pinned and sits at its natural
-   place, which was 52px above the end of the page. That gap is the 60px of
-   breathing room above, and on every other page it is right: it keeps the
-   last card off the bottom edge. Under a bar that has already been holding
-   the bottom edge all the way down, it is just a hole. */
+   place, which was 52px above the end of the page. That gap is the breathing
+   room above, and on every other page it is right: it keeps the last card off
+   the bottom edge. Under a bar that has already been holding the bottom edge
+   all the way down, it is just a hole. */
 .gm-content:has(.gm-actionbar) {
   padding-bottom: 16px;
 }
@@ -577,7 +648,12 @@
 /* the current section, as a filled disc — the one loud mark in a quiet strip */
 .gm-rail-item.is-active,
 .gm-rail-item.is-active:hover {
-  background: var(--grad-navy);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--navy-500) 78%, var(--navy-600)) 0%,
+    var(--navy-600) 62%,
+    color-mix(in srgb, var(--navy-600) 80%, var(--navy-500)) 100%
+  );
   color: var(--gold-300);
   box-shadow: var(--sh-navy);
 }
@@ -777,25 +853,36 @@
   color: var(--gold-600);
 }
 
-/* SELECTED — a solid rounded pill, the one filled shape in the panel */
+/* SELECTED — a light tinted row with a bar down its leading edge.
+
+   It was a filled navy pill, twice: `--grad-navy` first, then a lighter mix
+   of the same ramp. Both were the darkest object in a pale panel, which is a
+   lot of weight to spend on saying "you are here". This is the shape asked
+   for instead — a wash of the brand navy at a tenth strength, the label in
+   the page's own ink, and a bar at the left doing the pointing. The row is
+   marked rather than filled.
+
+   Built from `--navy-500` so it follows the theme: in dark that token is the
+   lighter navy and the same 10% mix lands as a lift off the panel rather than
+   as a hole in it. */
 .gm-nav-item.is-active,
 .gm-nav-item.is-active:hover {
-  background: var(--grad-navy);
-  border-color: rgba(26, 38, 50, 0.9);
-  color: #ffffff;
-  box-shadow: var(--sh-navy);
+  background: color-mix(in srgb, var(--navy-500) 11%, var(--surface));
+  border-color: color-mix(in srgb, var(--navy-500) 18%, transparent);
+  color: var(--ink);
+  box-shadow: none;
 }
 
 .gm-nav-item.is-active .gm-nav-label {
   background: none;
   -webkit-background-clip: initial;
   background-clip: initial;
-  color: #ffffff;
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 650;
 }
 
 .gm-nav-item.is-active svg {
-  color: var(--gold-300);
+  color: var(--navy-500);
 }
 
 .gm-nav-item:focus-visible {
@@ -906,12 +993,17 @@
   background: var(--line-2);
 }
 
+/* The same radius as the row it hangs under, not one step down. A child row
+   is 33px where its parent is 38px, so `--r-md` clamps to a pill on both and
+   the group reads as one family — which is what it is. It took `--r-sm`
+   before, and the difference was small enough to look like a mistake rather
+   than a hierarchy. */
 .gm-nav-kid {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 7px 11px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   font-size: 13.4px;
   font-weight: 500;
   color: var(--ink-3);
@@ -1163,28 +1255,53 @@
    action but not the one being recommended, so it is outlined like Reject
    rather than filled like Approve. One solid button per footer; the rest are
    outlines. That is the whole button hierarchy. */
+/* Both outlines below were cut at 30-40% against transparent, which is
+   right for a wash sitting behind a filled shape but was never going to
+   read as an edge on its own — an outlined button has nothing else to say
+   where it stops. Neither is loud even at the strength restored: the word
+   in the button's own tone still carries the colour, the ring only has to
+   be there to look at rather than argued for. */
 .gm-btn--gold {
   background: var(--surface);
   color: var(--gold-600);
-  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
 }
 
 .gm-btn--gold:hover {
   background: var(--gold-050);
-  border-color: color-mix(in srgb, var(--gold) 65%, transparent);
+  border-color: color-mix(in srgb, var(--gold) 75%, transparent);
   color: var(--gold-600);
 }
 
 .gm-btn--danger {
   background: var(--surface);
   color: var(--bad);
-  border-color: rgba(192, 57, 47, 0.3);
+  /* `--bad` rather than the literal red this replaced — the old value was
+     the light theme's shade of it written out, so a Reject button kept a
+     light-theme-red ring over whatever the dark theme's own `--bad` had
+     become. */
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
 }
 
 .gm-btn--danger:hover {
   background: var(--bad-bg);
-  border-color: rgba(192, 57, 47, 0.5);
+  border-color: color-mix(in srgb, var(--bad) 62%, transparent);
   color: #a32e25;
+}
+
+/* Withdraw, and only Withdraw.
+ *
+ * Asked for by name: the red edge stays, the word goes black. It rides on
+ * `--danger` rather than replacing it because the border, the tinted hover and
+ * the whole shape of the thing are right — it is one declaration different,
+ * and the rest of the console's destructive buttons (Reject, Revoke, Remove,
+ * Delete) keep the red word they have always had.
+ *
+ * `--ink`, not black: the same reasoning as the badges. Literal black on the
+ * dark theme is a hole in the button. */
+.gm-btn--danger.gm-btn--withdraw,
+.gm-btn--danger.gm-btn--withdraw:hover {
+  color: var(--ink);
 }
 
 .gm-btn--ghost {
@@ -1509,11 +1626,14 @@
   }
 }
 
+/* 22px read as a section label rather than as the name of the page — asked
+   to be larger. The sub-line under it is left where it is: growing both moves
+   the pair up in weight together and the title stops leading. */
 .gm-page-head h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 27px;
   font-weight: 750;
-  letter-spacing: -0.024em;
+  letter-spacing: -0.026em;
   color: var(--ink);
 }
 
@@ -1642,31 +1762,29 @@
 /* --------------------------------------------------------------------------
    Status marks
 
-   Outlined, the way the Reject button is outlined: paper behind it, a hairline
-   of the state's colour around it, and a wash of the same behind. That is one
-   shape and one rule for every chip on a row, so a badge sitting next to a
-   button reads as the same family of object rather than as a stray.
+   An outline and nothing else: no fill behind it, one pixel of the state's own
+   colour around it, and the label in ink. That is one shape and one rule for
+   every chip on a row, so a badge sitting next to a button reads as the same
+   family of object rather than as a stray.
 
-   Each tone sets `--tone` and the ring and the wash are mixed from it, so a
-   new tone is still one declaration.
+   Each tone sets `--tone` and the ring is drawn from it, so a new tone is
+   still one declaration.
    -------------------------------------------------------------------------- */
 
-/* The tone is the ring and the wash behind it; the words are ink.
+/* The tone is the ring; the words are ink.
  *
  * Every badge used to be set in its own colour, so a row could carry four
  * coloured words and none of them was more important than the others —
- * colour meant "this is a badge" rather than "this matters". The ring and the
- * tint still carry the tone, which is what a glance down a column reads; the
- * text is now as legible as everything beside it.
- *
- * `min-width` so a column of them lines up. "Live", "Sold" and "In review"
- * are three different lengths, and a stack of pills with three different
- * extents reads as ragged rather than as a column. */
+ * colour meant "this is a badge" rather than "this matters". The tint behind
+ * them went the same way and for the same reason: asked for, and right, is a
+ * tag that is a coloured outline with black writing in it. `--ink` rather
+ * than black itself — literal black is invisible on the dark theme, and
+ * `--ink` is near-black on paper and near-white on the dark ground, which is
+ * the same instruction obeyed in both. */
 .gm-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 84px;
   gap: 6px;
   /* `inline-flex` is not enough: as a child of a column flex container these
      stretch to the full width and the outline makes that visible. */
@@ -1675,23 +1793,30 @@
   padding: 0 9px;
   border-radius: var(--r-sm);
   /* The tone travels in a variable, not in `currentColor`.
-     It used to be the text colour, and the ring and the wash were mixed from
-     it — so making the words ink would have taken the tone with them. */
-  border: 1px solid color-mix(in srgb, var(--tone, var(--ink-4)) 34%, transparent);
-  background: color-mix(in srgb, var(--tone, var(--ink-4)) 9%, var(--surface));
+     It used to be the text colour, and the ring was mixed from it — so making
+     the words ink would have taken the tone with them. */
+  /* `--tone` on its own was the raw brand colour, and `--navy-600` in
+     particular is a dark blue that sits only a little lighter than the dark
+     theme's own card surface — a badge in that tone read as a plain grey
+     rectangle rather than a coloured ring. Mixing every tone toward `--ink`
+     rather than using it straight fixes that in both directions at once:
+     `--ink` is near-black on paper and near-white on the dark ground, so the
+     mix always pulls the ring away from whatever surface it sits on instead
+     of pulling every tone toward the one fixed shade a straight mix would. */
+  border: 1px solid color-mix(in srgb, var(--tone, var(--ink-4)) 80%, var(--ink) 20%);
+  background: transparent;
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  color: var(--ink-3);
+  color: var(--ink);
 }
 
-/* The mark keeps the tone. An icon is not a word — it carries no meaning of
-   its own here, so colour is all it has. */
+/* The mark keeps the tone, mixed the same way as the ring it sits inside. */
 .gm-badge svg {
   width: 13px;
   height: 13px;
-  color: var(--tone, var(--ink-4));
+  color: color-mix(in srgb, var(--tone, var(--ink-4)) 80%, var(--ink) 20%);
 }
 
 .gm-badge--ok {
@@ -1714,12 +1839,12 @@
   --tone: var(--navy-600);
 }
 
-/* Still the loudest state on the row, but it shouts with a stronger ring and
-   a deeper wash rather than by being the one badge whose words are a colour. */
+/* Still the loudest state on the row, and now it says so with the ring alone:
+   a pixel and a half of it against everything else's one. The wash it used to
+   carry is gone with every other badge's — see the note above. */
 .gm-badge--bad {
   --tone: var(--bad);
-  border-color: color-mix(in srgb, var(--bad) 52%, transparent);
-  background: var(--bad-bg);
+  border-width: 1.5px;
 }
 
 .gm-tier {
@@ -1736,46 +1861,82 @@
   font-weight: 700;
   letter-spacing: 0.005em;
   background: transparent;
-  color: var(--gold);
-  box-shadow: inset 0 0 0 1px currentColor;
+  /* The tier is the ring, not the word — the ring is what tells the three
+     apart, and it used to be `currentColor`, which meant the word carried
+     the tier's colour too and the tier that is quietest to look at (Standard)
+     read fainter than the two above it before you had even reached the ring
+     around it. `--ink` reads the same weight of black on every tier, the way
+     `--ink` already does on every other badge in the console. */
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--gold);
   white-space: nowrap;
 }
 
 .gm-tier--high {
-  background: transparent;
-  color: var(--ink);
   box-shadow: inset 0 0 0 1.5px var(--ink);
 }
 
+/* `--line-2` is a hairline meant to split two white surfaces apart, not to
+   stand as a colour on its own — against this chip's own background it read
+   as no border at all, which on the tier that is deliberately the quietest
+   still has to mean legible, not invisible. `--ink-3` is still a neutral, a
+   shade darker than the hairline and clearly there at a glance. */
 .gm-tier--std {
-  background: transparent;
-  color: var(--ink-4);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  box-shadow: inset 0 0 0 1px var(--ink-3);
 }
 
 /* ==========================================================================
    TABLE
    ========================================================================== */
 
-/* The container stays white because the card it sits in is already the
-   raised white surface. The rows carry the tint instead, so a row reads as
-   an entry ON the card rather than the card reading as a tinted panel with
-   white rows floating in it. */
+/* The wrapper is the table's frame, and the only frame the table has.
+ *
+ * It used to be an invisible box with padding, because the rows themselves
+ * were drawn as separate cards floating on the paper of the card behind them.
+ * Asked for instead: the classic ruled table — rows flush against one another
+ * with a single hairline between them, running the full width and meeting the
+ * frame at both ends. That needs a frame to meet, so the wrapper takes the
+ * border and the radius, and the padding it carried becomes margin so the
+ * table sits the same distance inside the card as it always did.
+ *
+ * `overflow-x: auto` is what clips the first and last rows to the corners: an
+ * element that scrolls clips to its padding box, and that box is rounded. So
+ * no cell needs a radius of its own — the frame rounds the four corners of the
+ * whole table, header band included, which is the point.
+ *
+ * No `width: 100%`: with horizontal margins that would be 24px wider than the
+ * space it has, and a block-level box already fills what is left. */
 .gm-tablewrap {
-  width: 100%;
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 4px 12px 12px;
+  margin: 4px 12px 12px;
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
-  background: none;
+  background: var(--surface);
 }
 
-/* A table already inside a raised, flush surface — the dashboard's queue
-   extract sits in a `.gm-well--flush` — is inset by that surface's own edge,
-   so it gives back the padding it would otherwise double up on. */
-.gm-well--flush > .gm-tablewrap,
+/* Every list page's queue is the same shape: a `Card` — its own border,
+   radius and white surface — with nothing in it but this wrapper, so the
+   table drew a second border and radius a few pixels inside the first one,
+   and the 12px margin below it sat as a band of bare white under the last
+   row, inside the card's own border. The card is already the one frame this
+   needs, so the wrapper gives up its own edges and the card takes over
+   rounding the table's corners by clipping it instead of drawing them
+   itself. Written as a descendant rather than a direct child:
+   on Settings the wrapper sits inside `CardBody`'s own padding rather than
+   loose in the card, and it still owes the card this half of the fix. */
+.gm-card .gm-tablewrap {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.gm-card:has(.gm-tablewrap) {
+  overflow: hidden;
+}
+
 .gm-tablewrap--plain {
-  padding: 0 12px 4px;
+  margin: 0 12px 4px;
 }
 
 .gm-table {
@@ -1813,50 +1974,137 @@
 
 /* ------------------------------------------------------- rows as rows
 
-   A table used to be a grid: a tinted sticky header, a hairline under every
-   row, and the whole thing flush inside its card. It read as a spreadsheet
-   pasted into a console that is otherwise made of raised, rounded boxes with
-   space between them — the one surface in the whole design system that was
-   drawn to a different rule.
+   Rows were cards for a while: `border-spacing` opened real air between them
+   and each one took the border, radius, shadow and top highlight every other
+   raised box in the console takes. It made a table look like the rest of the
+   design system, and it cost the thing a table is for — a column of values is
+   read by running the eye straight down it, and six pixels of paper plus two
+   hairlines between every pair of rows is six pixels of interruption on every
+   line of that run.
 
-   So each row IS one of those boxes now. `border-spacing` puts real air
-   between them, and the border, the radius, the shadow and the top highlight
-   are the same four tokens every card on every page uses — which is what the
-   consistency is: not that the table looks like the reference, but that a row
-   looks like a card because it is one.
+   So: rows flush against each other, one hairline between them running the
+   full width of the table and meeting the frame at both ends, and nothing
+   floating. The frame is the wrapper (see `.gm-tablewrap`), which is also
+   what rounds the top and bottom rows — a cell needs no radius of its own.
 
-   The mechanics: `border-collapse: separate` is what allows the spacing, and
-   a `<tr>` cannot take a border or a radius in any browser — so the border
-   lives on the cells (top and bottom on all of them, left on the first, right
-   on the last) and the corners are rounded on the first and last cell only. */
+   The mechanics: `border-collapse: separate` with zero spacing rather than
+   `collapse`, because collapsing merges the header band's edge into the first
+   row's rule and the two then share one line whose colour is a toss-up. Each
+   cell owns the rule beneath it; the last row gives it up so the frame is the
+   only line at the foot. */
 .gm-table {
-  border-spacing: 0 6px;
+  border-spacing: 0;
   border-collapse: separate;
 }
 
-.gm-table thead th {
+/* The header is a band, and it is blue.
+ *
+ * It was a row of navy labels on the page's own paper, which read as a
+ * caption floating above the table rather than as part of it — and once the
+ * rows closed up beneath it there was nothing to say where the data started.
+ * A solid navy band said it in one stroke; the gradient says it in the same
+ * stroke the sidebar's selected row and every primary button already use, so
+ * a table's header is drawn from the one navy fill the console has rather
+ * than a second, flatter one of its own.
+ *
+ * `--th-ink` is still stated once rather than mixed: the band has to hold
+ * near-white text against a near-white page and against a near-black one,
+ * and it is the same ink either way because the band is dark either way —
+ * `--grad-navy` carries that per theme on its own.
+ *
+ * Sticky still, and opaque — a gradient the same way a flat fill was, so
+ * rows still cannot show through it as they scroll underneath.
+ *
+ * The band is painted on the ROW, not on each cell. `--grad-navy` runs at
+ * 135deg, so a cell that paints it itself starts the ramp again at its own
+ * left edge — five cells, five restarts, and a visible seam at every column
+ * boundary. Painted once on the `<tr>` it is one stroke across the whole
+ * header. That means the row carries the sticky position too: a sticky cell
+ * over a static row would hold the labels in place while the band they sit
+ * on scrolled away underneath them. */
+/* White, asked for after a spell as a navy band. It is still opaque and still
+   the row rather than the cells — the header is sticky, so anything that is
+   not painted lets the rows run visibly through it as they scroll under. What
+   separates it from the first row now is the rule the cells already draw. */
+.gm-table thead tr {
   position: sticky;
   top: 0;
   z-index: 1;
+  background: var(--surface);
+}
+
+/* A rule under the band. White on white left the header and the first row
+   sharing an edge that only the type weight distinguished; the cells already
+   draw this line between every other pair of rows, so the header now draws it
+   too and the table reads as one ruled stack from the top down.
+
+   Fainter than the rules between rows, not darker. It was `--line-2` — a step
+   up from them — which made the heaviest line on the table the one under the
+   part that is not data. At 45% of `--line` it separates the two without
+   being the first thing the eye lands on. */
+.gm-table thead th {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+}
+
+.gm-table thead th {
+  /* Ranged left, with the cells. Centring was tried twice and put the heading
+     over the middle of its column while the data under it started at the left
+     edge; on the wide columns the label then sat a long way from the words it
+     named. The heading begins where its column's text begins. */
   text-align: left;
-  /* The header is a set of labels above the rows, not a band across them: no
-     fill, no rule underneath. The gap the rows sit in does that job. */
-  padding: 2px 16px 8px;
+  /* The band is as deep as the rows under it, asked for. A queue row is a
+     thumbnail tall — 67px on the listings queue — and against that a header
+     sized to its own text read as a caption stuck to the top of the table
+     rather than as its first row. 23px either side of a 20px line came out
+     at 66 against a 67px row, which was asked to come back a little: 18px is
+     56, still clearly the table's first row rather than a caption over it,
+     and no longer the deepest band on the page.
+
+     One number cannot be right for every table — row heights are set by what
+     is in them, and the support queue's rows are 60 against the listings
+     queue's 67. The dense variants are not touched: `--tight` and `--compact`
+     both restate this padding. */
+  padding: 18px 14px;
   font-size: 13.4px;
   font-weight: 650;
   letter-spacing: 0.01em;
-  /* The brand navy rather than the palest ink. A column heading is the label
-     for everything under it and was set lighter than the data it named. */
-  color: var(--navy-600);
-  background: none;
+  color: var(--ink-2);
+  background: transparent;
   white-space: nowrap;
 }
 
-/* The card cell carries four lines — name, grade line, ids, game chip — and a
-   thumbnail beside them. Left to share the table's width evenly it wrapped
-   every line to two, which is what made a real listing id unreadable. */
+/* The card cell carries a thumbnail and two lines beside it, and left to
+   share the table's width evenly it wrapped both.
+
+   260px was set when that cell carried four lines including a listing id, and
+   on the directories — a name over a handle, no thumbnail — it reserved a
+   quarter of the table and opened a gap between the first column and the
+   second wide enough to lose the row across. 190 still holds the two lines on
+   one line each. */
 .gm-table td:first-child {
-  min-width: 260px;
+  min-width: 190px;
+}
+
+/* And a ceiling on how much of the slack it takes.
+
+   `table-layout: auto` hands every spare pixel to the widest column, which is
+   always this one, so on a five-column table in a wide card the name sat in
+   440px of its own while the four columns after it were squeezed against the
+   right-hand edge — the gap that reads as "too much space between the
+   columns". A percentage is a hint under auto layout, not a rule: the column
+   still grows past it when the content genuinely needs the room, it simply
+   stops being the only column that grows. The tick-box column is exempt
+   above; the cell after it is the primary one on those tables. */
+.gm-table th:first-child,
+.gm-table td:first-child,
+.gm-table th.gm-pickcol + th,
+.gm-table td.gm-pickcol + td {
+  width: 32%;
+}
+
+.gm-table th.gm-pickcol,
+.gm-table td.gm-pickcol {
+  width: 1%;
 }
 
 .gm-table tbody td {
@@ -1867,43 +2115,113 @@
   padding: 9px 14px;
   vertical-align: middle;
   color: var(--ink-2);
-  /* White, like the card it sits in. The rows carried a grey fill for a while
-     so they would read as separate objects; the border and the air between
-     them already do that, and the fill only made the table the one surface in
-     the console that was not paper. */
+  /* Paper, like the frame it sits in. The separation between rows is the rule
+     beneath each one and nothing else — a fill as well would be saying the
+     same thing twice. */
   background: var(--surface);
-  border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  transition: background 0.16s ease, border-color 0.16s ease;
+  transition: background 0.16s ease;
 }
 
-/* The one-pixel highlight along the top of every raised surface in this
-   console. It has to go on the cells rather than the row, because a `<tr>`
-   takes neither a border nor a radius. */
-.gm-table tbody td {
-  box-shadow: var(--edge);
+/* The frame draws the line at the foot of the table, so the last row must not
+   draw a second one a pixel above it. */
+.gm-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.gm-table tbody td:first-child {
-  border-left: 1px solid var(--line);
-  border-top-left-radius: var(--r-md);
-  border-bottom-left-radius: var(--r-md);
-}
-
-.gm-table tbody td:last-child {
-  border-right: 1px solid var(--line);
-  border-top-right-radius: var(--r-md);
-  border-bottom-right-radius: var(--r-md);
-}
-
-/* The same lift every other card-shaped surface gets — see the note on
-   `.gm-card--lift`. It cannot be a `transform` here: moving a `<tr>` shifts
-   it out of the table's own layout and the columns stop lining up with the
-   header. The hover deepens the tint one step, reading as "more present" in
-   both light and dark themes. */
+/* Hover is the tint and only the tint. It cannot be a lift: a `transform` on
+   a `<tr>` takes it out of the table's own layout and the columns stop lining
+   up with the header. And it must not be a border change either — that reads
+   as *selected*, and on a ruled table it would drag one line darker than the
+   ones above and below it for as long as the pointer sits there. */
 .gm-table tbody tr:hover td {
   background: var(--surface-2);
-  border-color: var(--line-2);
+}
+
+/* ------------------------------------------------- lining the column up
+
+   Two things sit in the same place on every row — the state chip and the
+   row's controls — and both were sized by their own labels, so a column of
+   them had a ragged right edge that moved from row to row. "Live" against
+   "Awaiting review", "Open" against "Withdraw".
+
+   A floor, not a fixed width: `white-space: nowrap` is already on both, so
+   anything longer than the floor grows past it and nothing is ever cut.
+
+   The figures are measured rather than guessed. Across the queues the longest
+   label is "Awaiting review" at 111px including its padding, with "12h to
+   first reply" a pixel behind it and "Info requested" and "First reply met"
+   at 102 — so 114px clears the set with a hair in hand and every chip on
+   every queue lands on the same width.
+
+   Two labels on the billing table are longer than that: "Checkout abandoned"
+   is 141px and "Paid, never applied" is 129, and they grow past the floor
+   rather than setting it. Sizing every badge in the console to the longest
+   string that has ever been put in one would leave the word "Live" adrift in
+   the middle of a 141px pill on the page this was asked for.
+
+   Both are scoped to cells. A badge on a record page sits in a sentence or a
+   fact row and has nothing to line up with — 114px of pill around the word
+   "Lapsed" there would just be a hole. */
+/* The tier chip is a different component from the badge but it stands in a
+   column of its own two cells away, so a floor on one and not the other is
+   the ragged edge moved rather than removed. `width: fit-content` on .gm-tier
+   would win over a min-width inherited from here, so it is reset. */
+/* One width, ranged left, and the width measured rather than guessed.
+
+   It was 114px, set when the labels were sentences — "Awaiting review", "High
+   value". They are one word now, so that floor left "Live" sitting in half a
+   pill of nothing. Every label the console can put in a table badge was
+   measured at its natural width: the longest that actually appears in a queue
+   is "Withdrawn" at 84, and the tier column tops out at "Standard" at 73.
+
+   88 covers both with a hair to spare. Two labels are longer — "Info
+   Requested" at 105 and the support desk's "12h to first reply" at 112 — and
+   they grow past the floor rather than setting it, which is the same call the
+   old 114 made about the billing table's two long strings. A floor sized to
+   the longest string that has ever been put in a badge would put every other
+   one adrift in the middle of it.
+
+   Left rather than centred so the first letter starts one pill-padding after
+   its heading's, and the column reads as one column. */
+.gm-table td .gm-badge,
+.gm-table td .gm-tier {
+  min-width: 88px;
+  justify-content: flex-start;
+}
+
+.gm-table td .gm-tier {
+  width: auto;
+}
+
+.gm-table td .gm-rowact .gm-btn,
+.gm-table td.gm-actions .gm-btn {
+  min-width: 96px;
+}
+
+/* Except the ones that are a glyph. The 96px floor is there so labels of
+   different lengths line up down the column; an icon button has no label, and
+   `min-width` beats the square `width` that makes it square, so without this
+   it is a 96px box with a 14px mark adrift in the middle of it. They still
+   line up — every one is the same square. */
+.gm-table td .gm-rowact .gm-btn--icon,
+.gm-table td.gm-actions .gm-btn--icon {
+  min-width: 0;
+  width: var(--control-h);
+}
+
+.gm-table td .gm-rowact .gm-btn--icon.gm-btn--sm,
+.gm-table td.gm-actions .gm-btn--icon.gm-btn--sm {
+  width: var(--control-h-sm, 30px);
+}
+
+/* Except on the dashboard's extract, which has about 825px for six columns
+   and grew a sideways scrollbar the last time anything in it was widened.
+   There the chips size to their words, and the ragged edge is the price of
+   the table fitting the column it is in. */
+.gm-table--tight td .gm-badge,
+.gm-table--tight td .gm-tier {
+  min-width: 0;
 }
 
 .gm-table .gm-num {
@@ -2077,13 +2395,39 @@
   white-space: nowrap;
 }
 
+/* The tick box at the head of a row, in a column no wider than it is.
+   Without the floor the first column shrinks to the padding and the box sits
+   against the table's own edge; without `width: 1%` the browser hands it a
+   fair share of the table and the name beside it loses the room. */
+/* Written with the element in the selector on purpose: `.gm-table td:first-child`
+   below carries an element of its own, so a two-class selector loses to it and
+   the floor stayed. */
+.gm-table th.gm-pickcol,
+.gm-table td.gm-pickcol {
+  width: 1%;
+  /* The 260px floor on the first cell is there so a card's four-line name
+     block does not wrap; a tick box is 15px wide and inherited it, which put a
+     quarter of a screen of nothing between the box and the name it selects. */
+  min-width: 0;
+  padding-right: 0;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 /* A money column that reads down the page rather than sits on the right rail.
    `gm-num` right-aligns, which is the usual answer for figures and is why it
    is still here — but a table where two headings point left and two point
    right reads as two tables, and the ask is one field among five rather than
    a column being totalled. Tabular figures keep the digits in line either
    way, which is the part that actually matters. */
-.gm-table .gm-figure {
+/* Named `gm-amount` rather than `gm-figure` or `gm-money`, both of which this
+   has been: each of those is already a block elsewhere in the console — the
+   reports panel's big number and the dashboard's headline — and each is
+   `display: flex`, which on a `<td>` beats `display: table-cell` and drops the
+   cell out of the table's own grid. The figure then floated half a line above
+   the row it belonged to and the borders under it stopped lining up. Nothing
+   else answers to this name. */
+.gm-table .gm-amount {
   text-align: left;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2102,8 +2446,13 @@
   min-width: 0;
 }
 
+/* Was 650. That is the weight a table's own totals and headings carry —
+   `.gm-table-title`, `.gm-strong` — and a card's name or a seller's handle
+   is neither: it only has to stand off the grey line under it, not read as
+   the heaviest thing in the row. 600 is what every other "primary word over
+   a muted one" pairing in the console already uses. */
 .gm-cell2 b {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
   font-size: 14.2px;
 }
@@ -2394,9 +2743,16 @@
   max-width: 64ch;
 }
 
+/* One width for the whole control column. The toggle is a track followed by
+   its word, and the words differ — Push, Email, Banner — so with the block
+   shrink-wrapped and pushed to the right of the row, every track sat at a
+   different x and the three switches stepped down the panel. Fixed here, and
+   packed from the left, they line up and the labels ragged instead. */
 .gm-setrow-ctl {
   flex: none;
-  min-width: 0;
+  width: 118px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 /* ==========================================================================
@@ -2659,12 +3015,15 @@
   padding-left: 42px;
 }
 
+/* Dotted, not dashed — the dashboard's rules are a dotted suggestion of a
+   scale behind the bars rather than a grid drawn over the plot, and this is
+   the same chart in a different card. */
 .gm-cols-grid {
   position: absolute;
   left: 42px;
   right: 0;
   height: 0;
-  border-top: 1px dashed var(--line);
+  border-top: 1px dotted var(--line-2);
   pointer-events: none;
 }
 
@@ -2694,14 +3053,21 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
 }
 
+/* Capsules, matching the dashboard's chart. These were columns with a
+   rounded top and square feet; the dashboard bar is round at BOTH ends and
+   wider, and the two charts sat two clicks apart in the same console looking
+   like they came from different products. `--r-pill` rather than a measured
+   radius, so the cap stays a half-circle whatever the bar ends up being; the
+   browser clamps it to half the height, which is what keeps a short bar a
+   nub rather than a lens. */
 .gm-col {
   flex: 1 1 0;
   min-width: 0;
-  max-width: 22px;
-  border-radius: var(--r-xs) 6px 3px 3px;
+  max-width: 30px;
+  border-radius: var(--r-pill);
   transition: filter 0.18s ease, transform 0.18s ease;
 }
 
@@ -3110,7 +3476,11 @@
   border-radius: var(--r-md);
   display: grid;
   place-items: center;
-  background: linear-gradient(150deg, #fbfcfd, #eef1f6);
+  /* Both stops were literal near-whites, so the chip stayed a bright white
+     tile whatever the theme — on the dark ground it read as a lit panel with
+     a soft edge, which is what "the icon looks blurry" was. Off the surface
+     tokens it is a raised tile in either theme. */
+  background: linear-gradient(150deg, var(--surface), var(--surface-2));
   box-shadow: inset 0 0 0 1px var(--line), var(--sh-2);
   color: var(--ink-4);
   margin-bottom: 4px;
@@ -3535,4 +3905,12 @@
   .gm-top {
     margin-left: 12px;
   }
+}
+
+/* Every area chip the same width, so the column of them has one edge rather
+   than a ragged one that moves with the length of the word inside. Sized to
+   "Reports & conduct", the longest of the seven; the rest centre in it. */
+.gm-logline-end .gm-scope {
+  min-width: 122px;
+  justify-content: center;
 }

@@ -149,8 +149,14 @@ const GAMES: Record<string, Game> = {
 
 const GRADERS: Grader[] = ["PSA", "BGS", "CGC", "SGC", "TAG", "Raw"];
 
+/* Every status the console understands. A wire status that is not on this
+   list falls back to "withdrawn" in `normalise`, which is a loud failure
+   dressed as a quiet one: `reserved` was missing here, so a listing a buyer
+   had spoken for was drawn on the queue as dead. Anything added to
+   `ListingStatus` belongs here in the same commit. */
 const STATUSES: ListingStatus[] = [
-  "awaiting", "in-review", "info-requested", "live", "sold", "paused", "withdrawn", "rejected",
+  "awaiting", "in-review", "info-requested", "live", "sold", "reserved", "paused",
+  "withdrawn", "rejected",
 ];
 
 /**
@@ -523,6 +529,29 @@ export async function fetchMembers(q: {
   return r.members.map(normaliseMember);
 }
 
+/** The few members the dashboard draws as faces. Names, not records. */
+export type MemberFace = { id: string; name: string; initials: string };
+
+/**
+ * A handful of members, for the dashboard's avatar row.
+ *
+ * The count printed above those faces is deliberately not counted here. It
+ * comes from the dashboard read, where the database answers it in the same
+ * query as everything else on that page — counting the length of whatever
+ * list a browser happens to be holding is how a console starts disagreeing
+ * with the thing it is a console for.
+ *
+ * The faces themselves do need rows, and the directory endpoint has no limit
+ * parameter to push the cap down to the five that are drawn. Until it has
+ * one, the cut happens here and nowhere else.
+ */
+export async function fetchMemberFaces(limit: number): Promise<MemberFace[]> {
+  const members = await fetchMembers({});
+  return members
+    .slice(0, Math.max(0, limit))
+    .map((m) => ({ id: m.id, name: m.name, initials: m.initials }));
+}
+
 export async function fetchMember(id: string) {
   const r = await call<{ member: WireMember; timeline: TimelineEntry[] }>(`members/${id}`);
   return { member: normaliseMember(r.member), timeline: r.timeline };
@@ -666,6 +695,14 @@ export type Dashboard = {
     collected: number;
     failed: number;
     failedAccounts: number;
+    /* Invoices paid in the last seven days, and in the seven before them.
+       Rolling windows rather than calendar weeks, and deduplicated on the
+       invoice — Stripe announces one payment twice and the month figure
+       above counts both, which a percentage cannot survive. Both ends
+       travel because the change between them is the point; a lone weekly
+       total is a number nobody can read. */
+    week: number;
+    weekBefore: number;
   };
   funnel: { key: string; label: string; value: number }[];
   /** Twelve weeks, GMV in thousands against verifications cleared. */

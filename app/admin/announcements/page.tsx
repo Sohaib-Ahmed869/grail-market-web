@@ -81,122 +81,62 @@ function Handset({
     tone === "outage" ? "var(--bad)" : tone === "policy" ? "var(--gold)" : "var(--navy-500)";
 
   return (
-    <div
-      style={{
-        width: 264,
-        /* a picture of a handset, not a UI surface, so it is outside the scale */
-        borderRadius: 30,
-        border: "9px solid var(--ink)",
-        background: "linear-gradient(160deg, #2b3a55, #16202f)",
-        padding: "16px 12px 22px",
-        boxShadow: "var(--sh-4)",
-        flex: "none",
-      }}
-    >
-      <div
-        style={{
-          color: "rgba(255,255,255,.75)",
-          fontSize: 10,
-          textAlign: "center",
-          marginBottom: 4,
-        }}
-      >
-        Grail Market
-      </div>
-      <div
-        style={{
-          color: "#fff",
-          fontSize: 34,
-          fontWeight: 300,
-          textAlign: "center",
-          letterSpacing: "-0.02em",
-          marginBottom: 14,
-        }}
-      >
-        9:41
-      </div>
+    /* A whole handset, not a crop of one. It was a rounded box holding a clock
+       and a notification, which is the part that matters but reads as a widget
+       rather than as "this is what lands on their phone" — and the thing being
+       approved here is a message going to every member at once. The frame is
+       9:19.5, the proportion of the phones this actually arrives on, so the
+       two-line body clamp below is a real measure of what fits rather than an
+       arbitrary one. Everything on it is furniture except the card. */
+    <div className="gm-handset">
+      <div className="gm-handset-screen">
+        <span className="gm-handset-island" aria-hidden="true" />
 
-      {channel === "banner" ? (
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: "var(--r-md)",
-            overflow: "hidden",
-            minHeight: 132,
-          }}
-        >
-          <div style={{ height: 4, background: toneColor }} />
-          <div style={{ padding: "10px 11px" }}>
-            <div
-              style={{
-                fontSize: 9,
-                textTransform: "uppercase",
-                letterSpacing: ".08em",
-                color: toneColor,
-                fontWeight: 700,
-                marginBottom: 4,
-              }}
-            >
-              {bannerToneLabel[tone]}
-            </div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828", marginBottom: 4 }}>
-              {title || "Untitled"}
-            </div>
-            <div style={{ fontSize: 11, lineHeight: 1.45, color: "#475467" }}>
-              {body || "No message yet."}
-            </div>
-          </div>
+        <div className="gm-handset-status" aria-hidden="true">
+          <span>9:41</span>
+          <span className="gm-handset-meters">
+            <i className="gm-handset-bars" />
+            <i className="gm-handset-wifi" />
+            <i className="gm-handset-batt" />
+          </span>
         </div>
-      ) : (
-        <div
-          style={{
-            background: "rgba(255,255,255,.92)",
-            borderRadius: "var(--r-md)",
-            padding: "9px 11px",
-            backdropFilter: "blur(6px)",
-          }}
-        >
-          <div className="gm-row" style={{ gap: 6, marginBottom: 3, flexWrap: "nowrap" }}>
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: "var(--r-xs)",
-                background: "var(--navy-500)",
-                flex: "none",
-              }}
-            />
-            <span
-              style={{
-                fontSize: 9,
-                textTransform: "uppercase",
-                letterSpacing: ".06em",
-                color: "#667085",
-                fontWeight: 600,
-              }}
-            >
-              Grail Market · now
-            </span>
-          </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828" }}>
-            {(title || "Untitled").slice(0, 40)}
-            {title.length > 40 ? "…" : ""}
-          </div>
-          <div
-            style={{
-              fontSize: 11.5,
-              lineHeight: 1.4,
-              color: "#475467",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {body || "No message yet."}
-          </div>
+
+        <div className="gm-handset-clock" aria-hidden="true">
+          <span className="gm-handset-day">Tuesday, 8 September</span>
+          <span className="gm-handset-time">9:41</span>
         </div>
-      )}
+
+        <div className="gm-handset-stack">
+          {channel === "banner" ? (
+            <div className="gm-handset-banner">
+              <span className="gm-handset-rule" style={{ background: toneColor }} />
+              <div className="gm-handset-bannerbody">
+                <div className="gm-handset-kicker" style={{ color: toneColor }}>
+                  {bannerToneLabel[tone]}
+                </div>
+                <div className="gm-handset-title">{title || "Untitled"}</div>
+                <div className="gm-handset-body">{body || "No message yet."}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="gm-handset-push">
+              <div className="gm-handset-pushhead">
+                <span className="gm-handset-appicon" />
+                <span className="gm-handset-appname">Grail Market · now</span>
+              </div>
+              <div className="gm-handset-title">
+                {(title || "Untitled").slice(0, 40)}
+                {title.length > 40 ? "…" : ""}
+              </div>
+              <div className="gm-handset-body gm-handset-body--clamp">
+                {body || "No message yet."}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <span className="gm-handset-home" aria-hidden="true" />
+      </div>
     </div>
   );
 }
@@ -336,16 +276,6 @@ function AnnouncementsPage() {
             <b>Announcements could not be read.</b> {error}
           </Note>
         ) : null}
-
-        {/* Said once, at the top, and true of every row below it: this
-            console records a broadcast, it does not dispatch one. The page
-            claiming otherwise would be a claim that members were told
-            something they were not. */}
-        <Note tone="warn">
-          <b>Nothing is dispatched yet.</b> Push and email both need a provider that is not
-          wired, so a send here records what went to whom and raises the in-app banner. Every
-          row says whether it was actually delivered.
-        </Note>
 
         {live ? (
           <Note tone={live.tone === "outage" ? "bad" : "warn"}>

@@ -17,13 +17,12 @@
    1 · DARK COUNTERPARTS
    ========================================================================== */
 
-:root[data-gm-theme="dark"] .gm-shell::before {
-  background:
-    radial-gradient(1100px 620px at 100% -8%, rgba(168, 141, 96, 0.05), transparent 66%),
-    radial-gradient(760px 520px at 88% 6%, rgba(120, 100, 70, 0.04), transparent 62%),
-    radial-gradient(900px 700px at 4% 100%, rgba(56, 83, 111, 0.05), transparent 64%),
-    linear-gradient(158deg, #121922 0%, #0e141b 44%, #0b1017 100%);
-}
+/* The page field has no dark counterpart any more. It was four stacked
+   gradients written out in literal colours, which meant the light theme and
+   the dark theme were two separate drawings of the same thing and had to be
+   kept in step by hand. It is one vertical wash now, built from `--wash-top`
+   and `--wash-bot`, and those are stated per theme in admin.css — so the rule
+   itself is theme-blind like everything else. */
 
 /* The column paints nothing in either theme now — the card inside it does.
    This is the dark counterpart of `.gm-panel`'s own fill. */
@@ -783,8 +782,10 @@
 }
 
 /* The line that carries who raised it and where the case has got to. The
-   badge is a fixed width and the handle is not, so the handle is the one that
-   gives way. */
+   badge is as wide as its own word and refuses to shrink (`flex: none`), so
+   the handle is the one that gives way. The floor that lines a column of
+   badges up is a table rule and does not reach here — a case card has no
+   column to line up with. */
 .gm-case-facts-row {
   display: flex;
   align-items: center;
@@ -1236,6 +1237,15 @@
   gap: 16px;
 }
 
+/* The directory sits loose in the page's stack, so the grid owes it no
+   padding of its own. A queue that can be read as cards or as a table has the
+   card grid inside the same `Card` the table would fill, and there the grid is
+   the only thing between the rows and the card's own border — hence the inset,
+   which is `.gm-gallery`'s and is what keeps the two views the same shape. */
+.gm-card > .gm-people {
+  padding: 18px;
+}
+
 .gm-person {
   display: flex;
   flex-direction: column;
@@ -1412,6 +1422,24 @@
   color: inherit;
 }
 
+/* The badge on this plate needs a ground of its own.
+
+   Badges are outlined everywhere in the console — transparent, a 1px tone,
+   the label in `--ink`. That reads on paper and disappears here: the plate is
+   navy in both themes, so `--ink` is near-black on it in light and the border
+   at a tenth strength has nothing to sit against. A grey gradient gives the
+   pill something to be, and the label goes to `--th-ink` with it, the same
+   call every navy surface in this console makes. */
+.gm-plan-band .gm-badge {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--th-ink) 22%, transparent) 0%,
+    color-mix(in srgb, var(--th-ink) 11%, transparent) 100%
+  );
+  border-color: color-mix(in srgb, var(--th-ink) 30%, transparent);
+  color: var(--th-ink);
+}
+
 .gm-plan-band .gm-plan-per {
   opacity: 0.72;
 }
@@ -1512,71 +1540,6 @@
 }
 
 /* ==========================================================================
-   13 · DASHBOARD LAYOUT
-
-   The greeting, the chart and the overdue list stack in one column; the rail
-   runs the full height beside them rather than sitting under the chart. That
-   is what pulls "Where things stand", the review mix and the overdue table up
-   into the first screen instead of below the fold.
-   ========================================================================== */
-
-.gm-dash {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
-  gap: 16px;
-  align-items: start;
-}
-
-.gm-dash-main,
-.gm-dash-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-/* the rail holds position while the column beside it scrolls */
-.gm-dash-rail {
-  position: sticky;
-  top: calc(var(--topbar-h) + 16px);
-}
-
-/* The rail drops below the content sooner than it used to.
-   
-   It held its 300px down to 1180px, which left the queue table beside it about
-   605px to fit six columns into — and it cannot, whatever the padding, so the
-   dashboard grew a sideways scrollbar through most of a laptop's width. Below
-   1400 the content takes the whole width and the table fits with room over. */
-@media (max-width: 1400px) {
-  .gm-dash {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .gm-dash-rail {
-    position: static;
-  }
-}
-
-
-/* ==========================================================================
-   14 · RAIL PANEL — groups the linked stats into one block
-
-   A tinted ground with raised rows on top, so the section reads as a unit
-   rather than four loose cards floating on the page.
-   ========================================================================== */
-
-.gm-railbox {
-  padding: 12px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  box-shadow: var(--sh-2), var(--edge);
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-/* ==========================================================================
    15 · RAISED SURFACES
 
    Everything that is a box gets the shadow-plus-edge pair, so it separates
@@ -1589,11 +1552,6 @@
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--sh-2), var(--edge);
-}
-
-.gm-well--flush {
-  padding: 0;
-  overflow: hidden;
 }
 
 .gm-hero,
@@ -1647,38 +1605,16 @@
 /* ==========================================================================
    17 · DASHBOARD — MONEY AND THE FUNNEL
 
-   Two panels that sit side by side under the greeting: what the plans are
-   earning, and where a new account stops before it can trade. They pair
-   because both are read at a glance and neither is worth a full row on its
-   own; below 1080px they stack, since the funnel's bars stop being
-   comparable once the column is narrower than its own labels.
+   What is left of a pair of panels that once sat side by side under the
+   greeting. The dashboard was rebuilt to a three-column grid that fits one
+   screen, and the grid, the greeting and the side-by-side row went with it —
+   `dashboard.css` owns the layout now. These are the pieces the new cards
+   still render: the headline figure, the stacked bar under it, and the
+   funnel. The layout rules that framed them were deleted rather than left
+   here to be found and reused.
    ========================================================================== */
 
-.gm-dash-duo {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: stretch;
-}
-
-@media (max-width: 1080px) {
-  .gm-dash-duo {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* the panel fills its half of the pair, so two unequal bodies still end level */
-.gm-dash-duo > section {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.gm-dash-duo > section > .gm-well {
-  flex: 1 1 auto;
-}
-
-/* -- the headline figure, above the split ---------------------------------- */
+/* -- the headline figure --------------------------------------------------- */
 
 .gm-money {
   display: flex;
@@ -1726,65 +1662,6 @@
 
 .gm-stackbar > i:last-child {
   box-shadow: none;
-}
-
-/* -- a plan, under the bar -------------------------------------------------- */
-
-.gm-planline {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 13.8px;
-}
-
-.gm-planline:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.gm-planline-key {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--r-xs);
-  box-shadow: 0 1px 2px rgba(21, 33, 47, 0.2);
-}
-
-.gm-planline-name {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.gm-planline-name b {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.gm-planline-name span {
-  font-size: 12.5px;
-  color: var(--ink-4);
-}
-
-.gm-planline-num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.gm-planline-num b {
-  font-weight: 650;
-  color: var(--ink);
-}
-
-.gm-planline-num span {
-  font-size: 12.5px;
-  color: var(--ink-4);
 }
 
 /* -- funnel ----------------------------------------------------------------- */
@@ -2002,89 +1879,315 @@
    button, because console accounts are made by an owner, not claimed.
    ========================================================================== */
 
+/* The console sign-in.
+   One white card on a light ground, split in two: the form on the left,
+   because signing in is the job, and the brand panel INSET on the right with
+   its own radius. A full-bleed dark column reads as a splash screen the form
+   is stuck to the edge of; an inset panel reads as one considered object,
+   which is the difference between this and a template. */
 .gm-login {
-  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 32px 20px;
-  /* Navy, with the gold bloom the console uses for its own ground — kept
-     stronger here than on the console because this screen has nothing else
-     on it to read against. */
-  background:
-    radial-gradient(760px 480px at 76% -4%, rgba(212, 185, 137, 0.62), transparent 58%),
-    radial-gradient(620px 480px at 6% 104%, rgba(168, 141, 96, 0.22), transparent 62%),
-    radial-gradient(700px 520px at 50% 50%, rgba(56, 83, 111, 0.35), transparent 70%),
-    linear-gradient(158deg, #24344a 0%, #1a2632 52%, #121a24 100%);
+  padding: clamp(16px, 4vw, 48px);
+  background: var(--paper);
+}
+
+.gm-login-shell {
+  width: min(1180px, 100%);
+  min-height: min(680px, calc(100vh - 96px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(16px, 3vw, 28px);
+  padding: clamp(16px, 2.4vw, 22px);
+  border-radius: 26px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 70px -32px rgba(16, 26, 38, 0.28), 0 2px 6px rgba(16, 26, 38, 0.05);
 }
 
 .gm-login-card {
-  position: relative;
-  z-index: 1;
-  width: min(392px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 30px 30px 26px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: 0 24px 60px rgba(9, 14, 20, 0.42), 0 2px 6px rgba(9, 14, 20, 0.3);
+  justify-content: center;
+  gap: 16px;
+  width: min(386px, 100%);
+  margin: 0 auto;
+  padding: clamp(28px, 4vw, 44px) clamp(8px, 2vw, 20px);
 }
 
-/* A gold hairline along the top edge. The one place the brand colour touches
-   the card, which is enough on a screen with a single control on it. */
-.gm-login-card::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: 18px;
-  right: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-}
-
+/* Centred, like the reference: the mark sits over the heading rather than
+   beside it, so the column reads top-down instead of L-shaped. */
 .gm-login-brand {
   display: flex;
-  align-items: center;
-  gap: 11px;
+  justify-content: center;
   margin-bottom: 2px;
 }
 
 .gm-login-mark {
-  flex: none;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-sm);
-  background: var(--grad-navy);
-  color: var(--gold);
-  box-shadow: var(--sh-navy);
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
 }
 
-.gm-login-mark svg {
-  width: 17px;
-  height: 17px;
+.gm-login-brand .gm-mark-dark { display: none; }
+:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-light { display: none; }
+:root[data-gm-theme="dark"] .gm-login-brand .gm-mark-dark { display: block; }
+
+.gm-login-head {
+  margin-bottom: 6px;
+  text-align: center;
 }
 
-.gm-login-brand b {
-  display: block;
-  font-size: 16px;
+.gm-login-head h1 {
+  margin: 0 0 5px;
+  font-size: 29px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
   color: var(--ink);
 }
 
-.gm-login-brand span {
-  font-size: 13px;
+.gm-login-head p {
+  margin: 0;
+  font-size: 14px;
   color: var(--ink-3);
 }
 
-/* the eye sits inside the field rather than beside it, so the input keeps its
-   full width and the control cannot be mistaken for a second field */
+/* -- the brand half ------------------------------------------------ */
+.gm-login-aside {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: clamp(30px, 3.2vw, 42px);
+  background:
+    radial-gradient(620px 420px at 88% -8%, rgba(212, 185, 137, 0.46), transparent 62%),
+    radial-gradient(520px 420px at -8% 108%, rgba(168, 141, 96, 0.18), transparent 66%),
+    linear-gradient(158deg, #24344a 0%, #1a2632 56%, #131c26 100%);
+}
+
+.gm-login-logo {
+  width: clamp(150px, 14vw, 178px);
+  height: auto;
+}
+
+.gm-login-tag {
+  margin: 0;
+  max-width: 20ch;
+  font-size: clamp(20px, 1.9vw, 25px);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  color: #fff;
+}
+
+.gm-login-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
+}
+
+.gm-login-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+/* A gold tick rather than a bullet — the one place the brand colour appears
+   on this panel, and it is doing work. */
+.gm-login-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+
+.gm-login-note {
+  margin: auto 0 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* -- the console mock ----------------------------------------------
+   A glass panel showing what this console does, drawn in divs rather than
+   shipped as a screenshot: a screenshot goes stale the first time we change
+   the console, and at 2x it either blurs or costs 300KB. This stays sharp,
+   weighs nothing, and is honest about being an impression rather than a
+   promise of a specific screen. */
+.gm-mock {
+  margin-top: 4px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 26px 50px -26px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.gm-mock-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gm-mock-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.gm-mock-pill {
+  margin-left: 8px;
+  height: 8px;
+  flex: 1;
+  max-width: 120px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.gm-mock-body {
+  padding: 14px;
+  display: grid;
+  gap: 13px;
+}
+
+.gm-mock-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gm-mock-stat {
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.gm-mock-stat b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.gm-mock-stat span {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* The money tile is the gold one. One accent, on the number that matters. */
+.gm-mock-stat--gold b { color: var(--gold-300); }
+
+.gm-mock-rows { display: grid; gap: 7px; }
+
+.gm-mock-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gm-mock-thumb {
+  flex: none;
+  width: 20px;
+  height: 27px;
+  border-radius: 3px;
+  background: linear-gradient(150deg, rgba(203, 183, 148, 0.55), rgba(255, 255, 255, 0.13));
+}
+
+.gm-mock-lines {
+  flex: 1;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.gm-mock-lines i {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.gm-mock-lines i:last-child { background: rgba(255, 255, 255, 0.11); }
+
+.gm-mock-badge {
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.gm-mock-amt {
+  flex: none;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(203, 183, 148, 0.5);
+}
+
+.gm-mock-chart {
+  height: 56px;
+  padding: 8px 10px 6px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.gm-mock-chart svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Not enough height to show a mock AND a form without squashing both. The
+   form wins; the mock is scene-setting. */
+@media (max-height: 720px) {
+  .gm-mock-chart { display: none; }
+}
+
+@media (max-height: 620px) {
+  .gm-mock { display: none; }
+}
+
+@media (max-width: 880px) {
+  .gm-login-shell {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  /* On a phone the job is the form; a marketing panel above it is a screenful
+     of scrolling before anybody can type. */
+  .gm-login-aside { display: none; }
+  .gm-login-card { padding: 26px 6px; }
+}
+
 .gm-login-secret {
   position: relative;
 }
@@ -2129,7 +2232,7 @@
 .gm-login-forgot {
   align-self: flex-end;
   margin-top: 7px;
-  font-size: 12.5px;
+  font-size: 11.5px;
   color: var(--ink-4);
   text-decoration: none;
 }
@@ -2145,19 +2248,31 @@
   border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
   background: var(--bad-bg);
   color: var(--bad);
-  font-size: 13.6px;
+  font-size: 12.6px;
   line-height: 1.5;
 }
 
 .gm-login-go {
-  height: 42px;
-  font-size: 14.5px;
+  height: 46px;
+  margin-top: 4px;
+  font-size: 14px;
+  border-radius: var(--r-sm);
+}
+
+/* The global 0.5 opacity turned the navy gradient into grey mush, so an
+   untouched form opened on a button that looked broken rather than waiting.
+   Hold the brand colour and dim it far less — disabled should read as "not
+   yet", not as "out of order". */
+.gm-login-go:disabled {
+  opacity: 1;
+  background: linear-gradient(135deg, #56728f 0%, #43596f 62%, #3a4b5d 100%);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .gm-login-foot {
-  margin: 0;
+  margin: 6px 0 0;
   text-align: center;
-  font-size: 12.5px;
+  font-size: 11.5px;
   line-height: 1.55;
   color: var(--ink-4);
 }
@@ -2918,17 +3033,6 @@
   color: var(--ink-3);
 }
 
-/* The two panels in this row are the same height, and their contents should
-   reach the bottom of it rather than pooling at the top. */
-.gm-dash-duo > section {
-  display: flex;
-  flex-direction: column;
-}
-
-.gm-dash-duo > section > .gm-well {
-  flex: 1 1 auto;
-}
-
 /* ==========================================================================
    SUPPORT DESK — the dashboard rail
 
@@ -3127,4 +3231,374 @@
 .gm-pager-step:focus-visible {
   outline: none;
   border-color: var(--focus-line);
+}
+
+/* --------------------------------------------------------------------------
+   THE RECORD PAGE'S FRONT AND BACK
+
+   The two photographs the decision turns on, centred above the facts rather
+   than filed with the other eight angles. Capped at 620px for the pair: a
+   card photograph is portrait and 3:4, so a pair given the full width of a
+   record page is over a screen tall on its own and pushes the ask back below
+   the fold — which is the problem this was meant to fix, arrived at from the
+   other side. They centre rather than stretch for the same reason.
+
+   The two tiles below 560px stack, and the cap goes with them: one portrait
+   photograph at a phone's width is already most of a screen. */
+.gm-record-faces {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.gm-record-faces figure {
+  margin: 0;
+  min-width: 0;
+}
+
+.gm-record-faces figcaption {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12.4px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 560px) {
+  .gm-record-faces {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 320px;
+  }
+}
+
+/* One angle's photograph. Portrait, because a graded slab is, and cropped to
+   fill rather than letterboxed — a moderator comparing ten angles needs them
+   the same size more than they need every pixel of each. */
+.gm-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  box-shadow: var(--sh-1);
+}
+
+/* The pair at the top of the record stands on the page ground with no card
+   behind it, so the photograph has to carry its own edge: a deeper shadow and
+   a hairline, which is what the panel used to supply. */
+.gm-record-faces .gm-photo {
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-4), 0 0 0 1px var(--line);
+}
+
+/* --------------------------------------------------------------------------
+   THE AUDIT LOG'S LINE, AND WHAT IS UNDER IT
+
+   The whole line is a button. It was a paragraph with the actor and the time
+   in a footer beneath it, which put the one thing every row is compared on —
+   when — at a different left edge on every row, depending on how long the
+   action above it ran. The stamp is now ranged right, so a column of them
+   lines up and the log can be read down its own right-hand edge.
+
+   The panel opens in place. A dialog and a route were both considered and
+   both take an auditor off the line they were on, which on a log is the whole
+   task: you are reading down, not opening one thing. */
+.gm-logline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gm-logline-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gm-logline-main b {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+/* The right-hand group holds its width so the stamps range against each other
+   rather than against the end of whatever text precedes them. */
+.gm-logline-end {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gm-logline-at {
+  font-size: 12.4px;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gm-logline-caret {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-4);
+  transition: transform 0.16s ease;
+}
+
+.gm-logline-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.gm-logline:hover .gm-logline-caret {
+  color: var(--ink-2);
+}
+
+.gm-logline:focus-visible {
+  outline: 2px solid var(--focus-line);
+  outline-offset: 3px;
+  border-radius: var(--r-xs);
+}
+
+.gm-logdrop {
+  margin: 8px 0 4px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gm-logdrop p {
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   THE HANDSET, ON THE ANNOUNCEMENTS PAGE
+
+   A picture of a phone, not a UI surface, which is why its radii and its ink
+   are literal rather than tokens: this is the one place in the console
+   drawing something that belongs to somebody else's operating system, and it
+   should not shift when ours does. The one thing that IS ours is the app
+   icon, which is the brand navy.
+
+   9:19.5 is the proportion the message actually arrives on. It matters here
+   because the body is clamped to two lines and the title cut at 40
+   characters, and a preview at the wrong shape makes both of those a guess.
+   -------------------------------------------------------------------------- */
+.gm-handset {
+  flex: none;
+  width: 268px;
+  padding: 10px;
+  border-radius: 42px;
+  background: linear-gradient(160deg, #3b3f46, #16181c);
+  box-shadow: var(--sh-4);
+}
+
+.gm-handset-screen {
+  position: relative;
+  aspect-ratio: 9 / 19.5;
+  border-radius: 33px;
+  overflow: hidden;
+  padding: 12px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(120% 70% at 22% 8%, rgba(120, 152, 196, 0.42), transparent 62%),
+    linear-gradient(168deg, #2b3a55 0%, #1b2537 52%, #12192a 100%);
+}
+
+/* The island, and the status row tucked either side of it. */
+.gm-handset-island {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 21px;
+  border-radius: 999px;
+  background: #0b0d11;
+}
+
+.gm-handset-status {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 21px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.gm-handset-meters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Drawn rather than iconised: three shapes at this size read as signal, wifi
+   and battery without costing an icon each. */
+.gm-handset-bars,
+.gm-handset-wifi,
+.gm-handset-batt {
+  display: block;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.gm-handset-bars {
+  width: 14px;
+  height: 9px;
+  clip-path: polygon(0 66%, 22% 66%, 22% 100%, 0 100%, 0 66%, 30% 40%, 52% 40%, 52% 100%, 30% 100%, 30% 40%, 60% 14%, 82% 14%, 82% 100%, 60% 100%);
+}
+
+.gm-handset-wifi {
+  width: 12px;
+  height: 9px;
+  border-radius: 2px;
+  clip-path: polygon(50% 100%, 0 34%, 22% 14%, 50% 40%, 78% 14%, 100% 34%);
+}
+
+.gm-handset-batt {
+  width: 19px;
+  height: 10px;
+  border-radius: 3px;
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  position: relative;
+}
+
+.gm-handset-batt::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  right: 6px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.gm-handset-clock {
+  margin-top: 26px;
+  text-align: center;
+  color: #fff;
+}
+
+.gm-handset-day {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.gm-handset-time {
+  display: block;
+  margin-top: 2px;
+  font-size: 52px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+/* The card sits where a notification sits — below the clock, not centred in
+   the screen — so the amount of empty glass above it is part of the preview. */
+.gm-handset-stack {
+  margin-top: auto;
+  padding-bottom: 18px;
+}
+
+.gm-handset-banner {
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.gm-handset-rule {
+  display: block;
+  height: 4px;
+}
+
+.gm-handset-bannerbody {
+  padding: 10px 11px;
+}
+
+.gm-handset-push {
+  border-radius: 16px;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.93);
+  backdrop-filter: blur(6px);
+}
+
+.gm-handset-pushhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.gm-handset-appicon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--navy-500);
+}
+
+/* The two small-caps lines on this mock are the operating system's, not ours
+   — the console's own no-uppercase rule is about our copy, and a notification
+   header that is not in caps stops looking like a notification. */
+.gm-handset-appname,
+.gm-handset-kicker {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #667085;
+}
+
+.gm-handset-kicker {
+  margin-bottom: 4px;
+}
+
+.gm-handset-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #101828;
+  margin-bottom: 3px;
+}
+
+.gm-handset-body {
+  font-size: 11.5px;
+  line-height: 1.42;
+  color: #475467;
+}
+
+.gm-handset-body--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gm-handset-home {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  width: 108px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
 }

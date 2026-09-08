@@ -333,7 +333,7 @@ export function Badge({
 
 export function Tier({ tier }: { tier: "grail" | "high-value" | "standard" }) {
   if (tier === "grail") return <span className="gm-tier gm-tier--high">Grail</span>;
-  if (tier === "high-value") return <span className="gm-tier">High value</span>;
+  if (tier === "high-value") return <span className="gm-tier">High</span>;
   return <span className="gm-tier gm-tier--std">Standard</span>;
 }
 
@@ -1046,23 +1046,35 @@ export function Select({
  * Returns 0 until the first client measurement — the server cannot know the
  * width, so both renders agree on "not yet" rather than on a guess.
  */
+/* The height comes back alongside the width for the one chart that has to
+   fill a box rather than set one: the dashboard's grid hands its cards a
+   share of the window, so the chart inside cannot know how tall it is until
+   it is measured. Every other caller destructures two values and is
+   unaffected. Nothing here may read `window` — a viewport figure in the
+   render path fails `next build` during prerender, and reports it as an
+   error about `<Html>` that has nothing to do with the cause. */
 function useWidth<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
   const [w, setW] = useState(0);
+  const [h, setH] = useState(0);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     /* Local pixels: this width becomes an SVG viewBox, which is drawn in the
        zoomed context and would otherwise be scaled twice. */
-    const set = () => setW(Math.round(localRect(el).width));
+    const set = () => {
+      const box = localRect(el);
+      setW(Math.round(box.width));
+      setH(Math.round(box.height));
+    };
     set();
     const ro = new ResizeObserver(set);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  return [ref, w] as const;
+  return [ref, w, h] as const;
 }
 
 /**
@@ -1333,64 +1345,104 @@ export function AreaChart({
 }
 
 /**
- * Paired columns: two thin rounded bars per period, one for each series.
+ * A pair of capsules per week: the money, and the work that cleared beside it.
  *
- * The dashboard and the reports page were both drawing the same smoothed area,
- * which made two different questions look like one answer. A line says "this
- * is continuous, read the slope"; twelve discrete weeks are not continuous, and
- * the thing worth reading is where each week landed and how the two series
- * compare inside it. Side-by-side bars answer both at a glance, and neither
- * series has to sit behind the other.
+ * It has been both shapes now. It started as two hairline columns per week on
+ * two scales, which was honest about the units and unreadable at twenty-four
+ * bars across a column; it was then cut to one thick gold bar with the second
+ * series surviving only as a figure in the legend, which was readable and had
+ * quietly stopped drawing half of what it claimed to be about.
  *
- * The two have different units, so each is scaled to its own maximum and the
- * legend carries the figures for whichever week is under the pointer.
+ * This is the pair again, drawn thick enough to be read: two capsules per
+ * period, gold for the money and slate for the verifications, with the whole
+ * group dimmed except the week being read. The bars are full capsules —
+ * half-round at the foot as well as the cap — so each one reads as an object
+ * sitting on the baseline rather than as a column growing out of it.
+ *
+ * The two series keep their own scales, and that is deliberate rather than
+ * sloppy: GMV is in thousands and verifications are a count in single figures,
+ * so on one axis the second series is a line of dots along the floor. Each is
+ * drawn against its own peak, which makes the chart a comparison of shape
+ * across weeks rather than of one bar against its neighbour — and the exact
+ * figures for whichever week is being read are printed underneath, where they
+ * cannot be misread off a scale they do not share.
+ *
+ * One group is solid and the rest are faint. At rest that is the biggest week
+ * for GMV, so the chart states something without being poked; under a pointer
+ * it is whichever week is being pointed at. The pill floats over that group
+ * rather than parking in a corner, because a readout that is not attached to
+ * what it describes has to be matched up by eye every time it moves.
+ *
+ * `--grad-gold`'s two ends are named tokens precisely so an SVG gradient can
+ * take them as stops. The slate ramp is mixed off `--info` rather than off
+ * `--navy-500`, which is the same colour in both themes and disappears into
+ * the dark surface; `--info` is the console's one neutral slate stated per
+ * theme, so the second series reads at the same strength either way.
  */
 export function VolumeChart({
   data,
-  height = 190,
+  height,
   formatA = (n: number) => `$${n}k`,
   formatB = (n: number) => String(n),
   labelA = "GMV ($k)",
   labelB = "Verifications cleared",
 }: {
   data: { label: string; gmv: number; verified: number }[];
+  /** Left out on purpose by the dashboard: there the chart fills the share of
+   *  the window its grid row was given, so it has to be measured. */
   height?: number;
   formatA?: (n: number) => string;
   formatB?: (n: number) => string;
   labelA?: string;
   labelB?: string;
 }) {
-  const [ref, w] = useWidth<HTMLDivElement>();
+  const [ref, w, boxH] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
 
-  /* No left axis, and no gridlines to imply one. The two series are in
-     different units — dollars and a count — so a single scale down the side
-     would invite the reading that one bar is larger than the other when they
-     measure different things. The pill and the legend carry both figures for
-     whichever week is under the pointer, which is the honest version. */
-  const padL = 16;
-  const padR = 16;
-  const padT = 30;
-  const padB = 26;
-  const h = height;
+  const h = Math.max(104, height ?? boxH);
+
+  /* Room at the top for the pill to sit clear of the tallest bar, and at the
+     foot for the week labels. Nothing at the sides: the first and last groups
+     are already half a slot in from the edge. */
+  const padL = 4;
+  const padR = 4;
+  const padT = 32;
+  const padB = 19;
 
   const peak = data.reduce((best, d, i) => (d.gmv > data[best].gmv ? i : best), 0);
-  const active = hover ?? peak;
+  const active = Math.min(data.length - 1, Math.max(0, hover ?? peak));
+  const read = data[active] ?? { label: "", gmv: 0, verified: 0 };
 
-  const maxA = niceMax(Math.max(...data.map((d) => d.gmv)));
-  const maxB = niceMax(Math.max(...data.map((d) => d.verified)));
+  /* A twentieth of headroom before the scale is rounded up, so the tallest
+     bar never finishes flush against the top rule. Without it a peak that
+     happens to be a round number — two verifications, say — is drawn at the
+     full plot height while a peak that is not is drawn at four fifths of it,
+     and the two series then read as though the smaller one were the larger.
+     Applied to both, so neither is flattered. */
+  const maxA = niceMax(Math.max(0, ...data.map((d) => d.gmv)) * 1.05);
   const plotW = Math.max(0, w - padL - padR);
-  const plotH = h - padT - padB;
+  const plotH = Math.max(0, h - padT - padB);
   const base = padT + plotH;
 
   const slot = plotW / Math.max(1, data.length);
   const mid = (i: number) => padL + slot * (i + 0.5);
-  /* Thin bars with a hairline between them: the pair has to read as one
-     reading of one week, not as two neighbouring weeks. */
-  const barW = Math.max(4, Math.min(11, slot * 0.22));
-  const pairGap = Math.max(2.5, barW * 0.45);
 
-  const labelEvery = slot < 44 ? 2 : 1;
+  /* One bar to a week again, and a wide one. The paired version put two
+     capsules a third of a slot wide side by side, which at twelve weeks in
+     this column left each of them about five pixels — a row of hairs rather
+     than the thick rounded bars this was asked for. A single series takes
+     three fifths of its slot, so the bar is the mark and the gap is the
+     interval, not the other way round. Capped so a four-week series does not
+     become paving slabs. */
+  const barW = Math.max(9, Math.min(30, slot * 0.6));
+
+  const labelEvery = slot < 26 ? 3 : slot < 42 ? 2 : 1;
+
+  /* A label is centred on its group, and the first and last groups sit half a
+     slot from the edge — which on a phone is less than half a date. Both ends
+     are pulled far enough in to stay whole; the two or three pixels that costs
+     against the week they name is not readable, and a clipped month is. */
+  const labelX = (i: number) => Math.min(Math.max(mid(i), 24), Math.max(24, w - 24));
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
     /* `clientX` and the rect are both visual pixels; the step it is divided by
@@ -1401,105 +1453,172 @@ export function VolumeChart({
     setHover(Math.min(data.length - 1, Math.max(0, i)));
   }
 
-  const tipText = `${data[active].label} · ${formatA(data[active].gmv)}`;
-  const tipW = Math.max(76, tipText.length * 6.6 + 22);
-  const tipX = px(Math.min(Math.max(mid(active) - tipW / 2, 0), Math.max(0, w - tipW)));
+  /** A week with nothing in it is drawn as a dot on the baseline rather than
+   *  as a bar, and DOT is its radius. A floored capsule at this bar width was
+   *  a squashed lozenge — `rx` clamps to half the height, so a 30px-wide rect
+   *  7px tall comes out as a flattened pill rather than the round mark it was
+   *  meant to be. A circle says "nothing here" without pretending to a height
+   *  it does not have. */
+  const DOT = 7;
 
-  /** One rounded column, capped top and bottom the way the reference draws it. */
-  function bar(key: string, cx: number, value: number, max: number, fill: string, dim: boolean) {
-    const bh = Math.max(barW, (value / max) * plotH);
-    return (
-      <rect
-        key={key}
-        x={px(cx - barW / 2)}
-        y={px(base - bh)}
-        width={px(barW)}
-        height={px(bh)}
-        rx={px(barW / 2)}
-        fill={fill}
-        opacity={dim ? 0.55 : 1}
-        style={{ transition: "opacity 0.16s ease" }}
-      />
-    );
-  }
+  /** How tall a capsule is, floored so a lean week is still a mark. Weeks at
+   *  zero never reach this — they are drawn as dots instead. */
+  const barH = (v: number, max: number) => Math.max(DOT * 2, (v / max) * plotH);
+
+  const groupTop = (i: number) => base - barH(data[i].gmv, maxA);
+
+  const tipText = formatA(read.gmv);
+  const tipW = Math.max(48, tipText.length * 7.2 + 20);
+  const tipX = px(Math.min(Math.max(mid(active) - tipW / 2, 0), Math.max(0, w - tipW)));
+  const tipY = px(Math.max(2, groupTop(active) - 28));
 
   return (
-    <div ref={ref}>
-      {w > 0 ? (
-        <svg
-          className="gm-chart"
-          width={w}
-          height={h}
-          viewBox={`0 0 ${w} ${h}`}
-          role="img"
-          aria-label={`${labelA} and ${labelB} over ${data.length} periods`}
-          onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
-        >
-          {data.map((d, i) => {
-            const c = mid(i);
-            const dim = hover !== null && i !== hover;
-            return (
-              <g key={d.label}>
-                {bar(`a${d.label}`, c - (barW + pairGap) / 2, d.gmv, maxA, "var(--gold)", dim)}
-                {bar(
-                  `b${d.label}`,
-                  c + (barW + pairGap) / 2,
-                  d.verified,
-                  maxB,
-                  "var(--navy-500)",
-                  dim
-                )}
-              </g>
-            );
-          })}
+    <div className="gm-volume">
+      <div
+        className="gm-volume-plot"
+        ref={ref}
+        style={height ? { height } : undefined}
+      >
+        {w > 0 && h > 0 && data.length > 0 ? (
+          <svg
+            className="gm-chart"
+            width={w}
+            height={h}
+            viewBox={`0 0 ${w} ${h}`}
+            role="img"
+            aria-label={`${labelA} and ${labelB} over ${data.length} weeks`}
+            onMouseMove={onMove}
+            onMouseLeave={() => setHover(null)}
+          >
+            <defs>
+              <linearGradient id="gm-volume-gold" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--gold-lift)" />
+                <stop offset="100%" stopColor="var(--gold-sink)" />
+              </linearGradient>
+            </defs>
 
-          <line x1={padL} x2={w - padR} y1={base} y2={base} stroke="var(--line-2)" strokeWidth="1" />
+            {/* Four dotted rules and a solid floor. Dotted so the bars sit in
+                front of a suggestion of a scale rather than behind a grid. */}
+            {[1, 0.75, 0.5, 0.25].map((f) => (
+              <line
+                key={f}
+                x1={padL}
+                x2={px(w - padR)}
+                y1={px(base - f * plotH)}
+                y2={px(base - f * plotH)}
+                stroke="var(--line-2)"
+                strokeWidth="1"
+                strokeDasharray="1 6"
+                strokeLinecap="round"
+              />
+            ))}
+            <line
+              x1={padL}
+              x2={px(w - padR)}
+              y1={px(base)}
+              y2={px(base)}
+              stroke="var(--line-2)"
+              strokeWidth="1"
+            />
 
-          <g>
-            <rect x={tipX} y={3} width={tipW} height={21} rx="10.5" fill="var(--navy)" opacity="0.95" />
-            <text
-              x={px(tipX + tipW / 2)}
-              y={17.5}
-              fontSize="11.5"
-              fontWeight="600"
-              fill="#f4f6f8"
-              textAnchor="middle"
-            >
-              {tipText}
-            </text>
-          </g>
+            {/* A rect with `rx` at half its width IS the capsule — both ends
+                half-round, no path arithmetic and nothing to get wrong when
+                the bar is shorter than its own radius. */}
+            {data.map((d, i) => {
+              const on = i === active;
+              /* The quiet weeks were at 0.26 and read as a smudge behind the
+                 gridlines rather than as bars. They are the series too — only
+                 the one being read is emphasised — so they sit at 0.62, which
+                 is far enough under the active bar to pick it out and far
+                 enough over the dotted rules to be a mark of its own. */
+              const paint = {
+                opacity: on ? 1 : 0.62,
+                fill: on ? "url(#gm-volume-gold)" : "var(--gold)",
+                style: { transition: "opacity 0.16s ease" },
+              };
 
-          {data.map((d, i) =>
-            i % labelEvery === 0 ? (
+              if (d.gmv <= 0) {
+                return (
+                  <circle
+                    key={d.label}
+                    cx={px(mid(i))}
+                    cy={px(base - DOT)}
+                    r={DOT}
+                    {...paint}
+                  />
+                );
+              }
+
+              const a = barH(d.gmv, maxA);
+              return (
+                <rect
+                  key={d.label}
+                  x={px(mid(i) - barW / 2)}
+                  y={px(base - a)}
+                  width={px(barW)}
+                  height={px(a)}
+                  rx={px(barW / 2)}
+                  {...paint}
+                />
+              );
+            })}
+
+            {/* The readout, over the group it belongs to.
+
+                `--navy` and `--th-ink` are the pair the console's one dark
+                band is made of, and neither changes with the theme, because
+                the band does not either — it is dark on both, so its ink is
+                near-white on both. This asked for `--th-bg`, which is not a
+                token: an unresolvable `var()` in a presentation attribute
+                takes the property's initial value rather than being ignored,
+                so the pill has been painting flat black and getting away with
+                it because black on navy paper is close enough to the thing it
+                was meant to be. */}
+            <g>
+              <rect x={tipX} y={tipY} width={px(tipW)} height="21" rx="10.5" fill="var(--navy)" />
               <text
-                key={`t${d.label}`}
-                x={px(mid(i))}
-                y={h - 7}
-                fontSize="10.8"
-                fill={i === active ? "var(--ink-2)" : "var(--ink-4)"}
-                fontWeight={i === active ? 650 : 400}
+                x={px(tipX + tipW / 2)}
+                y={px(tipY + 14.5)}
+                fontSize="11.5"
+                fontWeight="650"
+                fill="var(--th-ink)"
                 textAnchor="middle"
               >
-                {d.label}
+                {tipText}
               </text>
-            ) : null
-          )}
-        </svg>
-      ) : (
-        <div style={{ height }} />
-      )}
+            </g>
+
+            {data.map((d, i) =>
+              i % labelEvery === 0 ? (
+                <text
+                  key={`t${d.label}`}
+                  x={px(labelX(i))}
+                  y={px(h - 6)}
+                  fontSize="10.5"
+                  fill={i === active ? "var(--ink-2)" : "var(--ink-4)"}
+                  fontWeight={i === active ? 650 : 400}
+                  textAnchor="middle"
+                >
+                  {d.label}
+                </text>
+              ) : null,
+            )}
+          </svg>
+        ) : null}
+      </div>
 
       <div className="gm-chart-legend gm-chart-legend--dots">
         <span className="gm-legend-key">
           <i className="gm-legend-dot" style={{ background: "var(--gold)" }} />
           {labelA}
-          <b className="gm-legend-val">{formatA(data[active].gmv)}</b>
+          <b className="gm-legend-val">{formatA(read.gmv)}</b>
         </span>
+        {/* No swatch on this one: it is a figure for the week being read, not
+            a series on the chart. A coloured dot beside it would name a bar
+            that is not drawn. */}
         <span className="gm-legend-key">
-          <i className="gm-legend-dot" style={{ background: "var(--navy-500)" }} />
           {labelB}
-          <b className="gm-legend-val">{formatB(data[active].verified)}</b>
+          <b className="gm-legend-val">{formatB(read.verified)}</b>
         </span>
       </div>
     </div>
@@ -2165,11 +2284,16 @@ export function Spark({
  */
 export function ListingBadge({ status }: { status: string }) {
   const map: Record<string, { tone: BadgeTone; label: string }> = {
-    awaiting: { tone: "warn", label: "Awaiting review" },
-    "in-review": { tone: "info", label: "In review" },
-    "info-requested": { tone: "gold", label: "Info requested" },
+    /* One word where one word will do, and both words capitalised where two
+       are needed. "Awaiting" is a listing nobody has picked up; "Review" is
+       one a moderator has claimed — the difference is who has it, which the
+       shorter pair still carries. */
+    awaiting: { tone: "warn", label: "Awaiting" },
+    "in-review": { tone: "info", label: "Review" },
+    "info-requested": { tone: "gold", label: "Info Requested" },
     live: { tone: "idle", label: "Live" },
     sold: { tone: "navy", label: "Sold" },
+    reserved: { tone: "info", label: "Reserved" },
     paused: { tone: "warn", label: "Paused" },
     withdrawn: { tone: "bad", label: "Withdrawn" },
     rejected: { tone: "bad", label: "Rejected" },

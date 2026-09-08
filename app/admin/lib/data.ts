@@ -38,6 +38,7 @@ export type ListingStatus =
   | "info-requested"
   | "live"
   | "sold"
+  | "reserved"
   | "paused"
   | "withdrawn"
   | "rejected";
@@ -3480,16 +3481,17 @@ export const initialsOf = (name: string) =>
 
 export const tierLabel: Record<VerificationTier, string> = {
   grail: "Grail",
-  "high-value": "High value",
+  "high-value": "High",
   standard: "Standard",
 };
 
 export const statusLabel: Record<ListingStatus, string> = {
-  awaiting: "Awaiting review",
-  "in-review": "In review",
-  "info-requested": "Info requested",
+  awaiting: "Awaiting",
+  "in-review": "Review",
+  "info-requested": "Info Requested",
   live: "Live",
   sold: "Sold",
+  reserved: "Reserved",
   paused: "Paused",
   withdrawn: "Withdrawn",
   rejected: "Rejected",

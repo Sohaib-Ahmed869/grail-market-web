@@ -15,7 +15,7 @@ import {
   Note,
   FilterMenu,
   PageHead,
-  Slab,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconClock,
@@ -86,10 +86,17 @@ function ConflictsPage() {
 
   const list = rows;
 
+  /* Table first, matching every other list in the console. The board of cards
+     it used to be is the second view rather than the only one: a card carries
+     the complaint, the prior-case count and the thread's first line, which is
+     what you want when you are choosing what to work — and a table is what you
+     want when you are looking for one case you already know about. */
+  const [layout, setLayout] = useState<"table" | "gallery">("table");
+
   return (
     <>
       <PageHead
-        title="Reports & conduct"
+        title="Reports & Conduct"
         sub="No money passes through Grail Market, so a case closes on conduct: a warning, a restriction, a closed account, or a referral to police."
         right={
           /* "Claim oldest" is gone. A case is claimed by opening it, which is
@@ -131,7 +138,9 @@ function ConflictsPage() {
             party === "all" ? "" : party === "staff" ? " · staff involved" : " · members only"
           }`}
           right={
-            <FilterMenu
+            <>
+              <ViewToggle value={layout} onChange={setLayout} />
+              <FilterMenu
               applied={(filter === "all" ? 0 : 1) + (party === "all" ? 0 : 1)}
               onClear={() => {
                 setFilter("all");
@@ -161,7 +170,8 @@ function ConflictsPage() {
                   })),
                 },
               ]}
-            />
+              />
+            </>
           }
         />
 
@@ -180,6 +190,68 @@ function ConflictsPage() {
               title="Nothing here"
               body="No case currently has that status."
             />
+          </Card>
+        ) : layout === "table" ? (
+          <Card>
+            <div className="gm-tablewrap">
+              {/* Five columns and an action. A case is triaged on what the
+                  complaint is, who it is against, how long it has been sitting
+                  and what the trade was worth; the prior-case count, the
+                  reporter's own words and the photographs are what the card
+                  and the record carry, and none of them survives row height. */}
+              <table className="gm-table">
+                <thead>
+                  <tr>
+                    <th>Case</th>
+                    <th>Against</th>
+                    <th>State</th>
+                    <th>Waiting</th>
+                    <th>Trade value</th>
+                    <th className="gm-rowend">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((c) => (
+                    <tr key={c.id}>
+                      {/* No slab. A report is about conduct, and conduct is
+                          not always about a card — an impersonation or an
+                          abusive message has no listing behind it, and the
+                          drawn fallback then put a picture of a card next to a
+                          complaint that had nothing to do with one. */}
+                      <td>
+                        <div className="gm-cell2">
+                          <b>{conflictKindLabel[c.kind]}</b>
+                          <span>{c.listing.card}</span>
+                        </div>
+                      </td>
+                      {/* The handle already carries its own "@" — the card view prints it
+                          bare for the same reason. */}
+                      <td className="gm-nowrap">{c[c.against].handle}</td>
+                      <td>
+                        <ConflictBadge status={c.status} />
+                      </td>
+                      <td className="gm-nowrap">{c.ageHours}h</td>
+                      <td className="gm-amount">{money(c.amount)}</td>
+                      <td className="gm-rowend">
+                        <div className="gm-rowact">
+                          {/* One action, as on the card: opening a case is
+                              what claims it, so "View details" and "Decide"
+                              were always the same link. */}
+                          <Link
+                            className="gm-btn gm-btn--sm gm-btn--icon"
+                            href={`/admin/conflicts/${c.id}`}
+                            title={c.status === "resolved" ? "View details" : "Decide"}
+                            aria-label={c.status === "resolved" ? "View details" : "Decide"}
+                          >
+                            {c.status === "resolved" ? <IconEye /> : <IconShield />}
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Card>
         ) : (
           <div className="gm-caseboard">
@@ -201,12 +273,6 @@ function ConflictsPage() {
                       where there was already room for it. */}
                   <div className="gm-case-top">
                     <div className="gm-case-who">
-                      <Slab
-                        grader={c.listing.grader}
-                        grade={c.listing.grade}
-                        art={c.listing.art}
-                        size="sm"
-                      />
                       <span className="gm-cell2" style={{ minWidth: 0 }}>
                         <b>{conflictKindLabel[c.kind]}</b>
                         <span className="gm-nowrap-ellipsis">

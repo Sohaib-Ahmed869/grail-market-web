@@ -27,6 +27,7 @@ import { exportCsv } from "../lib/csv";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
 import {
+  Avatar,
   Badge,
   Card,
   DL,
@@ -41,9 +42,11 @@ import {
   BlockHead,
   FilterMenu,
   Toast,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconDownload,
+  IconEye,
   IconLock,
   IconMail,
   IconSend,
@@ -66,7 +69,7 @@ const ROLE_LABEL: Record<string, string> = {
 /** The two directories this page holds, and how each one introduces itself. */
 const DIRECTORY: Record<Scope, { title: string; sub: string }> = {
   team: {
-    title: "Admin team",
+    title: "Admin Team",
     sub: "The accounts that run this console, what each one can reach, and what it has decided.",
   },
   market: {
@@ -101,6 +104,12 @@ function MembersPage() {
   const [activity, setActivity] = useState("all");
   const [segment, setSegment] = useState("all");
   const [query, setQuery] = useState(seededQuery);
+
+  /* The same switch the listing queue carries. One piece of state for both
+     directories rather than one each: the scope comes from the sidebar, so
+     only ever one of them is on screen, and a moderator who reads people as
+     rows reads both of them as rows. */
+  const [layout, setLayout] = useState<"table" | "gallery">("table");
 
   /* "No billing, no ID" is the moderator's line in the roles table, and it
      is a rule about fields on a record they are otherwise allowed to open. */
@@ -383,6 +392,7 @@ function MembersPage() {
                     }`
               }
               right={
+                <div className="gm-row" style={{ gap: 8 }}>
                 <FilterMenu
                   applied={teamApplied}
                   onClear={() => {
@@ -429,6 +439,8 @@ function MembersPage() {
                     },
                   ]}
                 />
+                <ViewToggle value={layout} onChange={setLayout} />
+                </div>
               }
             />
 
@@ -440,6 +452,61 @@ function MembersPage() {
               ) : teamRows.length === 0 ? (
                 <Card>
                   <Empty icon={<IconShield />} title="No accounts match that role" />
+                </Card>
+              ) : layout === "table" ? (
+                <Card>
+                  <div className="gm-tablewrap">
+                    {/* Four columns and a button. Who the account is, what it
+                        holds, whether it still works and when it was given —
+                        the scopes the role carries and who granted it are on
+                        the record, which is one click from every row. */}
+                    <table className="gm-table">
+                      <thead>
+                        <tr>
+                          <th>Account</th>
+                          <th>Role</th>
+                          <th>Standing</th>
+                          <th>Since</th>
+                          <th className="gm-rowend">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teamRows.map((p) => (
+                          <tr key={p.id}>
+                            <td>
+                              <div className="gm-cell-user">
+                                <Avatar initials={p.initials} size="sm" />
+                                <div className="gm-cell2">
+                                  <b>{p.name}</b>
+                                  <span>{p.email}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="gm-sm gm-muted gm-nowrap">{roleLabel(p.role)}</td>
+                            <td>
+                              <MemberBadge status={p.status} />
+                            </td>
+                            <td className="gm-sm gm-muted gm-nowrap">{dateOnly(p.since)}</td>
+                            <td className="gm-rowend">
+                              <div className="gm-rowact">
+                                {/* A link, because the record is a page with
+                                    an address of its own — the same one the
+                                    card's button goes to. */}
+                                <Link
+                                  className="gm-btn gm-btn--sm gm-btn--icon"
+                                  href={`/admin/members/${p.id}?scope=team`}
+                                  title="View account"
+                                  aria-label={`View ${p.name}`}
+                                >
+                                  <IconEye />
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
               ) : (
                 <>
@@ -615,6 +682,7 @@ function MembersPage() {
                         : []),
                     ]}
                   />
+                  <ViewToggle value={layout} onChange={setLayout} />
                 </div>
               }
             />
@@ -663,6 +731,85 @@ function MembersPage() {
                     title="No members match"
                     body="Widen a filter or clear the search."
                   />
+                </Card>
+              ) : layout === "table" ? (
+                <Card>
+                  <div className="gm-tablewrap">
+                    {/* Five columns, one of which is the tick box the message
+                        composer above reads. What a directory is scanned on is
+                        who somebody is, whether anything is wrong with them,
+                        how much they trade and how recently — the plan, the
+                        verification level, the tags and the strike count are on
+                        the record, where each of them is a sentence rather than
+                        a chip competing with five others. */}
+                    <table className="gm-table">
+                      <thead>
+                        <tr>
+                          <th className="gm-pickcol">
+                            <input
+                              type="checkbox"
+                              checked={allPicked}
+                              onChange={toggleAll}
+                              aria-label="Select every member in this segment"
+                              style={{ accentColor: "var(--gold)", width: 15, height: 15 }}
+                            />
+                          </th>
+                          <th>Member</th>
+                          <th>Standing</th>
+                          <th>Trading</th>
+                          <th>Last active</th>
+                          <th className="gm-rowend">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {marketRows.map((m) => (
+                          <tr key={m.id}>
+                            <td className="gm-pickcol">
+                              <input
+                                type="checkbox"
+                                checked={picked.has(m.handle)}
+                                onChange={() => togglePick(m.handle)}
+                                aria-label={`Select ${m.handle}`}
+                                style={{ accentColor: "var(--gold)", width: 15, height: 15 }}
+                              />
+                            </td>
+                            <td>
+                              <div className="gm-cell-user">
+                                <Avatar initials={m.initials} size="sm" />
+                                <div className="gm-cell2">
+                                  <b>{m.name}</b>
+                                  <span>
+                                    {m.handle} · {ROLE_LABEL[m.role]}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <MemberBadge status={m.status} />
+                            </td>
+                            <td className="gm-sm gm-muted gm-nowrap">
+                              {m.sales} sale{m.sales === 1 ? "" : "s"} · {money(m.volume)}
+                            </td>
+                            <td className="gm-sm gm-muted gm-nowrap">
+                              {m.lastSeenDays === 0 ? "Today" : dateOnly(m.lastSeen)}
+                            </td>
+                            <td className="gm-rowend">
+                              <div className="gm-rowact">
+                                <Link
+                                  className="gm-btn gm-btn--sm gm-btn--icon"
+                                  href={`/admin/members/${m.id}`}
+                                  title="Open record"
+                                  aria-label={`Open ${m.name}`}
+                                >
+                                  <IconEye />
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
               ) : (
                 <>

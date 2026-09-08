@@ -28,6 +28,7 @@ import {
   SectionTabs,
   PageHead,
   Toast,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconAlert,
@@ -102,6 +103,11 @@ const shortPlanName = (name: string) => name.replace(/^GrailMarket\s+/i, "");
 
 function PricingPage() {
   const [tab, setTab] = useState<Tab>("plans");
+  /* The switch the listing queue carries. Three subscription plans are read by
+     comparing one number across them, which a row of five figures does better
+     than three cards a screen apart; the cards are still the right shape for
+     reading one plan whole, so they are the second button rather than gone. */
+  const [planLayout, setPlanLayout] = useState<"table" | "gallery">("table");
   /* Secondary filters, one per section. They live beside the section itself in
      one menu rather than as a second control that appears and disappears. */
   const [boostState, setBoostState] = useState("all");
@@ -250,7 +256,7 @@ function PricingPage() {
   return (
     <>
       <PageHead
-        title="Subscriptions & boosts"
+        title="Subscriptions & Boosts"
         sub={
           loading
             ? "Reading the ledger…"
@@ -333,6 +339,7 @@ function PricingPage() {
                   }`
           }
           right={
+            <div className="gm-row" style={{ gap: 8 }}>
             <FilterMenu
               /* The section is not a filter any more, so it is not counted
                  as one. What is applied is whatever cuts the table showing. */
@@ -383,6 +390,11 @@ function PricingPage() {
                   : []),
               ]}
             />
+            {/* Only over the plans. Boosts and billing are already tables, and
+                a switch offering a second view of something that has none is a
+                control that does nothing on two tabs out of three. */}
+            {tab === "plans" ? <ViewToggle value={planLayout} onChange={setPlanLayout} /> : null}
+            </div>
           }
         />
 
@@ -428,6 +440,92 @@ function PricingPage() {
                   title="No plans configured"
                   body="The API returned no plan. Check STRIPE_PRICE_* and read from Stripe."
                 />
+              </Card>
+            ) : planLayout === "table" ? (
+              <Card>
+                <div className="gm-tablewrap">
+                  {/* Five columns. What is compared across plans is the price,
+                      how many are on it and what that brings in; the quota is
+                      the one term of the plan that changes the answer to
+                      "should this member be upgraded". The blurb, the perks,
+                      the Stripe price id and the cancelled and comped counts
+                      are on the card, where there is room to read one plan
+                      rather than three. */}
+                  <table className="gm-table">
+                    <thead>
+                      <tr>
+                        <th>Plan</th>
+                        <th>Price</th>
+                        <th>On it</th>
+                        <th>Brings in</th>
+                        <th>Quota</th>
+                        <th className="gm-rowend">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plans.map((p) => (
+                        <tr key={p.id}>
+                          <td>
+                            <div className="gm-cell2">
+                              <b>{shortPlanName(p.name)}</b>
+                              {/* Where the figure beside it came from. A price
+                                  Stripe has confirmed and one the API fell back
+                                  to look identical, and only one of them is
+                                  what anybody is charged. */}
+                              <span>
+                                {p.syncedAt
+                                  ? `From Stripe · read ${shortDate(p.syncedAt)}`
+                                  : "Not read from Stripe yet"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="gm-amount">
+                            {aud(p.price)}
+                            <span className="gm-dim">
+                              {" "}
+                              {p.currency !== "AUD" ? `${p.currency} ` : ""}/{p.interval}
+                            </span>
+                          </td>
+                          <td>
+                            {p.subscribers > 0 ? (
+                              <Badge tone="ok">{p.subscribers.toLocaleString("en-AU")} on it</Badge>
+                            ) : (
+                              <Badge tone="idle">Nobody yet</Badge>
+                            )}
+                          </td>
+                          <td className="gm-amount">{aud(p.mrr)} a month</td>
+                          <td className="gm-sm gm-muted gm-nowrap">
+                            {p.quota === null
+                              ? "No ceiling"
+                              : `${p.quota} live listing${p.quota === 1 ? "" : "s"}`}
+                          </td>
+                          <td className="gm-rowend">
+                            <div className="gm-rowact">
+                              {/* A plan has no record page of its own — its
+                                  record is at Stripe — so the row keeps the
+                                  card's one action rather than inventing a
+                                  route. Absent for a role that cannot write
+                                  settings, or when the API cannot reach
+                                  Stripe: a control that cannot work is worse
+                                  than one that is not there. */}
+                              {canEditPlans ? (
+                                <button
+                                  type="button"
+                                  className="gm-btn gm-btn--sm gm-btn--icon"
+                                  onClick={() => startEdit(p)}
+                                  title="Edit at Stripe"
+                                  aria-label={`Edit ${shortPlanName(p.name)} at Stripe`}
+                                >
+                                  <IconTag />
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </Card>
             ) : (
             <div className="gm-grid gm-grid--3 gm-plans">

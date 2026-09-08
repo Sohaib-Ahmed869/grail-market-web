@@ -22,7 +22,14 @@ import {
   Toast,
   ViewToggle,
 } from "../components/ui";
-import { IconDownload, IconEye, IconListing, IconSearch } from "../components/icons";
+import {
+  IconBan,
+  IconCheck,
+  IconDownload,
+  IconEye,
+  IconListing,
+  IconSearch,
+} from "../components/icons";
 import { Gate } from "../components/Gate";
 import { exportCsv } from "../lib/csv";
 
@@ -41,7 +48,7 @@ import { exportCsv } from "../lib/csv";
 const VIEWS = [
   { key: "queue", label: "Needs a decision", statuses: ["awaiting", "in-review"] },
   { key: "seller", label: "Waiting on seller", statuses: ["info-requested"] },
-  { key: "market", label: "On the market", statuses: ["live", "sold", "paused"] },
+  { key: "market", label: "On the market", statuses: ["live", "sold", "reserved", "paused"] },
   { key: "closed", label: "Off the market", statuses: ["withdrawn", "rejected"] },
   { key: "all", label: "All", statuses: [] },
 ] as const;
@@ -49,7 +56,7 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]["key"];
 
 /** Rows per page. A queue is read a screenful at a time, not scrolled. */
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 6;
 
 /** Hold the search box still for a moment before asking the database. */
 function useDebounced(value: string, ms: number) {
@@ -229,7 +236,7 @@ function ListingsPage() {
                   options: [
                     { value: "all", label: "All tiers" },
                     { value: "grail", label: "Grail" },
-                    { value: "high-value", label: "High value" },
+                    { value: "high-value", label: "High" },
                     { value: "standard", label: "Standard" },
                   ],
                 },
@@ -345,11 +352,13 @@ function ListingsPage() {
                               grey circle drawn from a name the console does
                               not otherwise show — it identified nobody and
                               took a column's worth of width to do it. */}
+                          {/* The handle alone. The sale count and the rating
+                              were a second line under it and neither is a
+                              thing a decision turns on — they are on the
+                              record page, where the seller is the subject
+                              rather than a column. */}
                           <div className="gm-cell2">
                             <b>{l.seller.handle}</b>
-                            <span>
-                              {l.seller.sales} sales · {l.seller.rating.toFixed(1)}★
-                            </span>
                           </div>
                         </td>
                         {/* A column each. They read together — a grail
@@ -394,18 +403,22 @@ function ListingsPage() {
                             {l.status === "live" ? (
                               <button
                                 type="button"
-                                className="gm-btn gm-btn--sm gm-btn--danger"
+                                className="gm-btn gm-btn--sm gm-btn--icon gm-btn--danger gm-btn--withdraw"
                                 onClick={() => setMarketStatus(l, "withdraw", "Withdrawn")}
+                                title="Withdraw"
+                                aria-label="Withdraw"
                               >
-                                Withdraw
+                                <IconBan />
                               </button>
                             ) : l.status === "paused" ? (
                               <button
                                 type="button"
-                                className="gm-btn gm-btn--sm gm-btn--gold"
+                                className="gm-btn gm-btn--sm gm-btn--icon gm-btn--gold"
                                 onClick={() => setMarketStatus(l, "resume", "Back on the market")}
+                                title="Back on the market"
+                                aria-label="Back on the market"
                               >
-                                Resume
+                                <IconCheck />
                               </button>
                             ) : null}
                             {/* A link, not a button that opens a window over
@@ -414,9 +427,19 @@ function ListingsPage() {
                                 in a second tab, and left with the browser's own
                                 back. Pausing a live listing lives there too —
                                 it is the third action, and the row holds two. */}
-                            <Link className="gm-btn gm-btn--sm" href={`/admin/listings/${l.id}`}>
+                            {/* Icons only, asked for. The word each one carried
+                                moves to `title` and `aria-label` rather than
+                                being dropped: a bare glyph is unreadable to a
+                                screen reader and ambiguous on a first visit,
+                                and "Withdraw" and "Review" are not actions to
+                                guess at. */}
+                            <Link
+                              className="gm-btn gm-btn--sm gm-btn--icon"
+                              href={`/admin/listings/${l.id}`}
+                              title={waiting ? "Review" : "Open"}
+                              aria-label={waiting ? "Review" : "Open"}
+                            >
                               <IconEye />
-                              {waiting ? "Review" : "Open"}
                             </Link>
                           </div>
                         </td>
