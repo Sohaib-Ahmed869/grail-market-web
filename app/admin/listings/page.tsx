@@ -8,13 +8,13 @@ import { ApiError, setMarketState, useListings } from "../lib/api";
 import {
   Badge,
   Card,
-  CardHead,
   Empty,
   ListingBadge,
   Loading,
   Note,
   FilterMenu,
   PageHead,
+  Pagination,
   Slab,
   Tier,
   GameChip,
@@ -47,6 +47,9 @@ const VIEWS = [
 ] as const;
 
 type View = (typeof VIEWS)[number]["key"];
+
+/** Rows per page. A queue is read a screenful at a time, not scrolled. */
+const PAGE_SIZE = 10;
 
 /** Hold the search box still for a moment before asking the database. */
 function useDebounced(value: string, ms: number) {
@@ -81,6 +84,13 @@ function ListingsPage() {
   const { data, error, loading, reload } = useListings({ view, search: debounced, tier });
   const rows = data?.listings ?? [];
   const counts = data?.counts ?? { queue: 0, seller: 0, market: 0, closed: 0, all: 0 };
+
+  const [page, setPage] = useState(1);
+  /* Whichever tab, tier or search brought this set of rows into being, page 1
+     is where it should be read from — carrying a page index across a change
+     of filter lands a moderator on a page that may no longer exist. */
+  useEffect(() => setPage(1), [view, tier, debounced]);
+  const shown = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const [toast, setToast] = useState<{
     title: string;
@@ -172,64 +182,64 @@ function ListingsPage() {
           </Note>
         ) : null}
 
-        <Card>
-          <CardHead
-            title="Listings"
-            sub={
-              loading
-                ? "Reading the queue…"
-                : `${VIEWS.find((v) => v.key === view)!.label} · ${rows.length} of ${counts.all}${
-                    tier === "all" ? "" : ` · ${tier === "high-value" ? "high value" : tier} tier`
-                  }`
-            }
-            right={
-              <div className="gm-row" style={{ gap: 8 }}>
-                <div className="gm-search" style={{ width: 224 }}>
-                  <IconSearch />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Card, cert, listing id, seller…"
-                    aria-label="Search listings"
-                  />
-                </div>
-                <FilterMenu
-                  applied={(view === "all" ? 0 : 1) + (tier === "all" ? 0 : 1)}
-                  onClear={() => {
-                    setView("all");
-                    setTier("all");
-                  }}
-                  groups={[
-                    {
-                      key: "view",
-                      label: "Where it is",
-                      value: view,
-                      onChange: (v) => setView(v as View),
-                      options: VIEWS.map((v) => ({
-                        value: v.key,
-                        label: v.label,
-                        count: counts[v.key] ?? 0,
-                      })),
-                    },
-                    {
-                      key: "tier",
-                      label: "Tier",
-                      value: tier,
-                      onChange: (v) => setTier(v as typeof tier),
-                      options: [
-                        { value: "all", label: "All tiers" },
-                        { value: "grail", label: "Grail" },
-                        { value: "high-value", label: "High value" },
-                        { value: "standard", label: "Standard" },
-                      ],
-                    },
-                  ]}
-                />
-                <ViewToggle value={layout} onChange={setLayout} />
-              </div>
-            }
-          />
+        {/* The card now holds only the table; the controls that filter it sit
+            above it, here, where they read as belonging to the page rather
+            than as part of the data underneath them. */}
+        <div className="gm-tablebar">
+          <span className="gm-tablebar-count">
+            {loading
+              ? "Reading the queue…"
+              : `${VIEWS.find((v) => v.key === view)!.label} · ${rows.length} of ${counts.all}${
+                  tier === "all" ? "" : ` · ${tier === "high-value" ? "high value" : tier} tier`
+                }`}
+          </span>
+          <div className="gm-row" style={{ gap: 8 }}>
+            <div className="gm-search" style={{ width: 224 }}>
+              <IconSearch />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Card, cert, listing id, seller…"
+                aria-label="Search listings"
+              />
+            </div>
+            <FilterMenu
+              applied={(view === "all" ? 0 : 1) + (tier === "all" ? 0 : 1)}
+              onClear={() => {
+                setView("all");
+                setTier("all");
+              }}
+              groups={[
+                {
+                  key: "view",
+                  label: "Where it is",
+                  value: view,
+                  onChange: (v) => setView(v as View),
+                  options: VIEWS.map((v) => ({
+                    value: v.key,
+                    label: v.label,
+                    count: counts[v.key] ?? 0,
+                  })),
+                },
+                {
+                  key: "tier",
+                  label: "Tier",
+                  value: tier,
+                  onChange: (v) => setTier(v as typeof tier),
+                  options: [
+                    { value: "all", label: "All tiers" },
+                    { value: "grail", label: "Grail" },
+                    { value: "high-value", label: "High value" },
+                    { value: "standard", label: "Standard" },
+                  ],
+                },
+              ]}
+            />
+            <ViewToggle value={layout} onChange={setLayout} />
+          </div>
+        </div>
 
+        <Card>
           {/* Loading and empty are different answers and must not share a
               screen: "No listing matches that tab" while the request is still
               in flight tells a moderator their filter is wrong when it is not. */}
@@ -243,7 +253,7 @@ function ListingsPage() {
             />
           ) : layout === "gallery" ? (
             <div className="gm-gallery">
-              {rows.map((l) => (
+              {shown.map((l) => (
                   <CardTile
                     key={l.id}
                     slab={<Slab grader={l.grader} grade={l.grade} art={l.art} size="lg" />}
@@ -309,7 +319,7 @@ function ListingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((l) => {
+                  {shown.map((l) => {
                     const waiting = IN_QUEUE.includes(l.status);
                     return (
                       <tr key={l.id}>
@@ -417,6 +427,9 @@ function ListingsPage() {
               </table>
             </div>
           )}
+          {/* A queue that grows past a screenful becomes a scroll with no
+              sense of how much is left; the count above answers that. */}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />
         </Card>
       </div>
 

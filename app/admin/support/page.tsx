@@ -12,12 +12,12 @@ import { ApiError, fetchTickets, openTicket, type AdminTicket } from "../lib/api
 import {
   Badge,
   Card,
-  CardHead,
   Empty,
   Modal,
   Loading,
   Note,
   PageHead,
+  Pagination,
   PriorityBadge,
   FilterMenu,
   Toast,
@@ -90,6 +90,9 @@ const PRIORITIES: { key: string; label: string }[] = [
 
 /* Linked from the sidebar as `?status=new` and friends. */
 const STATUSES = FILTERS.map((f) => f.key as string);
+
+/** Rows per page. A queue is read a screenful at a time, not scrolled. */
+const PAGE_SIZE = 10;
 
 function SupportPage() {
   const router = useRouter();
@@ -168,6 +171,14 @@ function SupportPage() {
     });
   }, [mine, filter, priority, query]);
 
+  const [page, setPage] = useState(1);
+  /* Whichever filter, priority or search brought this set of rows into
+     being, page 1 is where it should be read from — carrying a page index
+     across a change of filter lands an agent on a page that may no longer
+     exist. */
+  useEffect(() => setPage(1), [filter, priority, query]);
+  const shown = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   /* Anything unanswered and past its target — the number the desk is judged
      on, and the reason the queue is ordered the way it is. */
   const breaching = mine.filter(
@@ -235,64 +246,59 @@ function SupportPage() {
           </Note>
         ) : null}
 
+        {/* The card now holds only the table; the controls that filter it sit
+            above it, here, where they read as belonging to the page rather
+            than as part of the data underneath them. */}
+        <div className="gm-tablebar">
+          <span className="gm-tablebar-count">
+            {loading && rows.length === 0
+              ? "Reading the queue…"
+              : `${FILTERS.find((f) => f.key === filter)!.label} · ${list.length} shown${
+                  priority === "all" ? "" : ` · ${priority} priority`
+                }`}
+          </span>
+          <div className="gm-row" style={{ gap: 8 }}>
+            <div className="gm-search" style={{ width: 224 }}>
+              <IconSearch />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Subject, ticket id, member…"
+                aria-label="Search tickets"
+              />
+            </div>
+            <FilterMenu
+              applied={(filter === "all" ? 0 : 1) + (priority === "all" ? 0 : 1)}
+              onClear={() => {
+                setFilter("all");
+                setPriority("all");
+              }}
+              groups={[
+                {
+                  key: "status",
+                  label: "Ticket state",
+                  value: filter,
+                  onChange: (v) => setFilter(v as Filter),
+                  options: FILTERS.map((f) => ({
+                    value: f.key,
+                    label: f.label,
+                    count: counts[f.key] ?? 0,
+                  })),
+                },
+                {
+                  key: "priority",
+                  label: "Priority",
+                  value: priority,
+                  onChange: setPriority,
+                  options: PRIORITIES.map((p) => ({ value: p.key, label: p.label })),
+                },
+              ]}
+            />
+          </div>
+        </div>
+
         {/* ------------------------------------------------------- the queue */}
         <Card>
-          {/* One filter language, the same as the listing queue and the case
-              board: the heading names what is shown, its subtitle spells out
-              what is applied, and the control sits beside it. A row of five
-              pills above the card said the state was the only thing you could
-              filter on, which is why priority had nowhere to live. */}
-          <CardHead
-            title="Tickets"
-            sub={
-              loading && rows.length === 0
-                ? "Reading the queue…"
-                : `${FILTERS.find((f) => f.key === filter)!.label} · ${list.length} shown${
-                    priority === "all" ? "" : ` · ${priority} priority`
-                  }`
-            }
-            right={
-              <div className="gm-row" style={{ gap: 8 }}>
-                <div className="gm-search" style={{ width: 224 }}>
-                  <IconSearch />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Subject, ticket id, member…"
-                    aria-label="Search tickets"
-                  />
-                </div>
-                <FilterMenu
-                  applied={(filter === "all" ? 0 : 1) + (priority === "all" ? 0 : 1)}
-                  onClear={() => {
-                    setFilter("all");
-                    setPriority("all");
-                  }}
-                  groups={[
-                    {
-                      key: "status",
-                      label: "Ticket state",
-                      value: filter,
-                      onChange: (v) => setFilter(v as Filter),
-                      options: FILTERS.map((f) => ({
-                        value: f.key,
-                        label: f.label,
-                        count: counts[f.key] ?? 0,
-                      })),
-                    },
-                    {
-                      key: "priority",
-                      label: "Priority",
-                      value: priority,
-                      onChange: setPriority,
-                      options: PRIORITIES.map((p) => ({ value: p.key, label: p.label })),
-                    },
-                  ]}
-                />
-              </div>
-            }
-          />
-
           {/* Loading and empty are different answers and must not share a
               screen: "Nothing matches that filter" while the request is still
               in flight tells an agent their filter is wrong when it is not. */}
@@ -331,7 +337,7 @@ function SupportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((t) => (
+                  {shown.map((t) => (
                     <tr key={t.id}>
                       <td>
                         <div className="gm-cell2">
@@ -375,6 +381,9 @@ function SupportPage() {
               </table>
             </div>
           )}
+          {/* A queue that grows past a screenful becomes a scroll with no
+              sense of how much is left; the count above answers that. */}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={list.length} onPage={setPage} />
         </Card>
       </div>
 

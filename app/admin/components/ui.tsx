@@ -407,14 +407,19 @@ export function Slab({
       }`}
       aria-hidden="true"
     >
-      {raw ? (
+      {/* The label strip and raw tag are hand-drawn pictures of the actual
+          grade printed on the slab — they were a stand-in when there was no
+          photograph. A real photograph makes the drawn label redundant: it
+          already shows the true grade, so rendering both puts a fictional
+          label on top of the real one. Hide both when art is available. */}
+      {!showArt && raw ? (
         <span className="gm-slab-raw-tag">Raw</span>
-      ) : (
+      ) : !showArt ? (
         <span className="gm-slab-label">
           <b>{grader}</b>
           <i>{grade}</i>
         </span>
-      )}
+      ) : null}
       <span className="gm-slab-window">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {showArt ? (
@@ -2513,6 +2518,101 @@ export function FilterMenu({
  * these options and no others. The selected one is filled and carries the
  * same corner radius as every button in the console.
  */
+/* ==========================================================================
+   Pagination
+
+   A queue that grows past a screenful becomes a scroll with no sense of how
+   much is left in it — and on a page whose whole job is "what is waiting",
+   not knowing how much is waiting is the one thing it must not do.
+
+   It renders nothing below the page size. A control that says "1 of 1" is a
+   control that has never once been useful, and on a console that is mostly
+   short lists it would be on screen far more often than it was needed.
+
+   The page does its own slicing. This only says where you are and moves you;
+   giving it the rows as well would make it the only component here that both
+   draws a control and decides what the page shows.
+   ========================================================================== */
+
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  /** One-based. */
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (page: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (total <= pageSize) return null;
+
+  const at = Math.min(Math.max(1, page), pages);
+  const from = (at - 1) * pageSize + 1;
+  const to = Math.min(at * pageSize, total);
+
+  /* At most seven numbers, always including the first and the last, with a
+     gap standing in for whatever is skipped. Twenty numbered buttons is a
+     worse way to reach page nine than two clicks on "next". */
+  const numbers: (number | "gap")[] = [];
+  const window = new Set<number>([1, pages, at, at - 1, at + 1]);
+  if (at <= 3) [2, 3, 4].forEach((n) => window.add(n));
+  if (at >= pages - 2) [pages - 1, pages - 2, pages - 3].forEach((n) => window.add(n));
+  const sorted = [...window].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
+  sorted.forEach((n, i) => {
+    if (i > 0 && n - sorted[i - 1] > 1) numbers.push("gap");
+    numbers.push(n);
+  });
+
+  return (
+    <nav className="gm-pager" aria-label="Pages">
+      <span className="gm-pager-count">
+        {from}–{to} of {total}
+      </span>
+      <div className="gm-pager-controls">
+        <button
+          type="button"
+          className="gm-pager-step"
+          onClick={() => onPage(at - 1)}
+          disabled={at === 1}
+          aria-label="Previous page"
+        >
+          <IconArrowLeft />
+        </button>
+        {numbers.map((n, i) =>
+          n === "gap" ? (
+            <span key={`gap-${i}`} className="gm-pager-gap" aria-hidden>
+              …
+            </span>
+          ) : (
+            <button
+              key={n}
+              type="button"
+              className={`gm-pager-n${n === at ? " is-active" : ""}`}
+              onClick={() => onPage(n)}
+              aria-current={n === at ? "page" : undefined}
+              aria-label={`Page ${n}`}
+            >
+              {n}
+            </button>
+          ),
+        )}
+        <button
+          type="button"
+          className="gm-pager-step"
+          onClick={() => onPage(at + 1)}
+          disabled={at === pages}
+          aria-label="Next page"
+        >
+          <IconArrowRight />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 /* ==========================================================================
    Row menu — the actions on a row, behind one control
 
