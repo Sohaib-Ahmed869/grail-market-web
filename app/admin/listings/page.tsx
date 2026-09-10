@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { IN_QUEUE, money } from "../lib/data";
 import { ApiError, setMarketState, useListings } from "../lib/api";
@@ -58,6 +58,49 @@ type View = (typeof VIEWS)[number]["key"];
 /** Rows per page. A queue is read a screenful at a time, not scrolled. */
 const PAGE_SIZE = 6;
 
+/** How many rows of cards the gallery pages by. See `useGalleryPageSize`. */
+const GALLERY_ROWS = 2;
+
+/**
+ * The gallery's page size, in cards that actually fit.
+ *
+ * Six was a fixed number chosen against no particular width, and `.gm-gallery`
+ * is `repeat(auto-fill, minmax(232px, 1fr))` — so on a wide screen six cards
+ * is four across and two adrift, with the pagination bar drawn under half a
+ * row of empty card. The page size has to be whatever the grid decided, times
+ * the number of rows we want to show.
+ *
+ * The column count is read off the computed `grid-template-columns` rather
+ * than divided out of a width by hand: `auto-fill` generates its tracks
+ * whether or not there are cards to sit in them, so the track list is the
+ * grid's own answer and stays right through every gap, padding and breakpoint
+ * change without this having to know about any of them.
+ *
+ * In an effect, never in render — a layout read during render is exactly the
+ * `window` in the render path that fails `next build` during prerender. Zero
+ * until the first measurement, and the caller falls back to `PAGE_SIZE` until
+ * then, so the first paint is a full page rather than an empty one.
+ */
+function useGalleryColumns(on: boolean) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [cols, setCols] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el) return;
+    const read = () => {
+      const tracks = getComputedStyle(el).gridTemplateColumns;
+      setCols(tracks ? tracks.split(" ").filter(Boolean).length : 0);
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [on]);
+
+  return { ref, cols };
+}
+
 /** Hold the search box still for a moment before asking the database. */
 function useDebounced(value: string, ms: number) {
   const [held, setHeld] = useState(value);
@@ -97,7 +140,23 @@ function ListingsPage() {
      is where it should be read from — carrying a page index across a change
      of filter lands a moderator on a page that may no longer exist. */
   useEffect(() => setPage(1), [view, tier, debounced]);
-  const shown = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  /* The table pages by a fixed six; the gallery pages by what fits. */
+  const gallery = useGalleryColumns(layout === "gallery");
+  const pageSize =
+    layout === "gallery" && gallery.cols > 0 ? gallery.cols * GALLERY_ROWS : PAGE_SIZE;
+
+  /* A window that narrows takes the page count down with it, and the page you
+     were on can stop existing — four across at 1440 is two pages of eight, two
+     across at 900 is four pages of four, and page 4 of the first is nothing at
+     all. Land on the last page that still holds something rather than on a
+     card that says the queue is empty when it is not. */
+  const lastPage = Math.max(1, Math.ceil(rows.length / pageSize));
+  useEffect(() => {
+    setPage((p) => Math.min(p, Math.max(1, Math.ceil(rows.length / pageSize))));
+  }, [pageSize, rows.length]);
+  const safePage = Math.min(page, lastPage);
+  const shown = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const [toast, setToast] = useState<{
     title: string;
@@ -246,20 +305,32 @@ function ListingsPage() {
           </div>
         </div>
 
-        <Card>
-          {/* Loading and empty are different answers and must not share a
-              screen: "No listing matches that tab" while the request is still
-              in flight tells a moderator their filter is wrong when it is not. */}
-          {loading ? (
+        {/* The card is the TABLE's frame, not the queue's. A table needs
+            something to be ruled inside; a gallery does not, and a second
+            white rectangle behind a grid of white tiles only draws a box
+            around a box. The conduct board has always put its cards on the
+            page's own paper — this is the same split, and the support desk
+            carries it too.
+
+            Loading and empty are different answers and must not share a
+            screen: "No listing matches that tab" while the request is still
+            in flight tells a moderator their filter is wrong when it is not.
+            Both of those keep a card, because both are one message in the
+            middle of a frame rather than a grid. */}
+        {loading ? (
+          <Card>
             <Loading label="Reading the queue…" />
-          ) : rows.length === 0 ? (
+          </Card>
+        ) : rows.length === 0 ? (
+          <Card>
             <Empty
               icon={<IconListing />}
               title="Nothing here"
               body="No listing matches that tab, tier or search."
             />
-          ) : layout === "gallery" ? (
-            <div className="gm-gallery">
+          </Card>
+        ) : layout === "gallery" ? (
+            <div className="gm-gallery" ref={gallery.ref}>
               {shown.map((l) => (
                   <CardTile
                     key={l.id}
@@ -297,6 +368,7 @@ function ListingsPage() {
               ))}
             </div>
           ) : (
+          <Card>
             <div className="gm-tablewrap">
               {/* Five columns, not seven, and not the nine it started with.
 
@@ -320,8 +392,10 @@ function ListingsPage() {
                   <tr>
                     <th>Card</th>
                     <th>Seller</th>
-                    <th>Tier</th>
-                    <th>State</th>
+                    <th className="gm-chipcol"><span>Tier</span></th>
+                    <th className="gm-chipcol gm-chipcol--wide">
+                      <span>State</span>
+                    </th>
                     <th className="gm-rowend">Action</th>
                   </tr>
                 </thead>
@@ -347,26 +421,32 @@ function ListingsPage() {
                             </div>
                           </div>
                         </td>
-                        <td>
+                        <td className="gm-nowrap">
                           {/* No avatar. Every seller here has initials on a
                               grey circle drawn from a name the console does
                               not otherwise show — it identified nobody and
                               took a column's worth of width to do it. */}
-                          {/* The handle alone. The sale count and the rating
-                              were a second line under it and neither is a
-                              thing a decision turns on — they are on the
-                              record page, where the seller is the subject
-                              rather than a column. */}
-                          <div className="gm-cell2">
-                            <b>{l.seller.handle}</b>
-                          </div>
+                          {/* The handle alone, at the row's own weight. The
+                              sale count and the rating were a second line
+                              under it and neither is a thing a decision turns
+                              on — they are on the record page, where the
+                              seller is the subject rather than a column.
+
+                              And with that second line gone the bold went
+                              with it. `.gm-cell2 b` is the heavier half of a
+                              "name over a muted line" pair, which is what
+                              gives it something to stand off; a lone bolded
+                              handle in every row of a queue is just a column
+                              of weight to read past. The conduct board's
+                              Against column has printed it plain all along. */}
+                          {l.seller.handle}
                         </td>
                         {/* A column each. They read together — a grail
                             awaiting review is a different job from a standard
                             one — but sharing a cell meant neither could be
                             scanned down on its own, which is what a column is
                             for. */}
-                        <td>
+                        <td className="gm-chipcol">
                           <Tier tier={l.tier} />
                         </td>
                         {/* One line, so the state chip sits level with the
@@ -377,17 +457,16 @@ function ListingsPage() {
                             should read across as one row read as two. Both
                             facts are on the record, where there is room to say
                             what they are. */}
-                        <td>
-                          <div className="gm-row" style={{ gap: 6 }}>
-                            <ListingBadge status={l.status} />
-                            {/* Not a clock on every row — only the ones that
-                                have run out. A number counting down beside
-                                fifteen listings is noise; the four that are
-                                late are the queue's actual order. */}
-                            {waiting && l.slaHours < 0 ? (
-                              <Badge tone="bad">{Math.abs(l.slaHours)}h over</Badge>
-                            ) : null}
-                          </div>
+                        {/* The state, and nothing beside it. An "Nh over"
+                            marker used to ride along on the late rows, which
+                            put a second chip in a column that is read by
+                            scanning one — and now that the column is centred,
+                            a row with two chips is the one row whose state
+                            does not sit where every other state sits. The
+                            queue is still ordered by that clock and the record
+                            still carries the number. */}
+                        <td className="gm-chipcol gm-chipcol--wide">
+                          <ListingBadge status={l.status} />
                         </td>
                         {/* Two buttons at most, and usually one.
 
@@ -449,11 +528,20 @@ function ListingsPage() {
                 </tbody>
               </table>
             </div>
-          )}
-          {/* A queue that grows past a screenful becomes a scroll with no
-              sense of how much is left; the count above answers that. */}
-          <Pagination page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />
-        </Card>
+          </Card>
+        )}
+
+        {/* A queue that grows past a screenful becomes a scroll with no sense
+            of how much is left; the count above answers that. Outside the
+            card, because in gallery view there is no card for it to sit in
+            and it must not move between the two views. */}
+        <Pagination
+          page={safePage}
+          pageSize={pageSize}
+          total={rows.length}
+          onPage={setPage}
+          bare
+        />
       </div>
 
       {toast ? (

@@ -151,6 +151,13 @@
      beside it */
   --control-h: 34px;
 
+  /* The floor every badge and tier chip takes in a table cell, so a column of
+     them is a column rather than a ragged edge. Measured, not guessed — see
+     the note by `.gm-table td .gm-badge`. It is a token because a heading
+     that centres itself over the chip below it has to be given the same
+     width, and two copies of 88 would drift the moment one moved. */
+  --chip-w: 88px;
+
   /* -- geometry ----------------------------------------------------- */
   /* Two states, never both: the sidebar is either the rail or the panel, so
      its width is one or the other rather than the sum. */
@@ -158,6 +165,22 @@
   --panel-w: 264px;
   --sidebar-w: var(--panel-w);
   --topbar-h: 68px;
+
+  /* -- the effective page zoom, written down ------------------------
+     Above 1600 the console scales itself with `zoom` on :root — see the
+     ladder at the foot of this file. `zoom` reflows, but it does not
+     touch the viewport units: `100vh` still resolves to the window's
+     height in CSS pixels and that value is THEN multiplied by the zoom,
+     so a box asking for `100vh` at 1920 (zoom 1.25) is painted 1350
+     pixels tall and 270 of them are below the bottom of the screen.
+
+     That was a phantom scroll on every route in the console — the page
+     ran out of content and the sidebar kept going. Anything sized
+     against the window divides by this instead: `100vh / var(--gm-zoom)`.
+     CSS cannot read its own effective zoom, so this list has to agree
+     with the `zoom` ladder by hand; the two are set in the same media
+     queries down there so they cannot drift apart. */
+  --gm-zoom: 1;
 
   color: var(--ink);
   font-family: var(--font-admin), Outfit, system-ui, -apple-system, "Segoe UI",
@@ -264,11 +287,26 @@
 }
 
 /* Firefox and Chromium both default to a dark thumb, which reads as a black
-   bar on a light panel. Colour it from the tokens so it follows the theme. */
-.gm *,
-.gm *::-webkit-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
+   bar on a light panel. Colour it from the tokens so it follows the theme.
+ *
+ * The standard properties are for FIREFOX ONLY, and the `@supports` around
+ * them is load-bearing rather than tidiness. From Chrome 121 an element that
+ * sets `scrollbar-width` or `scrollbar-color` is drawn with the platform
+ * scrollbar and every `::-webkit-scrollbar` rule below it is ignored — the
+ * thumb, the transparent track, and the one that hides the end buttons. That
+ * is how a grey arrow came back to the top corner of the sidebar panel long
+ * after the fix for it was written: the fix was still here, and Chrome was no
+ * longer reading it. `selector(::-webkit-scrollbar)` is true in Chrome and
+ * false in Firefox, so each engine gets exactly the half it can use.
+ *
+ * Nothing below may restate these two properties on a scroller of its own.
+ * One `scrollbar-width: thin` on one element is enough to hand that element
+ * back to the platform, arrows and all. */
+@supports not selector(::-webkit-scrollbar) {
+  .gm * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
 }
 
 .gm ::-webkit-scrollbar {
@@ -294,6 +332,33 @@
 
 .gm ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* No end buttons.
+ *
+ * Styling any part of a webkit scrollbar switches Chrome out of the platform
+ * scrollbar and into the custom one — and the custom one draws its two end
+ * buttons unless it is told not to. Unstyled, they came out as bare grey
+ * triangles: on the sidebar the top one sat against the panel's rounded
+ * corner and read as an arrow poking out of the card. The thumb is the whole
+ * control in this console; there is nothing for a step button to do. */
+.gm ::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Keep the whole control on the paper it belongs to.
+ *
+ * A scrollbar is painted in the padding box and a border radius does not clip
+ * it, so on a card with a 20px corner the first and last few pixels of the
+ * track sit where the card's own background has already curved away. The
+ * thumb's cap ends up floating on the page beside the card, which is the same
+ * complaint the end buttons drew and has the same answer: inset the track by
+ * the corner it lives in. Only a scroller that rounds its own corners needs
+ * this — a table's frame is square where its scrollbar runs. */
+.gm-panel::-webkit-scrollbar-track {
+  margin-block: var(--r-md);
 }
 
 /* --------------------------------------------------------------------------
@@ -345,7 +410,7 @@
 
 .gm-shell {
   position: relative;
-  min-height: 100vh;
+  min-height: calc(100vh / var(--gm-zoom));
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   background: var(--paper);
@@ -454,7 +519,7 @@
 .gm-side {
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: calc(100vh / var(--gm-zoom));
   display: flex;
   align-items: stretch;
   /* its own ground, so the nav separates from the paper rather than floating
@@ -473,15 +538,19 @@
      already carries its own hover transition and must not be slowed down. */
   transition: background-color 0.22s ease, border-color 0.22s ease;
 
-  /* Rounded on the right only. The left edge is the edge of the screen, so
-     there is no corner there to round — a radius on that side would show a
-     sliver of paper in the gap and read as a misalignment rather than as a
-     card. Everything else in the console is a rounded box; the nav being the
-     one square-cornered surface was the odd one out. */
-  border-radius: 0 var(--r-md) var(--r-md) 0;
-  /* The gradient is painted on this element, so it has to be told to stop at
-     the rounded corners rather than filling the square behind them. */
-  overflow: hidden;
+  /* No radius and no clip.
+   *
+   * Both were here for a fill this element no longer has: it painted the wash,
+   * the right-hand border and the shadow once, and the radius plus
+   * `overflow: hidden` were what stopped that gradient filling the square
+   * behind its own rounded corners. The panel inside paints now, and a clip
+   * on the column is a clip on the panel's shadow — cut off flat down the
+   * right-hand side and square at each corner, which is the artefact that
+   * showed against the topbar.
+   *
+   * The folded state worked this out first and set `overflow: visible` back
+   * over the top of this, for the same reason in the same words. It no longer
+   * has to: there is nothing left here to undo. */
 }
 
 /* Folded, the rail is a card standing off the page — so the strip it used to
@@ -495,11 +564,6 @@
   backdrop-filter: none;
   border-right: 0;
   box-shadow: none;
-  /* Both of these belong to the open panel. Folded, the rail card is the only
-     thing here and it casts its own shadow past this box — clipping to a
-     rounded rectangle would cut it square all over again. */
-  border-radius: 0;
-  overflow: visible;
 }
 
 /* ------------------------------------------------------------------ rail */
@@ -729,8 +793,6 @@
   box-shadow: var(--sh-2), var(--edge);
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
 }
 
 .gm-panel-head {
@@ -1559,11 +1621,20 @@
   margin: 4px -4px -8px;
   padding: 10px 4px 12px;
   /* The page scrolls under it, so it needs something to sit on. A fade rather
-     than a hard edge: a solid bar reads as a second page footer. */
+     than a hard edge: a solid bar reads as a second page footer.
+   *
+   * It fades to `--wash-bot`, not to `--paper`. The page is not painted in
+   * `--paper` — `.gm-shell::before` lays a fixed gold-tinted wash over the
+   * whole viewport, and `--wash-bot` is the colour that wash has reached by
+   * the bottom of the window, which is where a sticky bar always sits. Faded
+   * to `--paper` this was a cool grey rectangle with square corners sitting
+   * on a warm page: on a short record, where the bar has nothing scrolling
+   * under it to justify a backdrop at all, that read as a second box drawn
+   * behind the buttons and hanging out below them. */
   background: linear-gradient(
     to top,
-    var(--paper) 0%,
-    var(--paper) 62%,
+    var(--wash-bot) 0%,
+    var(--wash-bot) 62%,
     transparent 100%
   );
 }
@@ -1908,7 +1979,6 @@
  * space it has, and a block-level box already fills what is left. */
 .gm-tablewrap {
   overflow-x: auto;
-  scrollbar-width: thin;
   margin: 4px 12px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -2186,12 +2256,133 @@
    its heading's, and the column reads as one column. */
 .gm-table td .gm-badge,
 .gm-table td .gm-tier {
-  min-width: 88px;
+  min-width: var(--chip-w);
   justify-content: flex-start;
 }
 
 .gm-table td .gm-tier {
   width: auto;
+}
+
+/* CHIP COLUMNS — the word centred in the pill, and the heading over it.
+ *
+ * `gm-chipcol` goes on the `<th>` AND on every `<td>` of the column, the way
+ * `gm-pickcol`, `gm-rowend` and `gm-actions` already do — a column is the one
+ * thing a table cannot express in CSS on its own, so it is said in the markup
+ * at both ends.
+ *
+ * Both ends are the point. Ranged left was the console's default and the
+ * reason is above: the word starts one pill-padding after its heading does,
+ * so the two line up. Centre the chip and leave the heading alone and that
+ * agreement breaks — the word walks to the middle of the pill and the heading
+ * is left standing at the pill's border, a pill-padding out from what it
+ * names, which reads as the heading of the column beside it.
+ *
+ * So the heading is given the chip's own width and centred inside it. It is
+ * an inline-block around the label rather than `text-align: center` on the
+ * cell: `table-layout: auto` hands a column whatever slack is going — the
+ * verification queue's tier cell is 188px around an 88px chip — so centring
+ * in the CELL would put the heading in the middle of the empty half to the
+ * right of the chips rather than over them. The `<span>` in the markup is
+ * what this needs.
+ *
+ * Not every chip in a `td` is a chip column. Two cells are skipped on purpose:
+ * the billing table's Event cell, which has a reason line under the chip that
+ * would then be out of line with it, and the announcements When cell, which
+ * holds a date on most rows and a chip on some. And the dashboard's queue
+ * extract is skipped as a table — `.gm-table--tight` opts out of the width
+ * floor below because six columns in ~825px is what made it scroll sideways,
+ * and with no shared width there is nothing for a heading to be centred over.
+ */
+.gm-table th.gm-chipcol > span {
+  display: inline-block;
+  min-width: var(--chip-w);
+  text-align: center;
+}
+
+.gm-table td.gm-chipcol .gm-badge,
+.gm-table td.gm-chipcol .gm-tier {
+  min-width: var(--chip-w);
+  justify-content: center;
+}
+
+/* The columns whose longest label does not fit the 88px floor.
+ *
+ * A centred column only lines up if every pill in it is the same width — a
+ * 104px pill and an 88px one share a left edge, so their words do NOT share a
+ * centre, and the column comes out ragged in exactly the way the floor exists
+ * to prevent. So a column that can produce a long label states a floor that
+ * covers its OWN longest label, and every pill in it grows to that.
+ *
+ * Measured with the chips drawn, not guessed, and 16px apart above the floor.
+ *
+ *   88  (no modifier)  tier 72.7 · standing 78 · priority 62.7 · group 65.8
+ *   112 --wide         "Info Requested" 104.5 · "12h to first reply" 109.7
+ *                      "Support · Tier 2" 104.9 · "Recorded only" 100.3
+ *   128 --wider        the conduct board's "Awaiting evidence" 123.1
+ *   144 --widest       the billing desk's "Checkout abandoned" 140.5
+ *
+ * Each step is the column's own longest label and nothing else's. Putting the
+ * whole console on the widest of them would leave "Paid" in the middle of
+ * 144px of nothing, which is the complaint that took the floor down from 114
+ * to 88 in the first place. Read the other way, a column that needs a fifth
+ * step is a label that wants shortening: "Checkout abandoned" is what makes
+ * the billing column 144, and "Abandoned" would put it back at 112. */
+.gm-table .gm-chipcol--wide {
+  --chip-w: 112px;
+}
+
+.gm-table .gm-chipcol--wider {
+  --chip-w: 128px;
+}
+
+.gm-table .gm-chipcol--widest {
+  --chip-w: 144px;
+}
+
+/* `.gm-scope` is a chip too — the softer grey one — and in a column of its own
+   it lines up like any other. Not in the general floor above, because the
+   roles table's Sees cell holds a whole row of them and 88px each would be a
+   paragraph of chips. */
+.gm-table td.gm-chipcol .gm-scope {
+  min-width: var(--chip-w);
+  justify-content: center;
+}
+
+/* ==========================================================================
+   CONTROL COLUMNS — one width for a column of selects or switches
+
+   The same complaint as a chip column, one step along: a `Block` dropdown and
+   a `Flag` one shrink-wrap to their words, so a column of them is a ragged
+   right edge that moves row by row. `gm-ctlcol` gives the column one width,
+   and like `gm-chipcol` it goes on the `<th>` and every `<td>` of it.
+
+   What it does NOT do is centre the heading over the control, which is the
+   one way it differs from a chip column and it is deliberate. A chip is a
+   word with a ring drawn round it, so the word is the thing and the heading
+   belongs over the word. A control is a box you click, its label is ranged
+   left inside it because that is where a value starts, and the heading
+   belongs at the box's leading edge — which is where a plain `<th>` already
+   is. Centring the heading of a select column would leave it floating over
+   the middle of a control whose text starts at the left.
+
+   `--ctl-w` is stated per column for the same reason `--chip-w` is: measured
+   off the longest option the column can show. 96 covers the banned-terms
+   list's "Block" (82.1); `--wide` covers the interceptor's "Escalate to Trust
+   & safety" (206.2), which is the longest option anywhere in the console and
+   the only reason that step exists. Truncating it to fit a narrower column
+   was the other way out and it is the wrong one — "Escalate to Trust &…"
+   reads as a different decision from the one it is. */
+.gm-table .gm-ctlcol {
+  --ctl-w: 96px;
+}
+
+.gm-table .gm-ctlcol--wide {
+  --ctl-w: 210px;
+}
+
+.gm-table td.gm-ctlcol .gm-sel {
+  width: var(--ctl-w);
 }
 
 .gm-table td .gm-rowact .gm-btn,
@@ -2507,6 +2698,15 @@
   font-size: 16px;
 }
 
+/* One size up again, and used in one place: the identity panel on a record,
+   where the avatar is the subject of the card rather than a marker beside a
+   name. 44px is a marker. */
+.gm-av--xl {
+  width: 72px;
+  height: 72px;
+  font-size: 24px;
+}
+
 /* ==========================================================================
    TABS / SEGMENTED FILTER
    ========================================================================== */
@@ -2753,6 +2953,54 @@
   width: 118px;
   display: flex;
   justify-content: flex-start;
+}
+
+/* ------------------------------------------------------ the fee rows
+
+   Three of these rows hold a number and the fourth holds a dropdown, and
+   until this they lined up with nothing. Each control was a `gm-row` that
+   shrink-wrapped whatever it held — `[84px field] free`, `A$ [84px field]` —
+   so the field itself started at x=0 on one row and x=26 on the next, and
+   the column read as three boxes shaken loose. The dropdown had a different
+   problem: 118px is narrower than "Once per account", so the one row that
+   states a policy showed it as "Every mo…".
+
+   So the control is a three-track grid — affix, field, affix — and every
+   piece is placed by name rather than by the order it happens to appear in.
+   A row with no prefix leaves track 1 empty and its field still lands in
+   track 2, which is what puts every number on the same two edges. The whole
+   block is 162px, which is what "Once per account" (159.4) needs. */
+.gm-fees .gm-setrow-ctl {
+  width: 162px;
+}
+
+.gm-fee {
+  display: grid;
+  grid-template-columns: 24px 88px 38px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.gm-fee-pre {
+  grid-column: 1;
+  justify-self: end;
+}
+
+.gm-fee .gm-input {
+  grid-column: 2;
+  width: 100%;
+}
+
+.gm-fee-post {
+  grid-column: 3;
+  justify-self: start;
+}
+
+/* The dropdown is one control rather than a number with words either side, so
+   it takes the whole block instead of the middle track. */
+.gm-fees .gm-setrow-ctl > .gm-sel {
+  width: 100%;
 }
 
 /* ==========================================================================
@@ -3188,6 +3436,40 @@
 .gm-feed-body p b {
   color: var(--ink);
   font-weight: 650;
+}
+
+/* A feed line that ends in a status chip.
+ *
+ * The chip used to sit immediately after the card's name, so its x was
+ * wherever that name happened to stop — five entries, five different places,
+ * and a column that has to be read one row at a time instead of scanned down.
+ * Pushed to the end of the line the chips make a column of their own, and the
+ * floor and the centring are the table's (`--chip-w` at its `--wide` step,
+ * which is what "Info Requested" needs), so a chip in a feed and a chip in a
+ * queue are the same object.
+ *
+ * A name too long for the room truncates rather than pushing the chip off the
+ * end: the chip is the one thing on this line that has to stay where the
+ * others are, and the full name is on the row's own record anyway. */
+.gm-feed-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gm-feed-line > b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-feed-line > .gm-badge {
+  flex: none;
+  margin-left: auto;
+  min-width: 112px;
+  justify-content: center;
 }
 
 .gm-feed-time {
@@ -3693,7 +3975,6 @@
 
 .gm-scroll-x {
   overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 /* ==========================================================================
@@ -3860,9 +4141,17 @@
       Folding at 1360 keeps the expanded band above 1030px of content.
    ========================================================================== */
 
+/* Each step sets the zoom and restates it as `--gm-zoom` in the same block,
+   because everything measured against the window has to divide it back out —
+   see the note on the token. Keep the pairs together: a `zoom` without its
+   variable is a phantom scroll on every page of the console. */
 @media (min-width: 1600px) {
   :root {
     zoom: 1.1;
+  }
+
+  .gm {
+    --gm-zoom: 1.1;
   }
 }
 
@@ -3870,11 +4159,19 @@
   :root {
     zoom: 1.25;
   }
+
+  .gm {
+    --gm-zoom: 1.25;
+  }
 }
 
 @media (min-width: 2300px) {
   :root {
     zoom: 1.45;
+  }
+
+  .gm {
+    --gm-zoom: 1.45;
   }
 }
 
@@ -3898,8 +4195,6 @@
     backdrop-filter: none;
     border-right: 0;
     box-shadow: none;
-    border-radius: 0;
-    overflow: visible;
   }
 
   .gm-top {

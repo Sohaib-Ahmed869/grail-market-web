@@ -500,17 +500,11 @@ function CaseRecord() {
                         {on ? <IconCheck style={{ width: 11, height: 11 }} /> : null}
                       </span>
                       <span style={{ minWidth: 0 }}>
-                        <span
-                          className="gm-row"
-                          style={{
-                            gap: 7,
-                            fontWeight: 600,
-                            fontSize: 13.2,
-                            marginBottom: 3,
-                            color: "var(--ink)",
-                          }}
-                        >
-                          {o.title}
+                        {/* The title takes a floor so the two badges below
+                            it line up with each other — see `.gm-choice-line`
+                            for the measurement and the reason. */}
+                        <span className="gm-choice-line">
+                          <b>{o.title}</b>
                           {o.escalates ? <Badge tone="bad">Trust and safety</Badge> : null}
                         </span>
                         <span

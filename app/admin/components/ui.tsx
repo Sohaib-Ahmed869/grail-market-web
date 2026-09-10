@@ -202,7 +202,12 @@ export function PageHead({
   right,
   back,
 }: {
-  title: ReactNode;
+  /** Optional, and the member record is why: its name and handle are on the
+   *  identity panel a few pixels lower, so printing them here as well was a
+   *  duplicate that also cost that panel 75px of the window it is sized
+   *  against. With none of the three given, the head is the back link and
+   *  nothing else — an empty row would still take its `gap`. */
+  title?: ReactNode;
   sub?: ReactNode;
   right?: ReactNode;
   /** Where the arrow at the top left goes, and what it is called.
@@ -221,17 +226,19 @@ export function PageHead({
           <span>{back.label}</span>
         </Link>
       ) : null}
-      <div className="gm-page-head-main">
-        <div style={{ minWidth: 0 }}>
-          <h2>{title}</h2>
-          {sub ? <p>{sub}</p> : null}
-        </div>
-        {right ? (
-          <div className="gm-spacer gm-row" style={{ gap: 8 }}>
-            {right}
+      {title || sub || right ? (
+        <div className="gm-page-head-main">
+          <div style={{ minWidth: 0 }}>
+            {title ? <h2>{title}</h2> : null}
+            {sub ? <p>{sub}</p> : null}
           </div>
-        ) : null}
-      </div>
+          {right ? (
+            <div className="gm-spacer gm-row" style={{ gap: 8 }}>
+              {right}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -331,6 +338,12 @@ export function Badge({
   return <span className={`gm-badge${cls}`}>{children}</span>;
 }
 
+/* Whether the word sits at the pill's left padding or in the middle of it is
+   the column's business, not the chip's — `gm-chipcol` on the cell decides,
+   the same class that centres the heading above it. This briefly took a
+   `centred` prop, which put half of a two-halves rule on the component and the
+   other half in the markup, so a chip could be centred with its heading left
+   behind. See `.gm-chipcol` in admin.css. */
 export function Tier({ tier }: { tier: "grail" | "high-value" | "standard" }) {
   if (tier === "grail") return <span className="gm-tier gm-tier--high">Grail</span>;
   if (tier === "high-value") return <span className="gm-tier">High</span>;
@@ -348,9 +361,10 @@ export function Avatar({
 }: {
   initials: string;
   gold?: boolean;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
-  const s = size === "sm" ? " gm-av--sm" : size === "lg" ? " gm-av--lg" : "";
+  const s =
+    size === "sm" ? " gm-av--sm" : size === "lg" ? " gm-av--lg" : size === "xl" ? " gm-av--xl" : "";
   return <span className={`gm-av${gold ? " gm-av--gold" : ""}${s}`}>{initials}</span>;
 }
 
@@ -560,16 +574,29 @@ export function Tabs<T extends string>({
    Toggle
    ========================================================================== */
 
+/* `label` is printed beside the switch; `ariaLabel` names it for a screen
+   reader and prints nothing.
+ *
+   The difference matters in a table. The categories list gave every switch a
+   `label` of "Pokémon open for new listings", which restated the row's own
+   first column and — because the column is right-ranged and the game names
+   are different lengths — put every track at a different x, so six switches
+   stepped down the card. In a row the name is already on screen; what the
+   switch needs is a name for anyone who cannot see the row, which is what
+   `ariaLabel` is. Bare, the switches are identical and the column lines up on
+   its own. */
 export function Toggle({
   checked,
   onChange,
   label,
+  ariaLabel,
   /** A switch the caller has ruled out — greyed, and not reachable by tab. */
   disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
+  ariaLabel?: string;
   disabled?: boolean;
 }) {
   return (
@@ -582,7 +609,7 @@ export function Toggle({
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
       />
       <span className="gm-toggle-track" />
       {label ? <span className="gm-sm">{label}</span> : null}
@@ -1794,15 +1821,32 @@ export function RingChart({
   thickness = 10,
   gap = 6,
   unit = "",
+  share = true,
 }: {
   rings: { label: string; value: number; color: string }[];
   size?: number;
   thickness?: number;
   gap?: number;
-  /** Written after each value in the legend, e.g. "cards". */
+  /** Written after each value in the legend, e.g. "cards". Shares only. */
   unit?: string;
+  /**
+   * Whether the values are parts of one whole.
+   *
+   * `true` — the default and the original job — divides each value by their
+   * sum, so the rings are a composition: where a period's cases landed, what
+   * the desk decided.
+   *
+   * `false` is for rates that have nothing to do with each other: 82% of
+   * accounts verified and 91% of listings decided on time are each already a
+   * percentage of their own denominator, and summing them to 173 and calling
+   * one of them 47% of it would be arithmetic about nothing. Each ring is then
+   * drawn at its own value out of 100, which is what a reader of two dials
+   * side by side expects them to mean.
+   */
+  share?: boolean;
 }) {
   const total = rings.reduce((s, r) => s + r.value, 0) || 1;
+  const frac = (v: number) => (share ? v / total : Math.max(0, Math.min(1, v / 100)));
   const c = size / 2;
 
   /* Largest share on the outside. Left in source order the biggest arc could
@@ -1832,7 +1876,7 @@ export function RingChart({
         className="gm-rings-svg"
         role="img"
         aria-label={ordered
-          .map((r) => `${r.label}: ${Math.round((r.value / total) * 100)}%`)
+          .map((r) => `${r.label}: ${Math.round(frac(r.value) * 100)}%`)
           .join(", ")}
       >
         <circle cx={c} cy={c} r={px(discR)} fill="var(--surface-2)" />
@@ -1840,7 +1884,7 @@ export function RingChart({
         {ordered.map((r, i) => {
           const radius = px(outer - i * pitch);
           const circ = px(2 * Math.PI * radius);
-          const pct = r.value / total;
+          const pct = frac(r.value);
           const drawn = px(Math.max(thickness * 0.9, pct * circ));
 
           /* the label goes where the arc ends, but out on the label band */
@@ -1897,8 +1941,8 @@ export function RingChart({
             <i style={{ background: r.color }} />
             <div>
               <b>
-                {r.value.toLocaleString("en-US")}
-                {unit ? ` ${unit}` : ""}
+                {share ? r.value.toLocaleString("en-US") : `${r.value}%`}
+                {share && unit ? ` ${unit}` : ""}
               </b>
               <span>{r.label}</span>
             </div>
@@ -2663,12 +2707,21 @@ export function Pagination({
   pageSize,
   total,
   onPage,
+  bare,
 }: {
   /** One-based. */
   page: number;
   pageSize: number;
   total: number;
   onPage: (page: number) => void;
+  /**
+   * For a pager that is NOT inside a card.
+   *
+   * The side padding exists to line the count and the buttons up with a
+   * card's own inset. A gallery has no card around it, so the same padding
+   * would inset the pager from a page edge that nothing else is inset from.
+   */
+  bare?: boolean;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (total <= pageSize) return null;
@@ -2691,7 +2744,7 @@ export function Pagination({
   });
 
   return (
-    <nav className="gm-pager" aria-label="Pages">
+    <nav className={`gm-pager${bare ? " gm-pager--bare" : ""}`} aria-label="Pages">
       <span className="gm-pager-count">
         {from}–{to} of {total}
       </span>

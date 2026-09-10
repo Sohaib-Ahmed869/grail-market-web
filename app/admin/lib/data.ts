@@ -3235,7 +3235,12 @@ export const scopesOf = (role: Role): string[] => {
   if (can(role, "conduct.decide")) out.push("Reports & conduct");
   if (can(role, "support.read")) out.push("Support");
   if (can(role, "members.read")) out.push("Members");
-  if (can(role, "id.exceptions")) out.push("ID exceptions");
+  /* `id.exceptions` is a live permission and stays one — it is what decides
+     whether a member record shows its verification state, see `seeId` on the
+     directory and the record. It is not a scope, though, and this list is
+     scopes: every other chip in it names somewhere in the nav that the
+     account can open, and there is no ID exceptions page to open. A chip for
+     a place that does not exist reads as a page somebody has lost. */
   if (can(role, "billing.read")) out.push("Billing");
   if (can(role, "audit.read")) out.push("Audit log");
   if (can(role, "announce.write")) out.push("Announcements");

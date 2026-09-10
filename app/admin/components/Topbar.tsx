@@ -2,7 +2,7 @@
 
 import AccountMenu from "./AccountMenu";
 import Bell from "./Bell";
-import { IconSearch, IconExternal } from "./icons";
+import { IconSearch } from "./icons";
 
 /**
  * Search on the left, the operator's controls on the right.
@@ -26,16 +26,10 @@ export default function Topbar() {
       </div>
 
       <div className="gm-top-actions">
-        <a
-          className="gm-iconbtn"
-          href="/"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Open the public marketplace in a new tab"
-          title="Public site"
-        >
-          <IconExternal />
-        </a>
+        {/* No link out to the public site. It was a second front door in the
+            corner of every page of a console whose whole job is the other
+            side of the marketplace, and an operator who wants the shop has a
+            browser. Removed by request. */}
 
         {/* Was an icon with "3 unread" written into its aria-label and no
             handler — a control announcing a count it had never counted. */}

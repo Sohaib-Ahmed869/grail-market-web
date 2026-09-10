@@ -204,7 +204,9 @@ function ConflictsPage() {
                   <tr>
                     <th>Case</th>
                     <th>Against</th>
-                    <th>State</th>
+                    <th className="gm-chipcol gm-chipcol--wider">
+                      <span>State</span>
+                    </th>
                     <th>Waiting</th>
                     <th>Trade value</th>
                     <th className="gm-rowend">Action</th>
@@ -227,7 +229,7 @@ function ConflictsPage() {
                       {/* The handle already carries its own "@" — the card view prints it
                           bare for the same reason. */}
                       <td className="gm-nowrap">{c[c.against].handle}</td>
-                      <td>
+                      <td className="gm-chipcol gm-chipcol--wider">
                         <ConflictBadge status={c.status} />
                       </td>
                       <td className="gm-nowrap">{c.ageHours}h</td>

@@ -465,7 +465,7 @@ function MembersPage() {
                         <tr>
                           <th>Account</th>
                           <th>Role</th>
-                          <th>Standing</th>
+                          <th className="gm-chipcol"><span>Standing</span></th>
                           <th>Since</th>
                           <th className="gm-rowend">Action</th>
                         </tr>
@@ -483,7 +483,7 @@ function MembersPage() {
                               </div>
                             </td>
                             <td className="gm-sm gm-muted gm-nowrap">{roleLabel(p.role)}</td>
-                            <td>
+                            <td className="gm-chipcol">
                               <MemberBadge status={p.status} />
                             </td>
                             <td className="gm-sm gm-muted gm-nowrap">{dateOnly(p.since)}</td>
@@ -755,7 +755,7 @@ function MembersPage() {
                             />
                           </th>
                           <th>Member</th>
-                          <th>Standing</th>
+                          <th className="gm-chipcol"><span>Standing</span></th>
                           <th>Trading</th>
                           <th>Last active</th>
                           <th className="gm-rowend">Action</th>
@@ -784,7 +784,7 @@ function MembersPage() {
                                 </div>
                               </div>
                             </td>
-                            <td>
+                            <td className="gm-chipcol">
                               <MemberBadge status={m.status} />
                             </td>
                             <td className="gm-sm gm-muted gm-nowrap">

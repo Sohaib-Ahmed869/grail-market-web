@@ -257,10 +257,18 @@
    GALLERY — the card-first view of a queue
    ========================================================================== */
 
+/* The inset is the CARD's, not the grid's — the same split `.gm-people`
+   already makes. A gallery that sits loose in the page's stack, which is what
+   the verification and support queues do now, owes nothing to a border that
+   is not there; inside a card it is the only thing between the tiles and the
+   card's edge and needs the room. */
 .gm-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(232px, 100%), 1fr));
   gap: 16px;
+}
+
+.gm-card > .gm-gallery {
   padding: 18px;
 }
 

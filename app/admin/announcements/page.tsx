@@ -26,6 +26,7 @@ import {
   Select,
   Toast,
   Toggle,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconAlert,
@@ -143,6 +144,11 @@ function Handset({
 
 function AnnouncementsPage() {
   const [view, setView] = useState<View>("compose");
+  /* One switch for both lists. Queued and Already out hold the same kind of
+     thing — a broadcast and four facts about it — so a person who prefers
+     tiles on one wants them on the other, and two independent toggles would
+     be two settings for one preference. */
+  const [listLayout, setListLayout] = useState<"table" | "gallery">("table");
   const [writes, setWrites] = useState(0);
 
   const [title, setTitle] = useState("");
@@ -310,12 +316,29 @@ function AnnouncementsPage() {
                 ? `${scheduled.length} waiting to go out`
                 : `${sent.length} sent or live`
           }
+          right={
+            /* Not over Compose. That is a form and a preview, not a list, and
+               there is no second shape for it to be in. */
+            view === "compose" ? undefined : (
+              <ViewToggle value={listLayout} onChange={setListLayout} />
+            )
+          }
         />
 
         {/* ================================================= compose */}
         {view === "compose" ? (
           <div className="gm-row" style={{ gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div className="gm-stack" style={{ flex: "1 1 420px", minWidth: 320 }}>
+            {/* `min(320px, 100%)`, not a bare 320.
+             *
+             * The floor is here so the form does not collapse to a column of
+             * one-word inputs when it shares this row with the channel picker
+             * beside it. On a phone there is nothing beside it and no 320 to
+             * be had: the content box at 390 is 282, so a hard floor made the
+             * form — and the three cards in it — 38px wider than the page,
+             * which is the whole of the console's horizontal scroll at that
+             * width. Capped at the parent, the floor applies where there is
+             * room for it and gets out of the way where there is not. */}
+            <div className="gm-stack" style={{ flex: "1 1 420px", minWidth: "min(320px, 100%)" }}>
               <Card>
                 <CardHead title="Message" sub="Written once, shown on every channel you pick." />
                 <CardBody>
@@ -511,33 +534,102 @@ function AnnouncementsPage() {
             <Card>
               <Empty icon={<IconCalendar />} title="Nothing queued" body="Compose one to schedule it." />
             </Card>
+          ) : listLayout === "table" ? (
+            /* The queue as a table. It was a stack of full-width bands, which
+               is a row that has forgotten it is one: four facts about each
+               waiting broadcast, in a different place on every line. */
+            <Card>
+              <div className="gm-tablewrap">
+                <table className="gm-table" style={{ minWidth: 820 }}>
+                  <thead>
+                    <tr>
+                      <th>Announcement</th>
+                      <th>Channels</th>
+                      <th>Audience</th>
+                      <th className="gm-nowrap">Goes out</th>
+                      <th className="gm-rowend">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduled.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <div className="gm-cell2">
+                            <b>{a.title}</b>
+                            <span>by {a.by}</span>
+                          </div>
+                        </td>
+                        <td className="gm-sm gm-muted">
+                          <div className="gm-person-tags">
+                            {a.channels.map((c) => (
+                              <span key={c} className="gm-scope">
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="gm-sm gm-muted">{seg(a.audience)}</td>
+                        <td className="gm-sm gm-nowrap">
+                          <Badge tone="warn">{shortDate(a.at)}</Badge>
+                        </td>
+                        <td className="gm-rowend">
+                          <div className="gm-rowact">
+                            <button
+                              type="button"
+                              className="gm-btn gm-btn--sm gm-btn--ghost"
+                              onClick={() => pull(a, "cancelled")}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           ) : (
-            <div className="gm-stack" style={{ gap: 10 }}>
+            /* One to a tile, on the page's own paper — the shape the member
+               directory uses, and the same grid the history gallery uses so
+               the two halves of this switch behave alike. */
+            <div className="gm-people">
               {scheduled.map((a) => (
-                <Card key={a.id} pad>
-                  <div className="gm-row" style={{ gap: 12, flexWrap: "nowrap", alignItems: "flex-start" }}>
+                <article key={a.id} className="gm-person">
+                  <div className="gm-person-top">
                     <span className="gm-feed-ico gm-feed-ico--gold" style={{ flex: "none" }}>
                       <IconCalendar />
                     </span>
-                    <div className="gm-cell2" style={{ flex: "1 1 auto", minWidth: 0 }}>
-                      <b>{a.title}</b>
-                      <span>{a.body}</span>
-                      <span className="gm-tiny gm-dim" style={{ marginTop: 5 }}>
-                        {a.channels.join(" + ")} · {seg(a.audience)} · by {a.by}
-                      </span>
-                    </div>
-                    <div className="gm-row" style={{ gap: 7, flex: "none" }}>
-                      <Badge tone="warn">{shortDate(a.at)}</Badge>
-                      <button
-                        type="button"
-                        className="gm-btn gm-btn--sm gm-btn--ghost"
-                        onClick={() => pull(a, "cancelled")}
-                      >
-                        Cancel
-                      </button>
+                    <div className="gm-person-id">
+                      <b title={a.title}>{a.title}</b>
+                      <span title={a.body}>{a.body}</span>
                     </div>
                   </div>
-                </Card>
+
+                  <div className="gm-person-facts">
+                    <span className="gm-person-fact">{seg(a.audience)}</span>
+                    <span className="gm-person-fact">by {a.by}</span>
+                  </div>
+
+                  <div className="gm-person-tags">
+                    {a.channels.map((c) => (
+                      <span key={c} className="gm-scope">
+                        {c}
+                      </span>
+                    ))}
+                    <Badge tone="warn">{shortDate(a.at)}</Badge>
+                  </div>
+
+                  <div className="gm-person-foot">
+                    <button
+                      type="button"
+                      className="gm-btn gm-btn--sm gm-btn--ghost gm-spacer"
+                      onClick={() => pull(a, "cancelled")}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </article>
               ))}
             </div>
           )
@@ -545,16 +637,20 @@ function AnnouncementsPage() {
 
         {/* ================================================= history */}
         {view === "history" ? (
-          <Card>
-            {loading && all.length === 0 ? (
+          loading && all.length === 0 ? (
+            <Card>
               <Loading label="Reading the history…" />
-            ) : sent.length === 0 ? (
+            </Card>
+          ) : sent.length === 0 ? (
+            <Card>
               <Empty
                 icon={<IconSend />}
                 title="Nothing has gone out"
                 body="Broadcasts appear here once they are sent or the banner is raised."
               />
-            ) : (
+            </Card>
+          ) : listLayout === "table" ? (
+            <Card>
               <div className="gm-tablewrap">
                 <table className="gm-table" style={{ minWidth: 900 }}>
                   <thead>
@@ -563,7 +659,9 @@ function AnnouncementsPage() {
                       <th>Channels</th>
                       <th>Audience</th>
                       <th>Addressed to</th>
-                      <th>Delivered</th>
+                      <th className="gm-chipcol gm-chipcol--wide">
+                        <span>Delivered</span>
+                      </th>
                       <th className="gm-nowrap">When</th>
                     </tr>
                   </thead>
@@ -592,7 +690,7 @@ function AnnouncementsPage() {
                         <td className="gm-sm gm-mono gm-nowrap">
                           {a.reach === undefined ? "Not counted" : a.reach.toLocaleString("en-AU")}
                         </td>
-                        <td>
+                        <td className="gm-chipcol gm-chipcol--wide">
                           {/* The column that stops this table implying more
                               than happened. A banner genuinely is up; a push
                               recorded against 5,000 accounts is not a push
@@ -613,8 +711,61 @@ function AnnouncementsPage() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </Card>
+            </Card>
+          ) : (
+            /* The same broadcasts, one to a tile. Every fact the table carries
+               is here except "Addressed to", which is a count the tile has no
+               room for and nobody opens the history looking for. */
+            <div className="gm-people">
+              {sent.map((a) => (
+                <article key={a.id} className="gm-person">
+                  <div className="gm-person-top">
+                    <span className="gm-feed-ico gm-feed-ico--gold" style={{ flex: "none" }}>
+                      <IconSend />
+                    </span>
+                    <div className="gm-person-id">
+                      <b title={a.title}>{a.title}</b>
+                      <span>
+                        {bannerToneLabel[a.tone]} · by {a.by}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="gm-person-facts">
+                    <span className="gm-person-fact">{seg(a.audience)}</span>
+                    <span className="gm-person-fact">
+                      {a.reach === undefined
+                        ? "Not counted"
+                        : `${a.reach.toLocaleString("en-AU")} addressed`}
+                    </span>
+                  </div>
+
+                  <div className="gm-person-tags">
+                    {a.channels.map((c) => (
+                      <span key={c} className="gm-scope">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="gm-person-foot">
+                    {/* The column that stops this list implying more than
+                        happened — see the same three answers in the table. */}
+                    {a.delivered ? (
+                      <Badge tone="ok">Delivered</Badge>
+                    ) : a.state === "live" ? (
+                      <Badge tone="ok">Banner is up</Badge>
+                    ) : (
+                      <Badge tone="warn">Recorded only</Badge>
+                    )}
+                    <span className="gm-tiny gm-dim gm-spacer">
+                      {a.state === "live" ? "Live now" : shortDate(a.at)}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )
         ) : null}
       </div>
 

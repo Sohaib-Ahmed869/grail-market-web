@@ -610,7 +610,7 @@ function ListingRecord() {
                       )}
                     </span>
                     <div className="gm-feed-body">
-                      <p className="gm-row" style={{ gap: 8 }}>
+                      <p className="gm-feed-line">
                         <b>{e.card}</b>
                         <ListingBadge status={historyStatus(e.status)} />
                       </p>

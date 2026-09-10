@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   billingLabel,
@@ -33,6 +33,7 @@ import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
 import {
   ActionBar,
+  Avatar,
   Badge,
   Card,
   CardBody,
@@ -129,6 +130,65 @@ const ROLE_LABEL: Record<string, string> = {
   consignor: "Consignor",
 };
 
+/* What the identity panel has to leave for the action bar: the bar is 82 tall,
+   sticky at the foot of the window, and paints over whatever is under it. */
+const ASIDE_FOOT = 116;
+
+/* The shortest the panel is allowed to get. Below this it is no longer a
+   record of anything, and a window that small is already on the one-column
+   layout where the panel takes its own height instead. */
+const ASIDE_FLOOR = 240;
+
+/**
+ * The height of the identity panel, measured rather than assumed.
+ *
+ * `.gm-rec-aside` is sticky under the topbar and the CSS sized it from that
+ * offset — window, less topbar, less the action bar. That is right only once
+ * the page head has scrolled away. At the top of the record the panel is
+ * still in flow below that head, so it started ~140px lower than the sum
+ * allowed for and ran the same distance past the bottom of the window: its
+ * last two figures behind the action bar, and a scrollbar inside a card that
+ * had room going spare.
+ *
+ * Measuring from the panel's own `top` is right in both states — the box
+ * grows as the head scrolls out from above it and stops at the floor of the
+ * window either way — and it is the only way to be right, since the head is
+ * not a constant CSS could be told: the name wraps, the record loads, the
+ * moderator note appears above the grid. Reading the panel's `top` cannot
+ * feed back into it, because the box is top-aligned: its height is what
+ * changes, never where it starts.
+ *
+ * `--gm-zoom` is divided back out for the reason every other measurement
+ * against the window in this console divides it out — `:root` carries a zoom
+ * above 1600 and a client rectangle is reported after it.
+ */
+function useAsideHeight(ref: React.RefObject<HTMLElement | null>) {
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const zoom = Number(getComputedStyle(el).getPropertyValue("--gm-zoom")) || 1;
+    const free = (window.innerHeight - el.getBoundingClientRect().top) / zoom - ASIDE_FOOT;
+    el.style.setProperty("--rec-aside-h", `${Math.round(Math.max(ASIDE_FLOOR, free))}px`);
+  }, [ref]);
+
+  useEffect(() => {
+    measure();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [measure]);
+
+  /* No dependency list, deliberately. What moves this panel is the height of
+     everything above it, and none of that is a value this component holds —
+     it is the head, the note that is there on a restricted account and not on
+     any other, and the fonts once they land. One rectangle read per render on
+     a page that renders when somebody clicks something. */
+  useEffect(measure);
+}
+
 function MemberRecord() {
   const id = String(useParams().id ?? "");
   const params = useSearchParams();
@@ -136,6 +196,9 @@ function MemberRecord() {
      marketplace member are two different records with two different sets of
      levers, and the id alone does not say which one this is. */
   const team = params.get("scope") === "team";
+
+  const aside = useRef<HTMLElement | null>(null);
+  useAsideHeight(aside);
 
   const { role: viewerRole, me } = useRole();
   /* "No billing, no ID" is the moderator's line in the roles table, and it is
@@ -627,20 +690,29 @@ function MemberRecord() {
 
   if (!live) return null;
 
+  /* Written once because it is rendered in two places: beside Verification
+     when the viewer can see it, and on its own when they cannot. */
+  const verifiedSellerFact = (
+    <div className="gm-idfact">
+      <span>Verified seller</span>
+      <b>{live.verifiedSeller ? "Yes" : "No"}</b>
+    </div>
+  );
+
   /* ============================================== a marketplace member */
   return (
     <>
-      <PageHead
-        title={live.name}
-        sub={`${live.handle} · ${ROLE_LABEL[live.role]}`}
-        back={back}
-        right={
-          <div className="gm-row" style={{ gap: 8 }}>
-            <Rating value={live.rating} />
-            <MemberBadge status={live.status} />
-          </div>
-        }
-      />
+      {/* The standing and the rating used to sit up here. They are on the
+          identity panel now, beside the face they describe and in view for as
+          long as the record is — which is the whole point of pinning it.
+
+          The name and the handle went the same way, and for a second reason.
+          They were printed here and printed again sixty pixels lower on the
+          identity card, and the copy up here cost 75px of head that the panel
+          below it could not use — which is what put the panel's own foot
+          behind the action bar and a scrollbar inside a card that had the
+          record to show. The heading is the name on the card now. */}
+      <PageHead back={back} />
 
       <div className="gm-stack">
         {live.note ? (
@@ -649,96 +721,172 @@ function MemberRecord() {
           </Note>
         ) : null}
 
-        <div className="gm-grid gm-grid--2">
-          <Card>
-            <CardHead
-              title="Account"
-              sub={
-                seeBilling && seeId
-                  ? `${planLabel[live.plan]} · ${verificationLabel[live.verification]}`
-                  : `${live.sales} sales · ${live.listed} listings published`
-              }
-            />
-            <CardBody>
-              <DL
-                rows={[
-                  ["Email", live.email],
-                  ["Role", ROLE_LABEL[live.role]],
-                  ...(seeBilling
-                    ? ([
-                        [
-                          "Plan",
-                          <span className="gm-row" style={{ gap: 6 }}>
-                            {planLabel[live.plan]}
-                            <span className="gm-dim">
-                              {planQuota[live.plan] === null
-                                ? "no listing ceiling"
-                                : `${live.liveListings} of ${planQuota[live.plan]} live`}
-                            </span>
-                          </span>,
-                        ],
-                      ] as [React.ReactNode, React.ReactNode][])
-                    : []),
-                  /* A moderator opens this record to judge a listing, and the
-                     roles table gives them no billing and no ID. Both rows are
-                     dropped rather than blanked — a greyed field still tells
-                     you the account has one. */
-                  ...(seeBilling
-                    ? ([
-                        [
-                          "Billing",
-                          live.billing === "past-due" ? (
+        <div className="gm-rec">
+          {/* ------------------------------------------- who this is */}
+          <aside className="gm-rec-aside" ref={aside}>
+            <Card>
+              <div className="gm-idcard">
+                <div className="gm-idcard-band" aria-hidden />
+                <Avatar initials={live.initials} size="xl" />
+                {/* The page's heading, not a bold line: this is the only
+                    place the record is named now, and a page still needs one
+                    heading for anything reading it in order. */}
+                <h2 className="gm-idcard-name">{live.name}</h2>
+                <span className="gm-idcard-sub">
+                  {live.handle} · {ROLE_LABEL[live.role]}
+                </span>
+                <div className="gm-idcard-chips">
+                  <MemberBadge status={live.status} />
+                  <Rating value={live.rating} />
+                </div>
+
+                {/* The four facts that say who the account belongs to, as
+                    against what it has been doing — that is the split down
+                    the middle of this page, and it is why Plan, Billing and
+                    Verification are still in the Account card beside rather
+                    than up here. */}
+                <div className="gm-idfacts">
+                  <div className="gm-idfact">
+                    <span>Email</span>
+                    <b>{live.email}</b>
+                  </div>
+                  {/* No country. The store has no column for one — the
+                      normaliser fills it with "Unknown" for every account in
+                      the database — so the row was a label with a placeholder
+                      under it on every record, which says less than nothing.
+                      It is still a filter on the directory, where it will
+                      start working the day the column exists. */}
+                  {/* Two to a row from here down. Seven facts stacked ran to
+                      620px in a panel that gets 540 on a laptop, so the last
+                      of them were behind a scrollbar however the box was
+                      sized — a column that only ever grows is the wrong shape
+                      for a fixed height. The dates pair, the two billing facts
+                      pair, the two verification facts pair, and the foot strip
+                      below already reads as two columns, so this is the card's
+                      own idiom rather than a new one. Email stays full width:
+                      it is the one value long enough to burst a 304px panel on
+                      its own. */}
+                  <div className="gm-idpair">
+                  <div className="gm-idfact">
+                    <span>Member since</span>
+                    <b>{dateOnly(live.joined)}</b>
+                  </div>
+                  <div className="gm-idfact">
+                    <span>Last seen</span>
+                    <b>
+                      {/* Their most recent listing, which is the closest thing
+                          the store holds to "last seen" — and `dateOnly`, not
+                          the raw column, which printed the ISO string straight
+                          out of Postgres. */}
+                      {live.lastSeenDays >= LAPSED_DAYS ? (
+                        <span className="gm-row" style={{ gap: 6 }}>
+                          {dateOnly(live.lastSeen)}
+                          <Badge tone="warn">Lapsed</Badge>
+                        </span>
+                      ) : (
+                        dateOnly(live.lastSeen)
+                      )}
+                    </b>
+                  </div>
+                  </div>
+
+                  {/* The state of the account, which was a card of its own
+                      beside this one holding four rows. It belongs to the
+                      subject as much as the address does, and the panel is
+                      the thing that stays on screen — so a moderator who has
+                      scrolled to the timeline can still see whether this
+                      person is verified and whether their card is bouncing.
+
+                      Both halves are permission-gated as they were: a
+                      moderator's role carries neither billing nor ID, and the
+                      rows are dropped rather than blanked, because a greyed
+                      field still tells you the account has one. */}
+                  {seeBilling ? (
+                    <div className="gm-idpair">
+                      <div className="gm-idfact">
+                        <span>Plan</span>
+                        <b>
+                          {planLabel[live.plan]}{" "}
+                          <span className="gm-dim">
+                            {planQuota[live.plan] === null
+                              ? "no listing ceiling"
+                              : `${live.liveListings} of ${planQuota[live.plan]} live`}
+                          </span>
+                        </b>
+                      </div>
+                      <div className="gm-idfact">
+                        <span>Billing</span>
+                        <b>
+                          {live.billing === "past-due" ? (
                             <Badge tone="warn">{billingLabel[live.billing]}</Badge>
                           ) : live.billing === "cancelled" ? (
                             <Badge tone="bad">{billingLabel[live.billing]}</Badge>
                           ) : (
                             billingLabel[live.billing]
-                          ),
-                        ],
-                      ] as [React.ReactNode, React.ReactNode][])
-                    : []),
-                  ...(seeId
-                    ? ([
-                        [
-                          "Verification",
-                          live.verification === "id-verified" ? (
+                          )}
+                        </b>
+                      </div>
+                    </div>
+                  ) : null}
+                  {/* The two verification facts are one row when the viewer
+                      has ID, and the second one stands alone when they do not
+                      — a moderator's role carries no ID scope, and a lone half
+                      of a pair would sit in a column with nothing beside it. */}
+                  {seeId ? (
+                    <div className="gm-idpair">
+                      <div className="gm-idfact">
+                        <span>Verification</span>
+                        <b>
+                          {live.verification === "id-verified" ? (
                             <Badge tone="ok">{verificationLabel[live.verification]}</Badge>
                           ) : (
                             <Badge tone="warn">{verificationLabel[live.verification]}</Badge>
-                          ),
-                        ],
-                      ] as [React.ReactNode, React.ReactNode][])
-                    : []),
-                  ["Verified seller", live.verifiedSeller ? "Yes" : "No"],
-                  ["Country", live.country],
-                  ["Member since", dateOnly(live.joined)],
-                  [
-                    /* Their most recent listing, which is the closest thing
-                       the store holds to "last seen" — and `dateOnly`, not
-                       the raw column, which printed the ISO string straight
-                       out of Postgres. */
-                    "Last seen",
-                    live.lastSeenDays >= LAPSED_DAYS ? (
-                      <span className="gm-row" style={{ gap: 6 }}>
-                        {dateOnly(live.lastSeen)}
-                        <Badge tone="warn">Lapsed</Badge>
-                      </span>
-                    ) : (
-                      dateOnly(live.lastSeen)
-                    ),
-                  ],
-                ]}
-              />
-            </CardBody>
-          </Card>
+                          )}
+                        </b>
+                      </div>
+                      {verifiedSellerFact}
+                    </div>
+                  ) : (
+                    verifiedSellerFact
+                  )}
+                </div>
 
+                {/* Pinned to the floor of the panel, the way the sidebar pins
+                    its theme switch. The panel is as tall as the window now,
+                    and a column with content only at the top is a column with
+                    a hole under it — two figures at the foot give it weight at
+                    both ends and put the slack in the middle, where it reads
+                    as spacing rather than as something missing. Neither figure
+                    is repeated in Trading beside it. */}
+                <div className="gm-idfoot">
+                  <span>
+                    <i>Lifetime volume</i>
+                    <b>{money(live.volume)}</b>
+                  </span>
+                  <span>
+                    <i>Sales · purchases</i>
+                    <b>
+                      {live.sales} · {live.purchases}
+                    </b>
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </aside>
+
+          {/* -------------------------------- what the account has done */}
+          <div className="gm-rec-main">
+        {/* Account went to the panel — see the note there. What is left on
+            this side is what the account has DONE, which is the other half of
+            the split this page is built on. No wrapper: `.gm-rec-main` is
+            already the column with the gap. */}
           <Card>
             <CardHead title="Trading" sub="What this account has actually done" />
             <CardBody>
               <DL
                 rows={[
-                  ["Lifetime volume", money(live.volume)],
-                  ["Sales · purchases", `${live.sales} · ${live.purchases}`],
+                  /* Lifetime volume and the sale counts are on the panel's
+                     foot, so they are not restated here. */
                   [
                     "Listings published",
                     live.listed === 0 ? <Badge tone="warn">Never listed</Badge> : live.listed,
@@ -759,7 +907,6 @@ function MemberRecord() {
               />
             </CardBody>
           </Card>
-        </div>
 
         {/* ------------------------------------------------------ tags */}
         <Card>
@@ -878,8 +1025,16 @@ function MemberRecord() {
             </ul>
           </CardBody>
         </Card>
+          </div>
+        </div>
 
-        {/* --------------------------------------------------- the levers */}
+        {/* --------------------------------------------------- the levers
+
+            Still full width and still the last thing on the page, rather than
+            a set of buttons inside the panel. The bar is sticky and the panel
+            has a ceiling: a lever pinned inside a box that can scroll is a
+            lever that can be scrolled out of reach, which is the one thing an
+            action bar must never do. */}
         <ActionBar
           note={
             canAct ? "Every action here is written to the audit log" : undefined

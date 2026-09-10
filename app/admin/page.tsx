@@ -444,10 +444,11 @@ function DashboardPage() {
                   <thead>
                     <tr>
                       <th>Card</th>
-                      <th>Tier</th>
-                      <th>State</th>
+                      <th className="gm-chipcol"><span>Tier</span></th>
+                      <th className="gm-chipcol gm-chipcol--wide">
+                        <span>State</span>
+                      </th>
                       <th>Ask</th>
-                      <th>Time left</th>
                       <th>Decision</th>
                     </tr>
                   </thead>
@@ -474,24 +475,19 @@ function DashboardPage() {
                             </div>
                           </div>
                         </td>
-                        <td>
+                        {/* The two chip columns are marked even though the
+                            table is `--tight`, which otherwise lets a chip
+                            shrink to its word: `gm-chipcol` restates the floor
+                            and so opts these two back into it. Asked for, so
+                            the extract reads like the queue it is an extract
+                            of — see the note by `.gm-chipcol`. */}
+                        <td className="gm-chipcol">
                           <Tier tier={s.tier} />
                         </td>
-                        <td>
+                        <td className="gm-chipcol gm-chipcol--wide">
                           <ListingBadge status={s.status} />
                         </td>
                         <td className="gm-strong gm-nowrap">{money(s.askPrice)}</td>
-                        <td className="gm-nowrap">
-                          {s.slaHours < 0 ? (
-                            <span className="gm-badge gm-badge--bad">
-                              {Math.abs(s.slaHours)}h over
-                            </span>
-                          ) : s.slaHours <= 4 ? (
-                            <span className="gm-badge gm-badge--warn">{s.slaHours}h</span>
-                          ) : (
-                            <span className="gm-muted gm-mono">{s.slaHours}h</span>
-                          )}
-                        </td>
                         {/* Here, and only here, the actions go behind a menu.
 
                             The queues have a page each and name their actions

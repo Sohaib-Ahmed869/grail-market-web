@@ -27,42 +27,12 @@
    At 1920x1080 with `zoom: 1.25` a box asking for `100vh` is painted 1350
    pixels tall, and 270 of them are below the bottom of the screen.
 
-   That is why every page of this console has a 270px scroll at 1920 that
-   nothing on it accounts for — `.gm-shell` is `min-height: 100vh` and
-   `.gm-side` is `height: 100vh`. A dashboard whose whole promise is that it
-   fits in the window cannot inherit that, so both are restated here in terms
-   the zoom is divided back out of, and only for the page that is making the
-   promise: `:has(.gm-dashpage)` keeps it off every other route.
-
-   `--dash-zoom` mirrors the ladder in admin.css. If those breakpoints move,
-   these move with them — there is no way to read the effective zoom from CSS,
-   so the two lists have to agree by hand. */
-.gm-shell:has(.gm-dashpage) {
-  --dash-zoom: 1;
-  min-height: calc(100vh / var(--dash-zoom));
-}
-
-.gm-shell:has(.gm-dashpage) .gm-side {
-  height: calc(100vh / var(--dash-zoom));
-}
-
-@media (min-width: 1600px) {
-  .gm-shell:has(.gm-dashpage) {
-    --dash-zoom: 1.1;
-  }
-}
-
-@media (min-width: 1900px) {
-  .gm-shell:has(.gm-dashpage) {
-    --dash-zoom: 1.25;
-  }
-}
-
-@media (min-width: 2300px) {
-  .gm-shell:has(.gm-dashpage) {
-    --dash-zoom: 1.45;
-  }
-}
+   This file used to carry its own copy of that ladder as `--dash-zoom`,
+   scoped `:has(.gm-dashpage)`, because the dashboard is the one page whose
+   whole promise is that it fits in the window — and every other route kept
+   the phantom scroll. It is `--gm-zoom` in admin.css now, set beside the
+   `zoom` it mirrors and divided back out of `.gm-shell` and `.gm-side` for
+   the whole console, so there is nothing left to restate here. */
 
 /* The window, less the chrome above and around it: the topbar with the 12px
    it is inset by, and `.gm-content`'s own 26px/28px. Stated once here, so
@@ -74,7 +44,7 @@
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-  height: calc(100vh / var(--dash-zoom) - var(--dash-chrome));
+  height: calc(100vh / var(--gm-zoom) - var(--dash-chrome));
 }
 
 /* --------------------------------------------------------------------------
@@ -361,9 +331,13 @@
    This tile has been solid `--grad-navy`, then a lighter mix of it, then a
    corner-lit ramp of it, and every time it was the heaviest object on a page
    of white cards — a lot of weight for a figure nobody needs shouting at
-   them. It is a gold wash now: the console's own accent at a fifth strength
-   falling to plain surface, still lit from the top-left corner as asked, just
-   running through a far lighter pair of stops.
+   them. It is a wash now: the console's navy at roughly a third strength in
+   the lit corner falling to a trace of it at the far one, still lit from the
+   top-left as asked, just running through far lighter stops than a slab. It
+   started a fifth of the way to navy and read as barely there against the
+   white cards either side, so the ramp was deepened at every stop rather than
+   only at the top — deepening the corner alone makes a bright patch on a
+   white tile instead of a tile with a wash across it.
 
    Everything inside it goes back to the page's own ink with it. `--th-ink` is
    for surfaces that are dark in BOTH themes, and this one is no longer dark
@@ -372,11 +346,11 @@
 .gm-dash-week {
   background: linear-gradient(
     118deg,
-    color-mix(in srgb, var(--navy-500) 20%, var(--surface)) 0%,
-    color-mix(in srgb, var(--navy-500) 11%, var(--surface)) 46%,
-    var(--surface) 100%
+    color-mix(in srgb, var(--navy-500) 32%, var(--surface)) 0%,
+    color-mix(in srgb, var(--navy-500) 19%, var(--surface)) 46%,
+    color-mix(in srgb, var(--navy-500) 7%, var(--surface)) 100%
   );
-  border-color: color-mix(in srgb, var(--navy-500) 30%, var(--line));
+  border-color: color-mix(in srgb, var(--navy-500) 38%, var(--line));
   box-shadow: var(--sh-2), var(--edge);
 }
 
@@ -391,10 +365,15 @@
   gap: 1px;
 }
 
+/* A step darker than the console's usual caption ink. `--ink-3` is pitched
+   against paper, and this tile is no longer paper — the wash was deepened and
+   the label went with it, close enough to the ground that the word naming the
+   figure was the hardest thing on the card to read. The note under the figure
+   moves with it, for the same reason. */
 .gm-dash-weeklabel {
   font-size: 12px;
   font-weight: 550;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 /* The figure and its pill on one line, the pill sitting on the baseline of
@@ -440,7 +419,7 @@
 .gm-dash-weeknote {
   margin: 3px 0 0;
   font-size: 12px;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 /* ==========================================================================
@@ -803,7 +782,7 @@
   (min-width: 2300px) and (max-height: 1015px) {
   .gm-dashpage {
     height: auto;
-    min-height: calc(100vh / var(--dash-zoom) - var(--dash-chrome));
+    min-height: calc(100vh / var(--gm-zoom) - var(--dash-chrome));
   }
 
   .gm-dash3 {

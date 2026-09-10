@@ -305,20 +305,31 @@ function SupportPage() {
           </div>
         </div>
 
-        {/* ------------------------------------------------------- the queue */}
-        <Card>
-          {/* Loading and empty are different answers and must not share a
-              screen: "Nothing matches that filter" while the request is still
-              in flight tells an agent their filter is wrong when it is not. */}
-          {loading ? (
+        {/* ------------------------------------------------------- the queue
+
+            The card is the TABLE's frame, not the queue's. A table needs
+            something to be ruled inside and a gallery does not: cards on the
+            page's own paper is what the conduct board has always done, and a
+            second white rectangle behind them only draws a box around a box.
+            So each branch brings its own wrapper — see the same split on the
+            verification queue. */}
+        {loading ? (
+          <Card>
+            {/* Loading and empty are different answers and must not share a
+                screen: "Nothing matches that filter" while the request is
+                still in flight tells an agent their filter is wrong when it
+                is not. */}
             <Loading label="Reading the queue…" />
-          ) : list.length === 0 ? (
+          </Card>
+        ) : list.length === 0 ? (
+          <Card>
             <Empty
               icon={<IconInbox />}
               title="Nothing here"
               body="No ticket matches that filter or search."
             />
-          ) : layout === "gallery" ? (
+          </Card>
+        ) : layout === "gallery" ? (
             /* The same rows, one to a card. Nothing here is a fact the table
                does not carry — it is the same four things in a shape that can
                hold them stacked rather than side by side, which is what a
@@ -366,6 +377,7 @@ function SupportPage() {
               ))}
             </div>
           ) : (
+          <Card>
             <div className="gm-tablewrap">
               {/* Five columns, and two badges a row rather than four.
 
@@ -386,8 +398,10 @@ function SupportPage() {
                   <tr>
                     <th>Ticket</th>
                     <th>Member</th>
-                    <th>Priority</th>
-                    <th>First reply</th>
+                    <th className="gm-chipcol"><span>Priority</span></th>
+                    <th className="gm-chipcol gm-chipcol--wide">
+                      <span>First reply</span>
+                    </th>
                     <th className="gm-rowend">Action</th>
                   </tr>
                 </thead>
@@ -406,14 +420,14 @@ function SupportPage() {
                           <span>{t.member.role.replace("-", " & ")}</span>
                         </div>
                       </td>
-                      <td>
+                      <td className="gm-chipcol">
                         {/* The ticket's state is what the filter above the
                             table already selects and what the "First reply"
                             column implies. How loud a ticket is, is what an
                             agent picks the next one on. */}
                         <PriorityBadge priority={t.priority} />
                       </td>
-                      <td>
+                      <td className="gm-chipcol gm-chipcol--wide">
                         {/* The opening time and who holds the ticket live on
                             the ticket's page, so keep this cell to one line to
                             hold the priority chip and reply badge side-by-side. */}
@@ -435,11 +449,20 @@ function SupportPage() {
                 </tbody>
               </table>
             </div>
-          )}
-          {/* A queue that grows past a screenful becomes a scroll with no
-              sense of how much is left; the count above answers that. */}
-          <Pagination page={page} pageSize={PAGE_SIZE} total={list.length} onPage={setPage} />
-        </Card>
+          </Card>
+        )}
+
+        {/* A queue that grows past a screenful becomes a scroll with no sense
+            of how much is left; the count above answers that. Outside the
+            card, because in gallery view there is no card for it to sit in
+            and it must not move between the two views. */}
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={list.length}
+          onPage={setPage}
+          bare
+        />
       </div>
 
       {/* ======================================================== raise */}

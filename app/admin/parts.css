@@ -1583,6 +1583,366 @@
   box-shadow: var(--sh-1), var(--edge);
 }
 
+/* ==========================================================================
+   RECORD, TWO COLUMNS — who it is stays put, what they did scrolls
+
+   A member record was one column of eight cards, so the thing you are looking
+   at — whose account this is — scrolled off the top the moment you read past
+   the second card, and by the time you reached the timeline the page could
+   have been anybody's. Asked for instead: the identity in a panel that stays
+   on screen, and the account's own story beside it.
+
+   `align-items: start` is what makes the panel able to stick at all: a grid
+   item stretches to the row's height by default, and a sticky box as tall as
+   its track has nowhere to travel, so it never moves and the whole thing
+   silently does nothing.
+
+   It sticks below the topbar, not below the viewport's top — `.gm-top` is
+   itself sticky at `top: 12px` and is `--topbar-h` minus that 12 tall, so a
+   panel pinned any higher slides under it.
+
+   The ceiling and the scroll are on the CARD, not on this column, and that is
+   the whole of the difference between a smooth corner and a chipped one. A
+   scroll container clips everything inside it, and what hangs outside a card
+   is its shadow: with `overflow: auto` here, the aside is exactly as wide as
+   the card in it, so `--sh-2` was sliced off flat down both sides and across
+   the foot, and at each corner the cut showed as a hard grey wedge where a
+   soft fade should be. Moving both down one level puts the shadow OUTSIDE the
+   thing that clips, which is where a shadow has to be. */
+.gm-rec {
+  display: grid;
+  grid-template-columns: minmax(0, 304px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.gm-rec-aside {
+  position: sticky;
+  top: calc(var(--topbar-h) + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The card is the ceiling, the clip and the radius, all three.
+ *
+ * A panel taller than the screen can only be read by scrolling the page,
+ * which is the thing it exists not to do, so it takes a height of
+ * window-minus-chrome and whatever will not fit scrolls inside it —
+ * `--gm-zoom` divided out for the reason every other viewport unit in this
+ * console divides it out. `overflow: hidden` is also what rounds off the band
+ * inside: an outset shadow is painted outside the border box and no element's
+ * own overflow touches it, so the card can clip its contents and keep its
+ * depth. */
+.gm-rec-aside > .gm-card {
+  display: flex;
+  flex-direction: column;
+  /* `height`, not `max-height`: the panel is the height of the window less
+     the chrome, always, asked for. As a ceiling it stopped wherever its
+     content did and left the column short beside a page that carried on for
+     another thousand pixels; as a height it reaches the floor of the screen
+     and the content inside it is what has to fill it — which is why the
+     account facts moved in and the two figures at the foot are pinned there.
+     `--gm-zoom` divided out for the reason every other viewport unit in this
+     console divides it out.
+
+     The chrome is the topbar above AND the action bar below. That bar is
+     sticky at the foot of the window and paints over everything under it, so
+     a panel measured only against the topbar put its own last two figures
+     behind the Revoke button. 92 is the bar at 82 plus a hair of daylight.
+
+     A record page always has one — `.gm-rec` is the member record and nothing
+     else — so the allowance is unconditional rather than a `:has()` that
+     would have exactly one page to match.
+
+     `--rec-aside-h` is that same figure measured rather than assumed, and it
+     is what the panel actually runs on — see `useAsideHeight` in the member
+     record. The fallback here is the sticky case written out longhand, which
+     is right only once the head above the grid has scrolled away: at the top
+     of the record the panel still sits below that head, so a height worked
+     out from the topbar alone hung ~140px past the bottom of the window with
+     its last two figures behind the action bar and a scrollbar inside a card
+     that had room going spare. It is the fallback and not the rule because a
+     page head is not a constant — the name wraps, the record loads — and
+     nothing in CSS can read where this box starts. */
+  height: var(--rec-aside-h, calc(100vh / var(--gm-zoom) - var(--topbar-h) - 122px));
+  overflow: hidden;
+}
+
+/* The scroller inside the card meets the card's bottom corner, and the card
+   clips: the last few pixels of the track were sliced off by the radius, so
+   the thumb ran into a curve and stopped mid-air. Inset the track by the
+   corner. Only the foot needs it — the head of this scroller sits below the
+   identity band, well clear of the top corners. The sidebar panel has the
+   same rule for the same reason; see the track block in admin.css. */
+.gm-idcard::-webkit-scrollbar-track {
+  margin-bottom: var(--r-md);
+}
+
+.gm-rec-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Below this the two columns are 300 and 480 with a gutter, and the right one
+   is where every table and pair of cards lives. One column, panel first — it
+   is still the first thing you want, it simply stops following you. */
+@media (max-width: 1180px) {
+  .gm-rec {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-rec-aside {
+    position: static;
+  }
+
+  .gm-rec-aside > .gm-card {
+    height: auto;
+  }
+}
+
+/* ------------------------------------------------ the identity panel
+
+   Centred, which nothing else in this console is, and deliberately: there is
+   one subject here and the card is a portrait of it rather than a row of
+   facts to scan down. The band behind the avatar is the page's own wash at
+   full strength — the same gold-into-paper ramp as `.gm-shell::before` — so
+   the card reads as cut from the page rather than as a coloured header
+   bolted to it. */
+/* The band runs to the card's edge, so the CARD rounds it off — see the clip
+   on `.gm-rec-aside > .gm-card`. This briefly did its own clipping with its
+   own `--r-md`, and the two radii cannot agree: the card's is measured on the
+   outside of a 1px border and this one's on the inside, so each top corner
+   came out as a grey arc with the border showing through it. A browser gets
+   the inner curve right on its own, given one box to round.
+
+   `min-height: 0` is what lets this shrink inside a card that has hit its
+   ceiling — without it a flex child refuses to go below its content and the
+   card grows past the height it was given instead of scrolling. */
+.gm-idcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 16px 16px;
+  /* `flex: 1` so this fills the card, not just its own content. Without it the
+     card was the height of the window and this column stopped where the last
+     fact did — so the empty space was between the two boxes, where nothing
+     could reach it, and `margin-top: auto` on the foot had no free space to
+     push into. `min-height: 0` is the other half: a flex child refuses to go
+     below its content without it, so a panel that ran out of room grew past
+     the height it was given instead of scrolling. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Nothing in here shrinks; the column scrolls instead.
+ *
+ * A flex item's default is `flex-shrink: 1`, so a column with less room than
+ * its content squashes its children before it will admit to overflowing —
+ * and the first thing to go was the identity band, 62px of it down to 11,
+ * which left the avatar hanging above the top of the card with the card's own
+ * clip taking the top off its head. Nothing looked like an overflow because
+ * there was none: the box had eaten the difference. Scrolling is the honest
+ * answer, and `overflow-y` above cannot produce one until the children refuse
+ * to give ground. */
+.gm-idcard > * {
+  flex: none;
+}
+
+/* A band, not a continuation of the page.
+ *
+ * This was the page's own wash — the same gold-into-paper ramp as
+ * `.gm-shell::before` — on the theory that the card would read as cut from
+ * the paper. It read as the card having lost its top edge instead: the tint
+ * was within a shade of the ground behind it, so the whole top of the panel
+ * dissolved and only the hairline border said a card was there at all.
+ * `--surface-2` is the console's second surface — the tint a table row takes
+ * on hover — and it is cool where the page is warm, so it reads as part of
+ * the card in both themes. */
+.gm-idcard-band {
+  align-self: stretch;
+  height: 62px;
+  margin: 0 -16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Lifted into the band by half of itself, so the card has one focal point
+   rather than a stripe and, under it, a circle. The ring is the page's paper
+   rather than the surface, which is what keeps the join invisible in both
+   themes. */
+.gm-idcard .gm-av {
+  margin-top: -36px;
+  box-shadow: 0 0 0 4px var(--surface), inset 0 0 0 1px var(--line-2);
+}
+
+.gm-idcard-name {
+  margin-top: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+/* The record's heading, and the only printing of the name on the page.
+ *
+ * It was a `<b>` under an `<h2>` in the page head that said the same two
+ * words. The head's copy is gone — it cost the panel 75px of the window it is
+ * measured against, which is what pushed the panel's own foot behind the
+ * action bar — so this element is the heading now. Two properties have to be
+ * restated: `.gm h1, h2, h3, h4` at the top of `admin.css` is a class and a
+ * type, one step more specific than a bare class, so it would take the
+ * tracking back to normal; and no heading margin is reset globally in this
+ * console, each place resets its own. */
+h2.gm-idcard-name {
+  margin: 10px 0 0;
+  letter-spacing: -0.015em;
+}
+
+.gm-idcard-sub {
+  margin-top: 2px;
+  font-size: 12.6px;
+  color: var(--ink-3);
+}
+
+.gm-idcard-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+/* The facts go back to ranged left. They are read one at a time rather than
+   compared, and a column of centred values has no edge for the eye to run
+   down — the name above is the one thing on this card worth centring. */
+.gm-idfacts {
+  align-self: stretch;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 11px;
+  align-content: start;
+  text-align: left;
+}
+
+/* Two facts to a row.
+ *
+ * Seven of them stacked came to 620px, and the panel is given whatever the
+ * window has left after the topbar and the action bar — 540 on a laptop, 561
+ * at 1920 where the zoom ladder is at 1.25. So the foot of the record was
+ * behind a scrollbar at every size a moderator actually works at, and no
+ * amount of sizing the box could fix it: a column that only grows is the
+ * wrong shape for a fixed height. Paired, the facts come to about 465 and the
+ * panel shows all of them down to a 660px window.
+ *
+ * `1fr 1fr` and not `auto auto`: the labels are what line up, and two columns
+ * sized to their content would put the second one wherever the first value
+ * happened to end. The values wrap instead — `.gm-idfact > b` already breaks
+ * anywhere, for the address that is not in here. */
+.gm-idpair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px 10px;
+}
+
+.gm-idfact {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.gm-idfact > span {
+  font-size: 11.4px;
+  font-weight: 600;
+  color: var(--ink-4);
+}
+
+.gm-idfact > b {
+  font-size: 13.2px;
+  font-weight: 550;
+  color: var(--ink);
+  /* An address is the one fact here long enough to burst a 304px panel, and
+     it must not: a wrapped email pushes every fact under it down and the
+     panel stops fitting the window it is pinned to. */
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------ the panel's floor
+
+   Two figures pinned to the bottom, the way `.gm-panel-foot` pins the sidebar's
+   theme switch. `margin-top: auto` inside the scrolling column is what does it:
+   when the content is shorter than the panel the slack lands above this strip
+   rather than under everything, so the column has weight at both ends. When
+   the content is taller, the auto margin collapses to nothing and the strip
+   simply follows the last fact into the scroll. */
+.gm-idfoot {
+  align-self: stretch;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  text-align: left;
+}
+
+.gm-idfoot > span {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gm-idfoot i {
+  font-style: normal;
+  font-size: 11.4px;
+  font-weight: 600;
+  color: var(--ink-4);
+}
+
+.gm-idfoot b {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------ the conduct outcomes
+
+   Five radio cards, and two of them carry a "Trust and safety" badge because
+   they are not the moderator's to apply alone. The badge sat immediately after
+   the title, so its x was wherever that title happened to end — "Close the
+   account" is 105px and "Refer to police" is 86, which put the two badges 19px
+   out of line with each other on consecutive rows and made the pair read as
+   two different kinds of warning rather than one.
+
+   The title takes a floor instead, measured off the longest of the five
+   (105.1) rather than guessed, so every badge starts at the same place. The
+   titles without one are unaffected: a floor is not a fixed width, and the
+   line has nothing else on it to push around. */
+.gm-choice-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 3px;
+  font-size: 13.2px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.gm-choice-line > b {
+  flex: none;
+  min-width: 108px;
+  font-weight: inherit;
+}
+
 /* ------------------------------------------------ the confidence chip
 
    Two facts in one chip: how far the market figure can be trusted, and the
@@ -1886,7 +2246,10 @@
    is stuck to the edge of; an inset panel reads as one considered object,
    which is the difference between this and a template. */
 .gm-login {
-  min-height: 100vh;
+  /* The window, with the `zoom` ladder divided back out of it — see
+     `--gm-zoom` in admin.css. A bare `100vh` here is a card centred in a box
+     taller than the screen, so the sign-in sits high and scrolls. */
+  min-height: calc(100vh / var(--gm-zoom));
   display: grid;
   place-items: center;
   padding: clamp(16px, 4vw, 48px);
@@ -1895,7 +2258,7 @@
 
 .gm-login-shell {
   width: min(1180px, 100%);
-  min-height: min(680px, calc(100vh - 96px));
+  min-height: min(680px, calc(100vh / var(--gm-zoom) - 96px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(16px, 3vw, 28px);
@@ -2325,8 +2688,6 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
 }
 
 .gm-filtergroup {
@@ -2868,6 +3229,49 @@
   }
 }
 
+/* ------------------------------------------------- two lists in one panel
+
+   The Decisions panel asks one question of two queues — what happened to the
+   listings that came in, and what happened to the cases — so it holds two
+   short bar lists rather than one long one with a heading buried in the
+   middle. A rule between them, not a gap: two stacks of bars with only white
+   space between them read as one stack that has been spaced oddly.
+
+   Each half is `1fr` so a queue with three outcomes and a queue with one do
+   not divide the panel between them by how much they happened to have to
+   say. */
+.gm-splitlist {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.gm-splitlist > section + section {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* The half's own label, with room on the right for the count that qualifies
+   it — "12 raised · 9 closed" is the denominator the bars under it are a
+   breakdown of, and it belongs on the same line as the word it qualifies. */
+.gm-splitlist-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 9px;
+  font-size: 12.4px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+.gm-splitlist-head > span {
+  margin-left: auto;
+  font-size: 11.8px;
+  font-weight: 550;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+
 /* --------------------------------------------------------- the big figure
 
    One number at a size nothing on the card competes with, because a panel
@@ -2916,6 +3320,18 @@
 .gm-figure-foot {
   font-size: 13px;
   color: var(--ink-3);
+}
+
+/* Whatever follows the figure gets clear of it.
+ *
+ * The figure is one 30px number with nothing above it but a caption, and a
+ * chart's first gridline label sits on the very top edge of its own box — so
+ * "$32,388" and the "$40k" beneath it came out a few pixels apart and read as
+ * one crowded block rather than as an answer and its working. 18px is enough
+ * that the two are separate things; the plan rows below already stated their
+ * own and keep it. */
+.gm-figure + * {
+  margin-top: 18px;
 }
 
 /* The plan breakdown under the revenue figure: name, price, headcount. Three
@@ -3164,6 +3580,11 @@
   gap: 12px;
   flex-wrap: wrap;
   padding: 4px 16px 14px;
+}
+
+/* Outside a card there is no inset to match — see `bare` on `Pagination`. */
+.gm-pager--bare {
+  padding: 2px 2px 0;
 }
 
 .gm-pager-count {
