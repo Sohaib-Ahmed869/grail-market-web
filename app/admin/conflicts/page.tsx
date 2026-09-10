@@ -25,7 +25,7 @@ import {
   IconShield,
   IconTag,
 } from "../components/icons";
-import { ApiError, fetchCases } from "../lib/api";
+import { ApiError, fetchCases, fetchTickets, type AdminTicket } from "../lib/api";
 import { toConflict } from "../lib/cases";
 import { exportCsv } from "../lib/csv";
 import { Gate } from "../components/Gate";
@@ -66,6 +66,14 @@ function ConflictsPage() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /* Member reports.
+   *
+   * A report of a fake listing arrives as a ticket, because it is a
+   * conversation with the person who filed it — but it is an accusation, and
+   * this is the page called "Reports & conduct". It was landing in the support
+   * queue looking exactly like a question about a password, and the person who
+   * filed one came here to look for it and found nothing. */
+  const [reports, setReports] = useState<AdminTicket[] | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -83,6 +91,23 @@ function ConflictsPage() {
       live = false;
     };
   }, [filter, party]);
+
+  useEffect(() => {
+    let live = true;
+    fetchTickets("all")
+      .then((r) => {
+        if (!live) return;
+        setReports(
+          r.tickets.filter((t) => t.kind === "report" && t.status !== "resolved"),
+        );
+      })
+      // The board is the page. A report strip that cannot load must not take
+      // the cases down with it.
+      .catch(() => live && setReports([]));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const list = rows;
 
@@ -122,6 +147,34 @@ function ConflictsPage() {
       />
 
       <div className="gm-stack">
+        {reports && reports.length > 0 ? (
+          <Card pad>
+            <BlockHead
+              title={`Member reports · ${reports.length}`}
+              sub="Filed from the app against a listing or a person. Each one is a conversation with the member who raised it, so it is worked in Support."
+            />
+            <div className="gm-reportlist">
+              {reports.map((t) => (
+                <Link key={t.id} href={`/admin/support/${t.id}`} className="gm-reportrow">
+                  <span className="gm-reportrow__icon">
+                    <IconShield />
+                  </span>
+                  <span className="gm-reportrow__body">
+                    <strong>{t.subject}</strong>
+                    <span>
+                      {t.member.name} · {t.category}
+                      {t.preview ? ` · ${t.preview.slice(0, 90)}` : ""}
+                    </span>
+                  </span>
+                  <Badge tone={t.status === "new" ? "bad" : "warn"}>
+                    {t.status === "new" ? "Unread" : t.status}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          </Card>
+        ) : null}
+
         {/* The filter sits beside the heading it changes rather than as a row
             of five pills above it. The heading names the state being shown,
             so nothing is hidden by moving the control. */}

@@ -335,7 +335,15 @@ function SupportPage() {
                     <tr key={t.id}>
                       <td>
                         <div className="gm-cell2">
-                          <b>{t.subject}</b>
+                          {/* A report is an accusation about a person, not a
+                              question about an account, and the two used to be
+                              indistinguishable in this queue. */}
+                          <b>
+                            {t.kind === "report" ? (
+                              <span className="gm-reportflag">Report</span>
+                            ) : null}
+                            {t.subject}
+                          </b>
                           <span>{t.category}</span>
                         </div>
                       </td>

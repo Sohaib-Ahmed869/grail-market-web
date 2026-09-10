@@ -3008,3 +3008,82 @@
 .gm-support-next-sla {
   display: block;
 }
+
+/* Member reports on the conduct board.
+ *
+ * A report is filed from the app and worked in Support, because it is a
+ * conversation with the person who raised it. It is listed here because this
+ * is the page named for reports, and it is where somebody looking for one
+ * goes. Rows are flat and link straight through — this is a pointer to work,
+ * not a place to do it, and dressing it as a case would say otherwise. */
+.gm-reportlist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gm-reportrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+
+.gm-reportrow:hover {
+  background: var(--surface-2);
+}
+
+.gm-reportrow__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--gold-050);
+  color: var(--gold-600);
+}
+
+.gm-reportrow__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.gm-reportrow__body strong {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-reportrow__body span {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The word "Report" in front of a subject line in the support queue. An
+ * accusation and a question sit in one list; only one of them names somebody. */
+.gm-reportflag {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--gold-100);
+  color: var(--gold-600);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}

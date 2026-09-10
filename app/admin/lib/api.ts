@@ -1000,6 +1000,8 @@ type WireTicket = {
   lastReply: string;
   slaHours: number;
   answered: boolean;
+  kind?: string;
+  aboutUserId?: string;
   assignee?: string | null;
   listingId?: string | null;
   disputeId?: string | null;
@@ -1035,6 +1037,10 @@ const SUPPORT_TIERS: SupportTier[] = ["tier-1", "tier-2", "trust-safety"];
  *  Widened at the boundary so no screen downstream guesses at a string. */
 export type AdminTicket = Omit<Ticket, "thread" | "member"> & {
   member: Ticket["member"] & { id: string };
+  /** "report" is an accusation about a member or a listing; "support" is a
+   *  question. Same queue, different errand. */
+  kind: "report" | "support";
+  aboutUserId?: string;
 };
 
 function normaliseTicket(w: WireTicket): AdminTicket {
@@ -1062,6 +1068,11 @@ function normaliseTicket(w: WireTicket): AdminTicket {
     slaHours: w.slaHours,
     answered: w.answered,
     assignee: w.assignee ?? undefined,
+    // An accusation and a question arrive in the same queue. Without this the
+    // console could not tell them apart, and a member reporting a fake listing
+    // read as somebody asking a question about their account.
+    kind: w.kind === "report" ? "report" : "support",
+    aboutUserId: w.aboutUserId ?? undefined,
   };
 }
 
