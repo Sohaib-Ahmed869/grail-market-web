@@ -45,6 +45,7 @@ import {
   SectionTabs,
   Toast,
   Toggle,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconCheck,
@@ -227,6 +228,12 @@ function SettingsPage() {
   const [teamWhy, setTeamWhy] = useState("");
   const [teamToast, setTeamToast] = useState<string | null>(null);
   const [teamBusy, setTeamBusy] = useState(false);
+  /* The switch the listing queue carries, on the one list this page holds.
+     The table stays the default and stays as it was — the second option is
+     the same accounts as cards, which is how the members directory already
+     draws the same people, and it has room for the scopes a role carries
+     without a column of run-together words. */
+  const [teamLayout, setTeamLayout] = useState<"table" | "gallery">("table");
 
   /* The real team, from the API.
 
@@ -467,7 +474,7 @@ function SettingsPage() {
           <div className="gm-stack">
             <Card>
               <CardHead
-                title="Reports and conduct"
+                title="Reports and Conduct"
                 sub="What happens on its own when one member reports another. No money passes through the platform, so every lever here acts on standing."
               />
               <CardBody>
@@ -585,7 +592,7 @@ function SettingsPage() {
                           <Toggle
                             checked={cats[c.key]}
                             onChange={(v) => setCats((x) => ({ ...x, [c.key]: v }))}
-                            label={`${c.name} open for new listings`}
+                            ariaLabel={`${c.name} open for new listings`}
                           />
                         </td>
                       </tr>
@@ -643,7 +650,7 @@ function SettingsPage() {
                         <th style={{ width: "22%" }}>Term</th>
                         <th>Why it is on the list</th>
                         <th style={{ width: "12%" }}>30d hits</th>
-                        <th style={{ width: "18%" }}>Action</th>
+                        <th className="gm-ctlcol" style={{ width: "18%" }}>Action</th>
                         <th className="gm-actions" />
                       </tr>
                     </thead>
@@ -655,7 +662,7 @@ function SettingsPage() {
                           <td className="gm-sm gm-mono">
                             {t.hits === 0 ? <span className="gm-dim">never</span> : t.hits}
                           </td>
-                          <td>
+                          <td className="gm-ctlcol">
                             <Select
                               value={t.action}
                               onChange={(v) =>
@@ -739,9 +746,13 @@ function SettingsPage() {
                     <thead>
                       <tr>
                         <th style={{ width: "28%" }}>Phrase</th>
-                        <th style={{ width: "16%" }}>Group</th>
+                        <th className="gm-chipcol" style={{ width: "16%" }}>
+                          <span>Group</span>
+                        </th>
                         <th style={{ width: "14%" }}>30d hits</th>
-                        <th style={{ width: "26%" }}>What happens</th>
+                        <th className="gm-ctlcol gm-ctlcol--wide" style={{ width: "26%" }}>
+                          What happens
+                        </th>
                         <th className="gm-actions" />
                       </tr>
                     </thead>
@@ -749,11 +760,11 @@ function SettingsPage() {
                       {intercept.map((t, i) => (
                         <tr key={t.term} style={interceptOn ? undefined : { opacity: 0.5 }}>
                           <td className="gm-mono gm-sm">{t.term}</td>
-                          <td className="gm-sm gm-muted">
+                          <td className="gm-sm gm-muted gm-chipcol">
                             <span className="gm-scope">{t.group}</span>
                           </td>
                           <td className="gm-sm gm-mono">{t.hits}</td>
-                          <td>
+                          <td className="gm-ctlcol gm-ctlcol--wide">
                             <Select
                               value={t.action}
                               onChange={(v) =>
@@ -790,7 +801,7 @@ function SettingsPage() {
 
         {/* ======================================================== fees */}
         {section === "fees" ? (
-          <div className="gm-stack">
+          <div className="gm-stack gm-fees">
             <Note tone={feesLive ? "warn" : "gold"}>
               {feesLive ? (
                 <>
@@ -819,16 +830,16 @@ function SettingsPage() {
                   title="Free-listing allowance"
                   hint="Listings a member can publish before a fee applies. Their plan quota still caps how many can be live at once. This is about how many they may create."
                   control={
-                    <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <div className="gm-fee">
                       <input
                         className="gm-input gm-mono"
-                        style={{ width: 84, textAlign: "right" }}
+                        style={{ textAlign: "right" }}
                         value={allowance}
                         onChange={(e) => setAllowance(e.target.value)}
                         inputMode="numeric"
                         aria-label="Free listing allowance"
                       />
-                      <span className="gm-muted">free</span>
+                      <span className="gm-fee-post gm-muted">free</span>
                     </div>
                   }
                 />
@@ -851,11 +862,11 @@ function SettingsPage() {
                   title="Fee per listing"
                   hint="Charged on each listing past the allowance, when it is published rather than when it sells."
                   control={
-                    <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                      <span className="gm-muted">A$</span>
+                    <div className="gm-fee">
+                      <span className="gm-fee-pre gm-muted">A$</span>
                       <input
                         className="gm-input gm-mono"
-                        style={{ width: 84, textAlign: "right" }}
+                        style={{ textAlign: "right" }}
                         value={perListing}
                         onChange={(e) => setPerListing(e.target.value)}
                         inputMode="decimal"
@@ -868,11 +879,11 @@ function SettingsPage() {
                   title="Fee floor"
                   hint="No fee is charged below this ask price, so a small listing does not carry a fee worth most of the card."
                   control={
-                    <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                      <span className="gm-muted">A$</span>
+                    <div className="gm-fee">
+                      <span className="gm-fee-pre gm-muted">A$</span>
                       <input
                         className="gm-input gm-mono"
-                        style={{ width: 84, textAlign: "right" }}
+                        style={{ textAlign: "right" }}
                         value={feeFloor}
                         onChange={(e) => setFeeFloor(e.target.value)}
                         inputMode="numeric"
@@ -900,7 +911,9 @@ function SettingsPage() {
                 <table className="gm-table" style={{ minWidth: 820 }}>
                   <thead>
                     <tr>
-                      <th style={{ width: "20%" }}>Role</th>
+                      <th className="gm-chipcol gm-chipcol--wide" style={{ width: "20%" }}>
+                        <span>Role</span>
+                      </th>
                       <th style={{ width: "18%" }}>Who holds it</th>
                       <th>Sees</th>
                       <th style={{ width: "12%" }}>Accounts</th>
@@ -911,7 +924,7 @@ function SettingsPage() {
                       const held = team.filter((p) => p.role === r.key);
                       return (
                         <tr key={r.key}>
-                          <td>
+                          <td className="gm-chipcol gm-chipcol--wide">
                             {r.key === "owner" ? (
                               <Badge tone="gold">{r.label}</Badge>
                             ) : (
@@ -958,27 +971,96 @@ function SettingsPage() {
                     : `${team.length} account${team.length === 1 ? "" : "s"} hold a console role`
                 }
                 right={
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--sm gm-btn--primary"
-                    onClick={() => {
-                      setInviteEmail("");
-                      setInviteCompany("");
-                      setInviteRole("tier-1");
-                      setInviting(true);
-                    }}
-                  >
-                    <IconMail />
-                    Grant access
-                  </button>
+                  <div className="gm-row" style={{ gap: 8 }}>
+                    <button
+                      type="button"
+                      className="gm-btn gm-btn--sm gm-btn--primary"
+                      onClick={() => {
+                        setInviteEmail("");
+                        setInviteCompany("");
+                        setInviteRole("tier-1");
+                        setInviting(true);
+                      }}
+                    >
+                      <IconMail />
+                      Grant access
+                    </button>
+                    <ViewToggle value={teamLayout} onChange={setTeamLayout} />
+                  </div>
                 }
               />
+              {teamLayout === "gallery" ? (
+                /* The same accounts, one to a card. Nothing here is a fact the
+                   table does not carry; the scopes are the one thing that reads
+                   better wrapped than as a single line of names joined by
+                   middots, so this is where they are legible. */
+                <div className="gm-people">
+                  {team.map((p) => (
+                    <article key={p.id} className="gm-person">
+                      <div className="gm-person-top">
+                        <div className="gm-person-id">
+                          <b>{p.name}</b>
+                          <span>{p.email}</span>
+                        </div>
+                        {p.role === "owner" ? (
+                          <Badge tone="gold">{roleLabel(p.role)}</Badge>
+                        ) : (
+                          <Badge tone="idle">{roleLabel(p.role)}</Badge>
+                        )}
+                      </div>
+
+                      <div className="gm-person-facts">
+                        <span className="gm-person-fact">
+                          On the team since {shortDate(p.since)}
+                        </span>
+                        <span className="gm-person-fact">
+                          {p.grantedBy ? `Scoped by ${p.grantedBy}` : "Grant not recorded"}
+                        </span>
+                      </div>
+
+                      <div className="gm-person-tags">
+                        {scopesOf(p.role).map((sc) => (
+                          <span key={sc} className="gm-scope">
+                            {sc}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="gm-person-foot">
+                        <button
+                          type="button"
+                          className="gm-btn gm-btn--sm"
+                          onClick={() => {
+                            setScoping(p);
+                            setScopeRole(p.role);
+                            setTeamWhy("");
+                          }}
+                        >
+                          Scope
+                        </button>
+                        <button
+                          type="button"
+                          className="gm-btn gm-btn--sm gm-btn--danger"
+                          onClick={() => {
+                            setRevoking(p);
+                            setTeamWhy("");
+                          }}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
               <div className="gm-tablewrap">
                 <table className="gm-table" style={{ minWidth: 820 }}>
                   <thead>
                     <tr>
                       <th>Account</th>
-                      <th>Role</th>
+                      <th className="gm-chipcol gm-chipcol--wide">
+                        <span>Role</span>
+                      </th>
                       <th>Scopes</th>
                       <th>Granted</th>
                       <th className="gm-actions">Action</th>
@@ -995,7 +1077,7 @@ function SettingsPage() {
                             </div>
                           </div>
                         </td>
-                        <td>
+                        <td className="gm-chipcol gm-chipcol--wide">
                           {p.role === "owner" ? (
                             <Badge tone="gold">{roleLabel(p.role)}</Badge>
                           ) : (
@@ -1036,6 +1118,7 @@ function SettingsPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </Card>
 
 

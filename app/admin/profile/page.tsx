@@ -108,9 +108,13 @@ function ProfilePage() {
 
   return (
     <>
-      <PageHead title="Your profile" sub="Your own account. Nobody else's." />
+      <PageHead title="Your Profile" sub="Your own account. Nobody else's." />
 
-      <div className="gm-stack" style={{ maxWidth: 640 }}>
+      {/* No width cap. The column was held to 640px so the forms on it read
+          as forms rather than as a page-wide band of inputs, and on a wide
+          screen that left the panels floating in the left third of the
+          container. The fields inside keep their own measure. */}
+      <div className="gm-stack">
         {/* Said rather than discovered on the first refusal: the development
             stand-in is not a real account, so there is nothing to change. */}
         {me?.devAuth ? (

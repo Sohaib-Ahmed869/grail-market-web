@@ -16,20 +16,17 @@ import {
   CardHead,
   ColumnChart,
   Empty,
-  Gauge,
   Loading,
   Note,
   PageHead,
+  RingChart,
   Select,
   TrendChart,
 } from "../components/ui";
 import {
-  IconCheckCircle,
-  IconClock,
   IconDollar,
   IconDownload,
   IconRefresh,
-  IconScale,
   IconShield,
   IconTrend,
   IconUsers,
@@ -141,6 +138,15 @@ function Delta({
 
 function ReportsPage() {
   const [period, setPeriod] = useState("30d");
+  /* The same switch the listing queue carries, and the same default: the
+     figures as a list first, the panels behind the second button.
+
+     A table of reports has been here before and was removed for good reason —
+     it sat UNDERNEATH the charts it described, restating their names and a
+     two-line explanation of what each one counts below the drawn version of
+     the same thing. This is the other arrangement: one or the other, never
+     both, and it carries only what a row can be read on — the name, what it
+     counts, the current figure and its shape. */
 
   const [data, setData] = useState<ReportsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,6 +192,24 @@ function ReportsPage() {
    *  would say every account on the marketplace is unverified. */
   const verifiedPct = o && o.members > 0 ? Math.round((o.verified / o.members) * 100) : null;
 
+  /** The two rates that share a card. Each is already a percentage of its own
+   *  denominator, so they are drawn `share={false}` — see `RingChart`. A rate
+   *  with no answer is left out rather than drawn at nought: no members means
+   *  no verified share, and nothing decided means no on-time share.
+   *
+   *  Gold and `--ink-2`, not gold and navy. The arc's colour is also its
+   *  percentage label's, and `--navy-500` is a fixed mid-navy: legible on
+   *  paper, and on the dark theme's near-black card it is a dim smudge on top
+   *  of a dim ring. `--ink-2` follows the theme, so both arcs read in both. */
+  const rateRings = [
+    verifiedPct === null
+      ? null
+      : { label: "Accounts verified", value: verifiedPct, color: "var(--gold)" },
+    !sla || sla.onTime === null
+      ? null
+      : { label: "Decided on time", value: sla.onTime, color: "var(--ink-2)" },
+  ].filter(Boolean) as { label: string; value: number; color: string }[];
+
   /** Every series on screen, as one spreadsheet. The period applies. */
   function exportAll() {
     if (!data) return;
@@ -204,6 +228,21 @@ function ReportsPage() {
       { header: "Bucket", value: (r) => r.bucket },
       { header: "Value", value: (r) => r.value },
     ]);
+  }
+
+  /** One series, as a spreadsheet. The row's own action — the page-wide
+   *  Export writes all nine, and a row you are reading is rarely all nine. */
+  function exportSeries(r: ReportSeries) {
+    exportCsv(
+      `grailmarket-${r.id.toLowerCase()}-${period}`,
+      r.trend.map((value, i) => ({ bucket: r.labels[i] ?? `#${i + 1}`, value })),
+      [
+        { header: "Report", value: () => r.name },
+        { header: "Period", value: () => label },
+        { header: "Bucket", value: (x) => x.bucket },
+        { header: "Value", value: (x) => x.value },
+      ],
+    );
   }
 
   return (
@@ -259,12 +298,194 @@ function ReportsPage() {
           </Card>
         ) : (
           <div className="gm-bento">
+            {/* ------------------------------------------- who is joining
+
+                Top left, and a line.
+
+                The reference this layout follows opens with one card whose
+                whole content is a figure and the curve under it — the shape
+                that says "this is the number, and this is how it got here" in
+                a single glance. Members is the series that suits it: a count
+                read for its slope rather than for any one bucket, which is
+                exactly what a line is for and exactly what the columns along
+                the bottom of this page are not. */}
+            <Card>
+              <CardHead
+                title="Members"
+                sub={o ? `${num(o.members)} on the marketplace` : "Sign-ups across the period"}
+              />
+              <CardBody>
+                <Figure
+                  value={num(o?.members ?? 0)}
+                  label="On the marketplace"
+                  icon={<IconUsers />}
+                  foot={<Delta n={o?.newMembers ?? 0} one="joined" many="joined" period={label} />}
+                />
+                {drawable(growth) ? (
+                  <TrendChart
+                    labels={growth!.labels}
+                    values={growth!.trend}
+                    height={150}
+                    format={formatterFor(growth!.unit)}
+                    seriesLabel={growth!.headlineLabel}
+                  />
+                ) : (
+                  <Empty
+                    icon={<IconUsers />}
+                    title="No sign-ups"
+                    body={growth?.unavailable ?? "Nobody joined in this period."}
+                  />
+                )}
+              </CardBody>
+            </Card>
+
+            {/* ------------------------------------------------- two rates
+
+                One card, two dials, asked for. These were a card each and
+                they are the same kind of answer twice: a percentage, drawn as
+                an arc, with the figures behind it underneath. Together they
+                also read as the pair they are — one says how many of these
+                accounts are real people, the other how quickly the desk
+                answers what they list.
+
+                `share={false}` because they are NOT parts of one whole; see
+                the note on `RingChart`. Either can be missing on its own — a
+                marketplace with no members has no verified share, a period
+                with nothing decided has no on-time share, and neither of those
+                is zero per cent. Whichever survives is drawn alone, and if
+                neither does the card says so rather than drawing an empty
+                dial at the bottom of its arc. */}
+            <Card>
+              <CardHead title="Verified and on time" sub="Identity checks and the review clock" />
+              <CardBody>
+                {rateRings.length === 0 ? (
+                  <Empty
+                    icon={<IconShield />}
+                    title="Nothing to measure"
+                    body="No account has been checked and no listing decided in this period."
+                  />
+                ) : (
+                  <>
+                    <div className="gm-panel-figure">
+                      <RingChart rings={rateRings} share={false} size={168} thickness={11} />
+                    </div>
+                    <div className="gm-factstrip">
+                      <span>
+                        <i>Verified</i>
+                        <b>{o ? `${num(o.verified)} of ${num(o.members)}` : "—"}</b>
+                      </span>
+                      <span>
+                        <i>Median</i>
+                        <b>{sla?.medianLabel ?? "—"}</b>
+                      </span>
+                      <span>
+                        <i>Breached</i>
+                        <b style={(sla?.breached ?? 0) > 0 ? { color: "var(--bad)" } : undefined}>
+                          {sla?.breached ?? 0}
+                        </b>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </CardBody>
+            </Card>
+
+            {/* --------------------------------------------- what was decided
+
+                Two panels once, and the same question asked of two queues:
+                what happened to the things that came in. Listings are
+                approved, rejected or sent back; cases are upheld, dismissed
+                or escalated. Under one heading the pair reads as the
+                console's output for the period, which is what it is; apart,
+                each was a short bar list alone in a card the height of a
+                chart. */}
+            <Card>
+              <CardHead title="Decisions" sub={`What was settled ${label.toLowerCase()}`} />
+              <CardBody>
+                <div className="gm-splitlist">
+                  <section>
+                    <div className="gm-splitlist-head">Listings</div>
+                    {decisionSplit.some((d) => d.value > 0) ? (
+                      <BarList rows={decisionSplit} />
+                    ) : (
+                      <p className="gm-sm gm-muted">
+                        No listing was approved, rejected or sent back.
+                      </p>
+                    )}
+                  </section>
+                  <section>
+                    <div className="gm-splitlist-head">
+                      Cases
+                      <span>
+                        {num(o?.casesOpened ?? 0)} raised · {num(o?.casesResolved ?? 0)} closed
+                      </span>
+                    </div>
+                    {conflictOutcomes.some((c) => c.value > 0) ? (
+                      <BarList rows={conflictOutcomes} tone="gold" />
+                    ) : (
+                      <p className="gm-sm gm-muted">
+                        No case has been closed, so there is nothing to say about outcomes yet.
+                      </p>
+                    )}
+                  </section>
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* ------------------------------------------ what is being traded
+
+                The wide one along the bottom, where the reference puts its own
+                bar chart, and it keeps the columns it already had.
+
+                Bars, not a line. GMV is money that arrived in a bucket, and a
+                bucket is a countable thing with edges — a column says "this
+                much, in that week" where a line says the figure was travelling
+                continuously between the two, which is not what a sum over a
+                week is. It also stops a period with one busy bucket reading as
+                a curve sweeping upward off the top of the chart.
+
+                The headline moved out of the subtitle and into a `Figure`,
+                because on this row it is the card's answer and the chart is
+                the working. */}
+            <Card className="gm-bento-wide">
+              <CardHead
+                title={gmv?.name ?? "Marketplace volume"}
+                sub="Confirmed sales across the period"
+              />
+              <CardBody>
+                <Figure
+                  value={gmv?.headline ?? "—"}
+                  label={gmv?.headlineLabel ?? "Traded"}
+                  icon={<IconTrend />}
+                />
+                {drawable(gmv) ? (
+                  <ColumnChart
+                    data={gmv!.labels.map((l, i) => ({ label: l, value: gmv!.trend[i] ?? 0 }))}
+                    height={218}
+                    color="var(--grad-gold)"
+                    format={formatterFor(gmv!.unit)}
+                  />
+                ) : (
+                  <Empty
+                    icon={<IconTrend />}
+                    title="No completed sales"
+                    body={gmv?.unavailable ?? "Nothing sold in this period."}
+                  />
+                )}
+              </CardBody>
+            </Card>
+
             {/* ------------------------------------------------------ money
 
-                Top left, because it is the first question. Recurring revenue
-                is what is true now rather than over the period — there is no
-                such thing as MRR for the last seven days — and the card says
-                so rather than letting the period control imply otherwise. */}
+                Bottom right, asked for, and it is the right corner for it:
+                the reference puts a list of transactions there and this is
+                the page's one panel that is a list — the plans, and then what
+                was collected against what bounced.
+
+                Recurring revenue is what is true now rather than over the
+                period — there is no such thing as MRR for the last seven days
+                — and the card says so rather than letting the period control
+                imply otherwise. */}
             <Card>
               <CardHead title="Recurring revenue" sub="Subscriptions, as they stand today" />
               <CardBody>
@@ -314,223 +535,6 @@ function ReportsPage() {
                     </b>
                   </span>
                 </div>
-              </CardBody>
-            </Card>
-
-            {/* ------------------------------------------ what is being traded */}
-            <Card className="gm-bento-wide">
-              <CardHead
-                title={gmv?.name ?? "Marketplace volume"}
-                sub={
-                  gmv
-                    ? `${gmv.headline} · ${gmv.headlineLabel}`
-                    : "Confirmed sales across the period"
-                }
-              />
-              <CardBody>
-                {/* Bars, not a line.
-
-                    GMV is money that arrived in a bucket, and a bucket is a
-                    countable thing with edges — a column says "this much, in
-                    that week" where a line says the figure was travelling
-                    continuously between the two, which is not what a sum over
-                    a week is. It also stops a period with one busy bucket
-                    reading as a curve sweeping upward off the top of the
-                    chart. */}
-                {drawable(gmv) ? (
-                  <ColumnChart
-                    data={gmv!.labels.map((l, i) => ({ label: l, value: gmv!.trend[i] ?? 0 }))}
-                    height={228}
-                    color="var(--grad-gold)"
-                    format={formatterFor(gmv!.unit)}
-                  />
-                ) : (
-                  <Empty
-                    icon={<IconTrend />}
-                    title="No completed sales"
-                    body={gmv?.unavailable ?? "Nothing sold in this period."}
-                  />
-                )}
-              </CardBody>
-            </Card>
-
-            {/* ----------------------------------------------- who is real */}
-            <Card>
-              <CardHead title="Verified accounts" sub="Approved by the identity provider" />
-              <CardBody>
-                {verifiedPct === null ? (
-                  <Empty
-                    icon={<IconShield />}
-                    title="No members yet"
-                    body="Nothing to verify."
-                  />
-                ) : (
-                  <>
-                    <div className="gm-panel-figure">
-                      <Gauge
-                        value={verifiedPct}
-                        label={`${verifiedPct}%`}
-                        caption="verified"
-                        gradient={{ from: "var(--gold-lift)", to: "var(--gold-sink)" }}
-                        size={128}
-                        thickness={12}
-                      />
-                    </div>
-                    <div className="gm-factstrip">
-                      <span>
-                        <i>Verified</i>
-                        <b>
-                          {num(o!.verified)} of {num(o!.members)}
-                        </b>
-                      </span>
-                      <span>
-                        <i>{label}</i>
-                        <b>
-                          <Delta n={o!.newVerified} one="account" many="accounts" period="" />
-                        </b>
-                      </span>
-                    </div>
-                  </>
-                )}
-              </CardBody>
-            </Card>
-
-            {/* -------------------------------------- is the desk keeping up */}
-            <Card>
-              <CardHead title="Review queue" sub="Decided inside the 24-hour target" />
-              <CardBody>
-                {/* A percentage of nothing is not zero per cent — it is no
-                    answer, and a gauge at the bottom of its arc says the desk
-                    missed every one of them. */}
-                {!sla || sla.onTime === null ? (
-                  <Empty
-                    icon={<IconClock />}
-                    title="Nothing to measure"
-                    body="No listing was decided in this period."
-                  />
-                ) : (
-                  <>
-                    <div className="gm-panel-figure">
-                      <Gauge
-                        value={sla.onTime}
-                        label={`${sla.onTime}%`}
-                        caption="on time"
-                        gradient={{ from: "var(--gold-lift)", to: "var(--gold-sink)" }}
-                        size={128}
-                        thickness={12}
-                      />
-                    </div>
-                    <div className="gm-factstrip">
-                      <span>
-                        <i>Median</i>
-                        <b>{sla.medianLabel}</b>
-                      </span>
-                      <span>
-                        <i>Breached</i>
-                        <b style={sla.breached > 0 ? { color: "var(--bad)" } : undefined}>
-                          {sla.breached}
-                        </b>
-                      </span>
-                    </div>
-                  </>
-                )}
-              </CardBody>
-            </Card>
-
-            {/* --------------------------------------- how much is going wrong */}
-            <Card>
-              <CardHead title="Conflicts" sub="Raised by members against each other" />
-              <CardBody>
-                <Figure
-                  value={num(o?.casesOpened ?? 0)}
-                  label={`Raised ${label.toLowerCase()}`}
-                  icon={<IconScale />}
-                  foot={
-                    (o?.casesResolved ?? 0) > 0
-                      ? `${num(o!.casesResolved)} closed in the same window`
-                      : "None closed in the same window"
-                  }
-                />
-                {conflictOutcomes.some((c) => c.value > 0) ? (
-                  <div style={{ marginTop: 4 }}>
-                    <div className="gm-label" style={{ marginBottom: 8 }}>
-                      Where they landed
-                    </div>
-                    <BarList rows={conflictOutcomes} fill />
-                  </div>
-                ) : (
-                  <p className="gm-sm gm-muted" style={{ margin: "10px 0 0" }}>
-                    No case has been closed in this period, so there is nothing to say about
-                    outcomes yet.
-                  </p>
-                )}
-              </CardBody>
-            </Card>
-
-            {/* ---------------------------------------------- who is joining
-
-                The full width, now that "Volume by game" has gone from beside
-                it. That panel split the period's sales by trading card game,
-                which is a fact about the catalogue rather than about the
-                business — nobody decides anything differently for knowing it,
-                and on a marketplace whose listings are almost all one game it
-                was a single bar at 100%. */}
-            <Card className="gm-bento-wide">
-              <CardHead
-                title="Members"
-                sub={
-                  o
-                    ? `${num(o.members)} in total · ${o.newMembers > 0 ? `${num(o.newMembers)} joined` : "none joined"} ${label.toLowerCase()}`
-                    : "Sign-ups across the period"
-                }
-              />
-              <CardBody>
-                {drawable(growth) ? (
-                  <TrendChart
-                    labels={growth!.labels}
-                    values={growth!.trend}
-                    height={186}
-                    format={formatterFor(growth!.unit)}
-                    seriesLabel={growth!.headlineLabel}
-                  />
-                ) : (
-                  <Empty
-                    icon={<IconUsers />}
-                    title="No sign-ups"
-                    body={growth?.unavailable ?? "Nobody joined in this period."}
-                  />
-                )}
-              </CardBody>
-            </Card>
-
-            {/* ------------------------------------- what happened to submissions
-
-                This lived inside "Review queue", under the dial and the two
-                figures, and it was the reason that card ran 250px taller than
-                the two beside it — a row of three panels where one was half
-                again the height of its neighbours, and the short pair carried
-                the difference as white space.
-
-                It is a fair panel on its own: the dial says how FAST the desk
-                answered and this says WHAT it answered, which are two
-                questions. Beside the members chart it is also the right
-                height, which is the other half of why the row now reads as a
-                row. */}
-            <Card>
-              <CardHead
-                title="Listing decisions"
-                sub={`What was decided ${label.toLowerCase()}`}
-              />
-              <CardBody>
-                {decisionSplit.some((d) => d.value > 0) ? (
-                  <BarList rows={decisionSplit} fill />
-                ) : (
-                  <Empty
-                    icon={<IconCheckCircle />}
-                    title="Nothing decided"
-                    body="No listing was approved, rejected or sent back in this period."
-                  />
-                )}
               </CardBody>
             </Card>
           </div>

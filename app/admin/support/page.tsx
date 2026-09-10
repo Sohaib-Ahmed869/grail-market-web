@@ -7,20 +7,22 @@ import { useRouter, useSearchParams } from "next/navigation";
  *  it so a badge can be drawn before the first response lands. */
 const REPLY_TARGET: Record<string, number> = { urgent: 1, high: 4, normal: 12, low: 24 };
 
-import { type TicketStatus } from "../lib/data";
+import { dateOnly, type TicketStatus } from "../lib/data";
 import { ApiError, fetchTickets, openTicket, type AdminTicket } from "../lib/api";
 import {
   Badge,
   Card,
-  CardHead,
   Empty,
   Modal,
   Loading,
   Note,
   PageHead,
+  Pagination,
   PriorityBadge,
   FilterMenu,
+  TicketBadge,
   Toast,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconEye,
@@ -91,6 +93,9 @@ const PRIORITIES: { key: string; label: string }[] = [
 /* Linked from the sidebar as `?status=new` and friends. */
 const STATUSES = FILTERS.map((f) => f.key as string);
 
+/** Rows per page. A queue is read a screenful at a time, not scrolled. */
+const PAGE_SIZE = 6;
+
 function SupportPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -101,6 +106,11 @@ function SupportPage() {
   useEffect(() => setFilter(fromUrl), [fromUrl]);
   const [priority, setPriority] = useState("all");
   const [query, setQuery] = useState("");
+  /* The switch the listing queue carries, on the desk's queue too. The table
+     is the default and is the view this page was built as — the second option
+     is the same rows as cards, which is the shape that survives a narrow
+     window, where five columns become a sideways scroll. */
+  const [layout, setLayout] = useState<"table" | "gallery">("table");
   const [toast, setToast] = useState<{
     title: string;
     body: string;
@@ -167,6 +177,14 @@ function SupportPage() {
       );
     });
   }, [mine, filter, priority, query]);
+
+  const [page, setPage] = useState(1);
+  /* Whichever filter, priority or search brought this set of rows into
+     being, page 1 is where it should be read from — carrying a page index
+     across a change of filter lands an agent on a page that may no longer
+     exist. */
+  useEffect(() => setPage(1), [filter, priority, query]);
+  const shown = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   /* Anything unanswered and past its target — the number the desk is judged
      on, and the reason the queue is ordered the way it is. */
@@ -235,76 +253,131 @@ function SupportPage() {
           </Note>
         ) : null}
 
-        {/* ------------------------------------------------------- the queue */}
-        <Card>
-          {/* One filter language, the same as the listing queue and the case
-              board: the heading names what is shown, its subtitle spells out
-              what is applied, and the control sits beside it. A row of five
-              pills above the card said the state was the only thing you could
-              filter on, which is why priority had nowhere to live. */}
-          <CardHead
-            title="Tickets"
-            sub={
-              loading && rows.length === 0
-                ? "Reading the queue…"
-                : `${FILTERS.find((f) => f.key === filter)!.label} · ${list.length} shown${
-                    priority === "all" ? "" : ` · ${priority} priority`
-                  }`
-            }
-            right={
-              <div className="gm-row" style={{ gap: 8 }}>
-                <div className="gm-search" style={{ width: 224 }}>
-                  <IconSearch />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Subject, ticket id, member…"
-                    aria-label="Search tickets"
-                  />
-                </div>
-                <FilterMenu
-                  applied={(filter === "all" ? 0 : 1) + (priority === "all" ? 0 : 1)}
-                  onClear={() => {
-                    setFilter("all");
-                    setPriority("all");
-                  }}
-                  groups={[
-                    {
-                      key: "status",
-                      label: "Ticket state",
-                      value: filter,
-                      onChange: (v) => setFilter(v as Filter),
-                      options: FILTERS.map((f) => ({
-                        value: f.key,
-                        label: f.label,
-                        count: counts[f.key] ?? 0,
-                      })),
-                    },
-                    {
-                      key: "priority",
-                      label: "Priority",
-                      value: priority,
-                      onChange: setPriority,
-                      options: PRIORITIES.map((p) => ({ value: p.key, label: p.label })),
-                    },
-                  ]}
-                />
-              </div>
-            }
-          />
+        {/* The card now holds only the table; the controls that filter it sit
+            above it, here, where they read as belonging to the page rather
+            than as part of the data underneath them. */}
+        <div className="gm-tablebar">
+          <span className="gm-tablebar-count">
+            {loading && rows.length === 0
+              ? "Reading the queue…"
+              : `${FILTERS.find((f) => f.key === filter)!.label} · ${list.length} shown${
+                  priority === "all" ? "" : ` · ${priority} priority`
+                }`}
+          </span>
+          <div className="gm-row" style={{ gap: 8 }}>
+            <div className="gm-search" style={{ width: 224 }}>
+              <IconSearch />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Subject, ticket id, member…"
+                aria-label="Search tickets"
+              />
+            </div>
+            <FilterMenu
+              applied={(filter === "all" ? 0 : 1) + (priority === "all" ? 0 : 1)}
+              onClear={() => {
+                setFilter("all");
+                setPriority("all");
+              }}
+              groups={[
+                {
+                  key: "status",
+                  label: "Ticket state",
+                  value: filter,
+                  onChange: (v) => setFilter(v as Filter),
+                  options: FILTERS.map((f) => ({
+                    value: f.key,
+                    label: f.label,
+                    count: counts[f.key] ?? 0,
+                  })),
+                },
+                {
+                  key: "priority",
+                  label: "Priority",
+                  value: priority,
+                  onChange: setPriority,
+                  options: PRIORITIES.map((p) => ({ value: p.key, label: p.label })),
+                },
+              ]}
+            />
+            <ViewToggle value={layout} onChange={setLayout} />
+          </div>
+        </div>
 
-          {/* Loading and empty are different answers and must not share a
-              screen: "Nothing matches that filter" while the request is still
-              in flight tells an agent their filter is wrong when it is not. */}
-          {loading ? (
+        {/* ------------------------------------------------------- the queue
+
+            The card is the TABLE's frame, not the queue's. A table needs
+            something to be ruled inside and a gallery does not: cards on the
+            page's own paper is what the conduct board has always done, and a
+            second white rectangle behind them only draws a box around a box.
+            So each branch brings its own wrapper — see the same split on the
+            verification queue. */}
+        {loading ? (
+          <Card>
+            {/* Loading and empty are different answers and must not share a
+                screen: "Nothing matches that filter" while the request is
+                still in flight tells an agent their filter is wrong when it
+                is not. */}
             <Loading label="Reading the queue…" />
-          ) : list.length === 0 ? (
+          </Card>
+        ) : list.length === 0 ? (
+          <Card>
             <Empty
               icon={<IconInbox />}
               title="Nothing here"
               body="No ticket matches that filter or search."
             />
+          </Card>
+        ) : layout === "gallery" ? (
+            /* The same rows, one to a card. Nothing here is a fact the table
+               does not carry — it is the same four things in a shape that can
+               hold them stacked rather than side by side, which is what a
+               phone and a half-width window have room for. */
+            <div className="gm-people">
+              {shown.map((t) => (
+                <article key={t.id} className="gm-person">
+                  <div className="gm-person-top">
+                    <div className="gm-person-id">
+                      {/* The card's title line is one line and clips — it was
+                          built for a name. A subject is a sentence, so the
+                          whole of it is on the element for a pointer, and the
+                          table beside this shows it in full. */}
+                      <b title={t.subject}>{t.subject}</b>
+                      <span>{t.category}</span>
+                    </div>
+                    <TicketBadge status={t.status} />
+                  </div>
+
+                  <div className="gm-person-facts">
+                    <span className="gm-person-fact">
+                      {t.member.handle} · {t.member.role.replace("-", " & ")}
+                    </span>
+                    <span className="gm-person-fact">Opened {dateOnly(t.opened)}</span>
+                    {t.assignee ? (
+                      <span className="gm-person-fact">Held by {t.assignee}</span>
+                    ) : null}
+                  </div>
+
+                  <div className="gm-person-tags">
+                    <PriorityBadge priority={t.priority} />
+                    <Sla t={t} />
+                  </div>
+
+                  <div className="gm-person-foot">
+                    <span className="gm-tiny gm-dim">Last reply {dateOnly(t.lastReply)}</span>
+                    <Link
+                      className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                      href={`/admin/support/${t.id}`}
+                    >
+                      {t.status === "resolved" ? "Open" : "Answer"}
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
           ) : (
+          <Card>
             <div className="gm-tablewrap">
               {/* Five columns, and two badges a row rather than four.
 
@@ -325,13 +398,15 @@ function SupportPage() {
                   <tr>
                     <th>Ticket</th>
                     <th>Member</th>
-                    <th>Priority</th>
-                    <th>First reply</th>
+                    <th className="gm-chipcol"><span>Priority</span></th>
+                    <th className="gm-chipcol gm-chipcol--wide">
+                      <span>First reply</span>
+                    </th>
                     <th className="gm-rowend">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((t) => (
+                  {shown.map((t) => (
                     <tr key={t.id}>
                       <td>
                         <div className="gm-cell2">
@@ -345,14 +420,14 @@ function SupportPage() {
                           <span>{t.member.role.replace("-", " & ")}</span>
                         </div>
                       </td>
-                      <td>
+                      <td className="gm-chipcol">
                         {/* The ticket's state is what the filter above the
                             table already selects and what the "First reply"
                             column implies. How loud a ticket is, is what an
                             agent picks the next one on. */}
                         <PriorityBadge priority={t.priority} />
                       </td>
-                      <td>
+                      <td className="gm-chipcol gm-chipcol--wide">
                         {/* The opening time and who holds the ticket live on
                             the ticket's page, so keep this cell to one line to
                             hold the priority chip and reply badge side-by-side. */}
@@ -374,8 +449,20 @@ function SupportPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </Card>
+          </Card>
+        )}
+
+        {/* A queue that grows past a screenful becomes a scroll with no sense
+            of how much is left; the count above answers that. Outside the
+            card, because in gallery view there is no card for it to sit in
+            and it must not move between the two views. */}
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={list.length}
+          onPage={setPage}
+          bare
+        />
       </div>
 
       {/* ======================================================== raise */}

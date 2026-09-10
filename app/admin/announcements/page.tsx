@@ -26,6 +26,7 @@ import {
   Select,
   Toast,
   Toggle,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconAlert,
@@ -81,128 +82,73 @@ function Handset({
     tone === "outage" ? "var(--bad)" : tone === "policy" ? "var(--gold)" : "var(--navy-500)";
 
   return (
-    <div
-      style={{
-        width: 264,
-        /* a picture of a handset, not a UI surface, so it is outside the scale */
-        borderRadius: 30,
-        border: "9px solid var(--ink)",
-        background: "linear-gradient(160deg, #2b3a55, #16202f)",
-        padding: "16px 12px 22px",
-        boxShadow: "var(--sh-4)",
-        flex: "none",
-      }}
-    >
-      <div
-        style={{
-          color: "rgba(255,255,255,.75)",
-          fontSize: 10,
-          textAlign: "center",
-          marginBottom: 4,
-        }}
-      >
-        Grail Market
-      </div>
-      <div
-        style={{
-          color: "#fff",
-          fontSize: 34,
-          fontWeight: 300,
-          textAlign: "center",
-          letterSpacing: "-0.02em",
-          marginBottom: 14,
-        }}
-      >
-        9:41
-      </div>
+    /* A whole handset, not a crop of one. It was a rounded box holding a clock
+       and a notification, which is the part that matters but reads as a widget
+       rather than as "this is what lands on their phone" — and the thing being
+       approved here is a message going to every member at once. The frame is
+       9:19.5, the proportion of the phones this actually arrives on, so the
+       two-line body clamp below is a real measure of what fits rather than an
+       arbitrary one. Everything on it is furniture except the card. */
+    <div className="gm-handset">
+      <div className="gm-handset-screen">
+        <span className="gm-handset-island" aria-hidden="true" />
 
-      {channel === "banner" ? (
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: "var(--r-md)",
-            overflow: "hidden",
-            minHeight: 132,
-          }}
-        >
-          <div style={{ height: 4, background: toneColor }} />
-          <div style={{ padding: "10px 11px" }}>
-            <div
-              style={{
-                fontSize: 9,
-                textTransform: "uppercase",
-                letterSpacing: ".08em",
-                color: toneColor,
-                fontWeight: 700,
-                marginBottom: 4,
-              }}
-            >
-              {bannerToneLabel[tone]}
-            </div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828", marginBottom: 4 }}>
-              {title || "Untitled"}
-            </div>
-            <div style={{ fontSize: 11, lineHeight: 1.45, color: "#475467" }}>
-              {body || "No message yet."}
-            </div>
-          </div>
+        <div className="gm-handset-status" aria-hidden="true">
+          <span>9:41</span>
+          <span className="gm-handset-meters">
+            <i className="gm-handset-bars" />
+            <i className="gm-handset-wifi" />
+            <i className="gm-handset-batt" />
+          </span>
         </div>
-      ) : (
-        <div
-          style={{
-            background: "rgba(255,255,255,.92)",
-            borderRadius: "var(--r-md)",
-            padding: "9px 11px",
-            backdropFilter: "blur(6px)",
-          }}
-        >
-          <div className="gm-row" style={{ gap: 6, marginBottom: 3, flexWrap: "nowrap" }}>
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: "var(--r-xs)",
-                background: "var(--navy-500)",
-                flex: "none",
-              }}
-            />
-            <span
-              style={{
-                fontSize: 9,
-                textTransform: "uppercase",
-                letterSpacing: ".06em",
-                color: "#667085",
-                fontWeight: 600,
-              }}
-            >
-              Grail Market · now
-            </span>
-          </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#101828" }}>
-            {(title || "Untitled").slice(0, 40)}
-            {title.length > 40 ? "…" : ""}
-          </div>
-          <div
-            style={{
-              fontSize: 11.5,
-              lineHeight: 1.4,
-              color: "#475467",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {body || "No message yet."}
-          </div>
+
+        <div className="gm-handset-clock" aria-hidden="true">
+          <span className="gm-handset-day">Tuesday, 8 September</span>
+          <span className="gm-handset-time">9:41</span>
         </div>
-      )}
+
+        <div className="gm-handset-stack">
+          {channel === "banner" ? (
+            <div className="gm-handset-banner">
+              <span className="gm-handset-rule" style={{ background: toneColor }} />
+              <div className="gm-handset-bannerbody">
+                <div className="gm-handset-kicker" style={{ color: toneColor }}>
+                  {bannerToneLabel[tone]}
+                </div>
+                <div className="gm-handset-title">{title || "Untitled"}</div>
+                <div className="gm-handset-body">{body || "No message yet."}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="gm-handset-push">
+              <div className="gm-handset-pushhead">
+                <span className="gm-handset-appicon" />
+                <span className="gm-handset-appname">Grail Market · now</span>
+              </div>
+              <div className="gm-handset-title">
+                {(title || "Untitled").slice(0, 40)}
+                {title.length > 40 ? "…" : ""}
+              </div>
+              <div className="gm-handset-body gm-handset-body--clamp">
+                {body || "No message yet."}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <span className="gm-handset-home" aria-hidden="true" />
+      </div>
     </div>
   );
 }
 
 function AnnouncementsPage() {
   const [view, setView] = useState<View>("compose");
+  /* One switch for both lists. Queued and Already out hold the same kind of
+     thing — a broadcast and four facts about it — so a person who prefers
+     tiles on one wants them on the other, and two independent toggles would
+     be two settings for one preference. */
+  const [listLayout, setListLayout] = useState<"table" | "gallery">("table");
   const [writes, setWrites] = useState(0);
 
   const [title, setTitle] = useState("");
@@ -337,16 +283,6 @@ function AnnouncementsPage() {
           </Note>
         ) : null}
 
-        {/* Said once, at the top, and true of every row below it: this
-            console records a broadcast, it does not dispatch one. The page
-            claiming otherwise would be a claim that members were told
-            something they were not. */}
-        <Note tone="warn">
-          <b>Nothing is dispatched yet.</b> Push and email both need a provider that is not
-          wired, so a send here records what went to whom and raises the in-app banner. Every
-          row says whether it was actually delivered.
-        </Note>
-
         {live ? (
           <Note tone={live.tone === "outage" ? "bad" : "warn"}>
             <b>A banner is live in the app right now.</b> &ldquo;{live.title}&rdquo;, up since{" "}
@@ -380,12 +316,29 @@ function AnnouncementsPage() {
                 ? `${scheduled.length} waiting to go out`
                 : `${sent.length} sent or live`
           }
+          right={
+            /* Not over Compose. That is a form and a preview, not a list, and
+               there is no second shape for it to be in. */
+            view === "compose" ? undefined : (
+              <ViewToggle value={listLayout} onChange={setListLayout} />
+            )
+          }
         />
 
         {/* ================================================= compose */}
         {view === "compose" ? (
           <div className="gm-row" style={{ gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div className="gm-stack" style={{ flex: "1 1 420px", minWidth: 320 }}>
+            {/* `min(320px, 100%)`, not a bare 320.
+             *
+             * The floor is here so the form does not collapse to a column of
+             * one-word inputs when it shares this row with the channel picker
+             * beside it. On a phone there is nothing beside it and no 320 to
+             * be had: the content box at 390 is 282, so a hard floor made the
+             * form — and the three cards in it — 38px wider than the page,
+             * which is the whole of the console's horizontal scroll at that
+             * width. Capped at the parent, the floor applies where there is
+             * room for it and gets out of the way where there is not. */}
+            <div className="gm-stack" style={{ flex: "1 1 420px", minWidth: "min(320px, 100%)" }}>
               <Card>
                 <CardHead title="Message" sub="Written once, shown on every channel you pick." />
                 <CardBody>
@@ -581,33 +534,102 @@ function AnnouncementsPage() {
             <Card>
               <Empty icon={<IconCalendar />} title="Nothing queued" body="Compose one to schedule it." />
             </Card>
+          ) : listLayout === "table" ? (
+            /* The queue as a table. It was a stack of full-width bands, which
+               is a row that has forgotten it is one: four facts about each
+               waiting broadcast, in a different place on every line. */
+            <Card>
+              <div className="gm-tablewrap">
+                <table className="gm-table" style={{ minWidth: 820 }}>
+                  <thead>
+                    <tr>
+                      <th>Announcement</th>
+                      <th>Channels</th>
+                      <th>Audience</th>
+                      <th className="gm-nowrap">Goes out</th>
+                      <th className="gm-rowend">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduled.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <div className="gm-cell2">
+                            <b>{a.title}</b>
+                            <span>by {a.by}</span>
+                          </div>
+                        </td>
+                        <td className="gm-sm gm-muted">
+                          <div className="gm-person-tags">
+                            {a.channels.map((c) => (
+                              <span key={c} className="gm-scope">
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="gm-sm gm-muted">{seg(a.audience)}</td>
+                        <td className="gm-sm gm-nowrap">
+                          <Badge tone="warn">{shortDate(a.at)}</Badge>
+                        </td>
+                        <td className="gm-rowend">
+                          <div className="gm-rowact">
+                            <button
+                              type="button"
+                              className="gm-btn gm-btn--sm gm-btn--ghost"
+                              onClick={() => pull(a, "cancelled")}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           ) : (
-            <div className="gm-stack" style={{ gap: 10 }}>
+            /* One to a tile, on the page's own paper — the shape the member
+               directory uses, and the same grid the history gallery uses so
+               the two halves of this switch behave alike. */
+            <div className="gm-people">
               {scheduled.map((a) => (
-                <Card key={a.id} pad>
-                  <div className="gm-row" style={{ gap: 12, flexWrap: "nowrap", alignItems: "flex-start" }}>
+                <article key={a.id} className="gm-person">
+                  <div className="gm-person-top">
                     <span className="gm-feed-ico gm-feed-ico--gold" style={{ flex: "none" }}>
                       <IconCalendar />
                     </span>
-                    <div className="gm-cell2" style={{ flex: "1 1 auto", minWidth: 0 }}>
-                      <b>{a.title}</b>
-                      <span>{a.body}</span>
-                      <span className="gm-tiny gm-dim" style={{ marginTop: 5 }}>
-                        {a.channels.join(" + ")} · {seg(a.audience)} · by {a.by}
-                      </span>
-                    </div>
-                    <div className="gm-row" style={{ gap: 7, flex: "none" }}>
-                      <Badge tone="warn">{shortDate(a.at)}</Badge>
-                      <button
-                        type="button"
-                        className="gm-btn gm-btn--sm gm-btn--ghost"
-                        onClick={() => pull(a, "cancelled")}
-                      >
-                        Cancel
-                      </button>
+                    <div className="gm-person-id">
+                      <b title={a.title}>{a.title}</b>
+                      <span title={a.body}>{a.body}</span>
                     </div>
                   </div>
-                </Card>
+
+                  <div className="gm-person-facts">
+                    <span className="gm-person-fact">{seg(a.audience)}</span>
+                    <span className="gm-person-fact">by {a.by}</span>
+                  </div>
+
+                  <div className="gm-person-tags">
+                    {a.channels.map((c) => (
+                      <span key={c} className="gm-scope">
+                        {c}
+                      </span>
+                    ))}
+                    <Badge tone="warn">{shortDate(a.at)}</Badge>
+                  </div>
+
+                  <div className="gm-person-foot">
+                    <button
+                      type="button"
+                      className="gm-btn gm-btn--sm gm-btn--ghost gm-spacer"
+                      onClick={() => pull(a, "cancelled")}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </article>
               ))}
             </div>
           )
@@ -615,16 +637,20 @@ function AnnouncementsPage() {
 
         {/* ================================================= history */}
         {view === "history" ? (
-          <Card>
-            {loading && all.length === 0 ? (
+          loading && all.length === 0 ? (
+            <Card>
               <Loading label="Reading the history…" />
-            ) : sent.length === 0 ? (
+            </Card>
+          ) : sent.length === 0 ? (
+            <Card>
               <Empty
                 icon={<IconSend />}
                 title="Nothing has gone out"
                 body="Broadcasts appear here once they are sent or the banner is raised."
               />
-            ) : (
+            </Card>
+          ) : listLayout === "table" ? (
+            <Card>
               <div className="gm-tablewrap">
                 <table className="gm-table" style={{ minWidth: 900 }}>
                   <thead>
@@ -633,7 +659,9 @@ function AnnouncementsPage() {
                       <th>Channels</th>
                       <th>Audience</th>
                       <th>Addressed to</th>
-                      <th>Delivered</th>
+                      <th className="gm-chipcol gm-chipcol--wide">
+                        <span>Delivered</span>
+                      </th>
                       <th className="gm-nowrap">When</th>
                     </tr>
                   </thead>
@@ -662,7 +690,7 @@ function AnnouncementsPage() {
                         <td className="gm-sm gm-mono gm-nowrap">
                           {a.reach === undefined ? "Not counted" : a.reach.toLocaleString("en-AU")}
                         </td>
-                        <td>
+                        <td className="gm-chipcol gm-chipcol--wide">
                           {/* The column that stops this table implying more
                               than happened. A banner genuinely is up; a push
                               recorded against 5,000 accounts is not a push
@@ -683,8 +711,61 @@ function AnnouncementsPage() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </Card>
+            </Card>
+          ) : (
+            /* The same broadcasts, one to a tile. Every fact the table carries
+               is here except "Addressed to", which is a count the tile has no
+               room for and nobody opens the history looking for. */
+            <div className="gm-people">
+              {sent.map((a) => (
+                <article key={a.id} className="gm-person">
+                  <div className="gm-person-top">
+                    <span className="gm-feed-ico gm-feed-ico--gold" style={{ flex: "none" }}>
+                      <IconSend />
+                    </span>
+                    <div className="gm-person-id">
+                      <b title={a.title}>{a.title}</b>
+                      <span>
+                        {bannerToneLabel[a.tone]} · by {a.by}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="gm-person-facts">
+                    <span className="gm-person-fact">{seg(a.audience)}</span>
+                    <span className="gm-person-fact">
+                      {a.reach === undefined
+                        ? "Not counted"
+                        : `${a.reach.toLocaleString("en-AU")} addressed`}
+                    </span>
+                  </div>
+
+                  <div className="gm-person-tags">
+                    {a.channels.map((c) => (
+                      <span key={c} className="gm-scope">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="gm-person-foot">
+                    {/* The column that stops this list implying more than
+                        happened — see the same three answers in the table. */}
+                    {a.delivered ? (
+                      <Badge tone="ok">Delivered</Badge>
+                    ) : a.state === "live" ? (
+                      <Badge tone="ok">Banner is up</Badge>
+                    ) : (
+                      <Badge tone="warn">Recorded only</Badge>
+                    )}
+                    <span className="gm-tiny gm-dim gm-spacer">
+                      {a.state === "live" ? "Live now" : shortDate(a.at)}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )
         ) : null}
       </div>
 

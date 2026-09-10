@@ -28,6 +28,7 @@ import {
   SectionTabs,
   PageHead,
   Toast,
+  ViewToggle,
 } from "../components/ui";
 import {
   IconAlert,
@@ -102,6 +103,13 @@ const shortPlanName = (name: string) => name.replace(/^GrailMarket\s+/i, "");
 
 function PricingPage() {
   const [tab, setTab] = useState<Tab>("plans");
+  /* The switch the listing queue carries. Three subscription plans are read by
+     comparing one number across them, which a row of five figures does better
+     than three cards a screen apart; the cards are still the right shape for
+     reading one plan whole, so they are the second button rather than gone. */
+  const [planLayout, setPlanLayout] = useState<"table" | "gallery">("table");
+  /* The ledger has two shapes now too — see the note by the boosts table. */
+  const [boostLayout, setBoostLayout] = useState<"table" | "gallery">("table");
   /* Secondary filters, one per section. They live beside the section itself in
      one menu rather than as a second control that appears and disappears. */
   const [boostState, setBoostState] = useState("all");
@@ -250,7 +258,7 @@ function PricingPage() {
   return (
     <>
       <PageHead
-        title="Subscriptions & boosts"
+        title="Subscriptions & Boosts"
         sub={
           loading
             ? "Reading the ledger…"
@@ -333,6 +341,7 @@ function PricingPage() {
                   }`
           }
           right={
+            <div className="gm-row" style={{ gap: 8 }}>
             <FilterMenu
               /* The section is not a filter any more, so it is not counted
                  as one. What is applied is whatever cuts the table showing. */
@@ -383,6 +392,14 @@ function PricingPage() {
                   : []),
               ]}
             />
+            {/* Over the plans and over the ledger. Billing is the one tab
+                with a single shape — an event has four columns and nothing
+                that reads better as a tile — and a switch offering a second
+                view of something that has none is a control that does
+                nothing. */}
+            {tab === "plans" ? <ViewToggle value={planLayout} onChange={setPlanLayout} /> : null}
+            {tab === "boosts" ? <ViewToggle value={boostLayout} onChange={setBoostLayout} /> : null}
+            </div>
           }
         />
 
@@ -428,6 +445,92 @@ function PricingPage() {
                   title="No plans configured"
                   body="The API returned no plan. Check STRIPE_PRICE_* and read from Stripe."
                 />
+              </Card>
+            ) : planLayout === "table" ? (
+              <Card>
+                <div className="gm-tablewrap">
+                  {/* Five columns. What is compared across plans is the price,
+                      how many are on it and what that brings in; the quota is
+                      the one term of the plan that changes the answer to
+                      "should this member be upgraded". The blurb, the perks,
+                      the Stripe price id and the cancelled and comped counts
+                      are on the card, where there is room to read one plan
+                      rather than three. */}
+                  <table className="gm-table">
+                    <thead>
+                      <tr>
+                        <th>Plan</th>
+                        <th>Price</th>
+                        <th className="gm-chipcol"><span>On it</span></th>
+                        <th>Brings in</th>
+                        <th>Quota</th>
+                        <th className="gm-rowend">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plans.map((p) => (
+                        <tr key={p.id}>
+                          <td>
+                            <div className="gm-cell2">
+                              <b>{shortPlanName(p.name)}</b>
+                              {/* Where the figure beside it came from. A price
+                                  Stripe has confirmed and one the API fell back
+                                  to look identical, and only one of them is
+                                  what anybody is charged. */}
+                              <span>
+                                {p.syncedAt
+                                  ? `From Stripe · read ${shortDate(p.syncedAt)}`
+                                  : "Not read from Stripe yet"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="gm-amount">
+                            {aud(p.price)}
+                            <span className="gm-dim">
+                              {" "}
+                              {p.currency !== "AUD" ? `${p.currency} ` : ""}/{p.interval}
+                            </span>
+                          </td>
+                          <td className="gm-chipcol">
+                            {p.subscribers > 0 ? (
+                              <Badge tone="ok">{p.subscribers.toLocaleString("en-AU")} on it</Badge>
+                            ) : (
+                              <Badge tone="idle">Nobody yet</Badge>
+                            )}
+                          </td>
+                          <td className="gm-amount">{aud(p.mrr)} a month</td>
+                          <td className="gm-sm gm-muted gm-nowrap">
+                            {p.quota === null
+                              ? "No ceiling"
+                              : `${p.quota} live listing${p.quota === 1 ? "" : "s"}`}
+                          </td>
+                          <td className="gm-rowend">
+                            <div className="gm-rowact">
+                              {/* A plan has no record page of its own — its
+                                  record is at Stripe — so the row keeps the
+                                  card's one action rather than inventing a
+                                  route. Absent for a role that cannot write
+                                  settings, or when the API cannot reach
+                                  Stripe: a control that cannot work is worse
+                                  than one that is not there. */}
+                              {canEditPlans ? (
+                                <button
+                                  type="button"
+                                  className="gm-btn gm-btn--sm gm-btn--icon"
+                                  onClick={() => startEdit(p)}
+                                  title="Edit at Stripe"
+                                  aria-label={`Edit ${shortPlanName(p.name)} at Stripe`}
+                                >
+                                  <IconTag />
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </Card>
             ) : (
             <div className="gm-grid gm-grid--3 gm-plans">
@@ -577,60 +680,155 @@ function PricingPage() {
                   }
                 />
               </Card>
+            ) : boostLayout === "table" ? (
+              /* The ledger as a table, which is what it always was in every
+                 way but its shape: one boost a row, five facts and the one
+                 action a broken row has. It read as a stack of full-width
+                 cards, and a card that spans the page is a row that has
+                 forgotten it is one — six of them down a 1400px screen put
+                 every fact in a different place on every line. */
+              <Card>
+                <div className="gm-tablewrap">
+                  <table className="gm-table" style={{ minWidth: 820 }}>
+                    <thead>
+                      <tr>
+                        <th>Boost</th>
+                        <th>Member</th>
+                        <th>Amount</th>
+                        <th className="gm-nowrap">Bought</th>
+                        <th className="gm-chipcol gm-chipcol--wider">
+                          <span>State</span>
+                        </th>
+                        <th className="gm-rowend">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shownBoosts.map((b) => {
+                        const broken = b.state === "paid-not-applied";
+                        return (
+                          <tr key={b.id}>
+                            <td>
+                              <div className="gm-cell-user">
+                                <span
+                                  className={`gm-feed-ico ${broken ? "gm-feed-ico--bad" : "gm-feed-ico--gold"}`}
+                                  style={{ flex: "none" }}
+                                >
+                                  {broken ? <IconAlert /> : <IconSparkle />}
+                                </span>
+                                <div className="gm-cell2">
+                                  <b>{b.card}</b>
+                                  <span>{b.tierName}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="gm-nowrap">{b.handle}</td>
+                            <td className="gm-amount">{aud(b.amount)}</td>
+                            <td className="gm-sm gm-muted gm-nowrap">{shortDate(b.purchased)}</td>
+                            <td className="gm-chipcol gm-chipcol--wider">
+                              {broken ? (
+                                <Badge tone="bad">
+                                  {BOOST_STATE_LABEL[b.state]} · {b.stuckHours}h
+                                </Badge>
+                              ) : b.state === "active" ? (
+                                <Badge tone="ok">{BOOST_STATE_LABEL[b.state]}</Badge>
+                              ) : (
+                                <Badge tone="idle">{BOOST_STATE_LABEL[b.state]}</Badge>
+                              )}
+                            </td>
+                            <td className="gm-rowend">
+                              <div className="gm-rowact">
+                                {/* Only the broken rows have anything to do,
+                                    so only they carry a button — the rest of
+                                    the column is deliberately empty rather
+                                    than filled with a disabled control. */}
+                                {broken ? (
+                                  <button
+                                    type="button"
+                                    className="gm-btn gm-btn--sm gm-btn--icon gm-btn--primary"
+                                    disabled={busy}
+                                    title="Apply now and extend"
+                                    aria-label={`Apply ${b.tierName} on ${b.card} now and extend it`}
+                                    onClick={() =>
+                                      run(async () => {
+                                        const r = await applyBoost(b.id);
+                                        return `${b.tierName} on ${b.card} is running · extended by ${r.daysAdded} day${
+                                          r.daysAdded === 1 ? "" : "s"
+                                        }`;
+                                      })
+                                    }
+                                  >
+                                    <IconClock />
+                                  </button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             ) : (
-              <div className="gm-stack" style={{ gap: 9 }}>
+              /* The same ledger, one boost to a card, on the page's own paper
+                 — the shape the member directory and the support queue use.
+                 The cards were full-width bands before, which is not a second
+                 view of a table so much as the same list drawn wider; a grid
+                 of the same tile is what a gallery is for.
+
+                 No listing id on either view. `l_…` is not a fact a person
+                 reads a ledger for, and the console took store ids off its
+                 rows everywhere else — this row was the last one still
+                 printing one. It stays in the export. */
+              <div className="gm-people">
                 {shownBoosts.map((b) => {
                   const broken = b.state === "paid-not-applied";
                   return (
-                    <Card key={b.id} pad>
-                      <div
-                        className="gm-row"
-                        style={{ gap: 12, flexWrap: "nowrap", alignItems: "flex-start" }}
-                      >
+                    <article key={b.id} className="gm-person">
+                      <div className="gm-person-top">
                         <span
                           className={`gm-feed-ico ${broken ? "gm-feed-ico--bad" : "gm-feed-ico--gold"}`}
                           style={{ flex: "none" }}
                         >
                           {broken ? <IconAlert /> : <IconSparkle />}
                         </span>
-                        <div className="gm-cell2" style={{ flex: "1 1 auto", minWidth: 0 }}>
-                          <b>
-                            {b.tierName} · {b.card}
-                          </b>
-                          <span>
-                            {b.handle} · {b.listingId} · {aud(b.amount)} · bought{" "}
-                            {shortDate(b.purchased)}
-                          </span>
-                          {b.fault ? (
-                            <span className="gm-sm gm-muted" style={{ marginTop: 6 }}>
-                              {b.fault}
-                            </span>
-                          ) : null}
-                          {b.compedBy ? (
-                            <span className="gm-tiny gm-dim" style={{ marginTop: 4 }}>
-                              Comped by {b.compedBy}
-                              {b.compReason ? `. ${b.compReason}` : ""}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="gm-row" style={{ gap: 7, flex: "none" }}>
-                          {broken ? (
-                            <Badge tone="bad">
-                              {BOOST_STATE_LABEL[b.state]} · {b.stuckHours}h
-                            </Badge>
-                          ) : b.state === "active" ? (
-                            <Badge tone="ok">{BOOST_STATE_LABEL[b.state]}</Badge>
-                          ) : (
-                            <Badge tone="idle">{BOOST_STATE_LABEL[b.state]}</Badge>
-                          )}
+                        <div className="gm-person-id">
+                          <b title={b.card}>{b.card}</b>
+                          <span>{b.tierName}</span>
                         </div>
                       </div>
 
+                      <div className="gm-person-facts">
+                        <span className="gm-person-fact">{b.handle}</span>
+                        <span className="gm-person-fact">
+                          {aud(b.amount)} · bought {shortDate(b.purchased)}
+                        </span>
+                        {b.fault ? <span className="gm-person-fact">{b.fault}</span> : null}
+                        {b.compedBy ? (
+                          <span className="gm-person-fact">
+                            Comped by {b.compedBy}
+                            {b.compReason ? `. ${b.compReason}` : ""}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="gm-person-tags">
+                        {broken ? (
+                          <Badge tone="bad">
+                            {BOOST_STATE_LABEL[b.state]} · {b.stuckHours}h
+                          </Badge>
+                        ) : b.state === "active" ? (
+                          <Badge tone="ok">{BOOST_STATE_LABEL[b.state]}</Badge>
+                        ) : (
+                          <Badge tone="idle">{BOOST_STATE_LABEL[b.state]}</Badge>
+                        )}
+                      </div>
+
                       {broken ? (
-                        <div className="gm-row" style={{ gap: 8, marginTop: 11 }}>
+                        <div className="gm-person-foot">
                           <button
                             type="button"
-                            className="gm-btn gm-btn--sm gm-btn--primary"
+                            className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
                             disabled={busy}
                             onClick={() =>
                               run(async () => {
@@ -646,7 +844,7 @@ function PricingPage() {
                           </button>
                         </div>
                       ) : null}
-                    </Card>
+                    </article>
                   );
                 })}
               </div>
@@ -681,7 +879,9 @@ function PricingPage() {
                   <table className="gm-table" style={{ minWidth: 780 }}>
                     <thead>
                       <tr>
-                        <th>Event</th>
+                        <th className="gm-chipcol gm-chipcol--widest">
+                          <span>Event</span>
+                        </th>
                         <th>Member</th>
                         <th>Plan</th>
                         <th>Amount</th>
@@ -691,7 +891,10 @@ function PricingPage() {
                     <tbody>
                       {shownBilling.map((e) => (
                         <tr key={e.id}>
-                          <td>
+                          {/* The chip's own left edge is still the cell's, so
+                              the reason under it stays in line with the pill
+                              even though the word inside is centred. */}
+                          <td className="gm-chipcol gm-chipcol--widest">
                             <Badge tone={EVENT_TONE[e.kind]}>{EVENT_LABEL[e.kind]}</Badge>
                             {e.reason ? (
                               <div className="gm-tiny gm-dim">{e.reason}</div>

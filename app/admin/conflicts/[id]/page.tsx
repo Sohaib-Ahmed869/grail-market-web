@@ -22,7 +22,6 @@ import {
   Modal,
   Note,
   PageHead,
-  Slab,
   Toast,
 } from "../../components/ui";
 import {
@@ -225,7 +224,7 @@ function CaseRecord() {
     }
   }
 
-  const back = { href: "/admin/conflicts", label: "Reports & conduct" };
+  const back = { href: "/admin/conflicts", label: "Reports & Conduct" };
 
   if (error) {
     return (
@@ -267,13 +266,11 @@ function CaseRecord() {
 
       <div className="gm-stack">
         <Card pad>
+          {/* No slab here either. A case is read for what was done, not for
+              what the card looks like, and on a report with no listing behind
+              it the drawn fallback was a picture of a card that does not
+              exist. The listing is still named below, in words. */}
           <div className="gm-record-top">
-            <Slab
-              grader={open.listing.grader}
-              grade={open.listing.grade}
-              art={open.listing.art}
-              size="lg"
-            />
             <div className="gm-stack" style={{ gap: 12, minWidth: 0 }}>
               <div className="gm-cell2">
                 <b style={{ fontSize: 15 }}>{open.listing.card}</b>
@@ -503,17 +500,11 @@ function CaseRecord() {
                         {on ? <IconCheck style={{ width: 11, height: 11 }} /> : null}
                       </span>
                       <span style={{ minWidth: 0 }}>
-                        <span
-                          className="gm-row"
-                          style={{
-                            gap: 7,
-                            fontWeight: 600,
-                            fontSize: 13.2,
-                            marginBottom: 3,
-                            color: "var(--ink)",
-                          }}
-                        >
-                          {o.title}
+                        {/* The title takes a floor so the two badges below
+                            it line up with each other — see `.gm-choice-line`
+                            for the measurement and the reason. */}
+                        <span className="gm-choice-line">
+                          <b>{o.title}</b>
                           {o.escalates ? <Badge tone="bad">Trust and safety</Badge> : null}
                         </span>
                         <span
