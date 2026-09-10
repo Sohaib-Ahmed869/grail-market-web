@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8180";
+import { PUBLIC_API_BASE as API } from "./lib/apibase";
 
 type SideCentering = { lr: number; tb: number; measurable: boolean };
 type Scan = {

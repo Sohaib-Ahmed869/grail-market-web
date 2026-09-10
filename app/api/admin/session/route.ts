@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiBase } from "../../../lib/apibase";
 
 /**
  * Signing in to the console.
@@ -17,11 +18,10 @@ import { NextResponse } from "next/server";
  * because a static segment beats a catch-all.
  */
 
-const API = (process.env.GRAILMARKET_API_URL ?? "http://localhost:8180").replace(/\/+$/, "");
-
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const API = apiBase();
   let body: { email?: string; password?: string };
   try {
     body = await req.json();
