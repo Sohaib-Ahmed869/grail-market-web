@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import IconTips from "./IconTips";
 import { useRole } from "./RoleContext";
 
 /**
@@ -56,6 +57,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <Topbar />
         <main className="gm-content">{children}</main>
       </div>
+      <IconTips />
     </div>
   );
 }

@@ -1,0 +1,1003 @@
+/* ==========================================================================
+   THE SIGN-IN PANEL'S MOCK CONSOLE
+
+   Everything below belongs to the right-hand brand panel of /admin/login and
+   nothing else uses it, so it lives beside the page rather than in parts.css
+   — the same reasoning `dashboard.css` gives for itself.
+
+   Every selector here is written as `.gm-login-aside <thing>` rather than
+   bare `.gm-mock-badge` and so on. The rules being layered on top already
+   live in parts.css; qualifying by the ancestor buys the extra specificity
+   to win regardless of which file the bundler happens to place second,
+   without touching parts.css itself — and here it does more than that: the
+   mock's surface is white rather than the frosted-on-navy glass it used to
+   be, so `.gm-login-aside .gm-mock-slab` and the rest override parts.css'
+   dark-on-navy colours outright rather than merely adding motion to them.
+
+   The window itself is a fixed white surface in both console themes, same as
+   the navy panel it floats on is fixed navy in both — this is a picture of
+   the console, not a themed part of it. So every colour below is a literal,
+   never a `--surface` or `--ink` token, with the one carried-over exception
+   of `--gold`/`--gold-300` for the load line and the page dots.
+
+   Fourth draft. The sequencing itself now lives in JS — see `LoginMock` in
+   page.tsx — as one `setTimeout` chain over one state object, not four
+   independent `infinite` `@keyframes` trusted to stay in phase forever. They
+   didn't: two screens' content showed at once, and the chrome's own title
+   named a screen other than the one on display. Every rule below is a plain
+   `transition` reacting to a class or an inline style the state machine
+   sets, which is a much smaller thing to get right — there is exactly one
+   clock now, so there is nothing left for two pieces of the mock to disagree
+   about.
+
+   Everything else asked for by name in that pass: the rail is one element
+   shown on every screen, not redrawn per screen, and its icons are the real
+   set's own paths (`RailIcon` in page.tsx), not blank tiles. The window no
+   longer tilts — it sat still in the reference and reads as unstable rather
+   than alive once it never stops moving. A press turns the thing pressed the
+   console's own navy, the way an active state actually reads, rather than a
+   gold ring standing in for it. And Withdraw lives on the record screen only
+   — the support screens never carried it; what looked like it did was the
+   same synchronisation bug above.
+
+   Fifth draft. The queue's two rows were a plain block of colour standing in
+   for a card and a bar standing in for its name — asked to be a card
+   instead, `.gm-mock-slab` is a miniature of the console's own `Slab`
+   component (`cards.css`), and the bar is a real name and a real line of
+   detail under it (`.gm-mock-rowtext`). The withdraw icon that only the
+   first row carried is gone with it, so both rows are now the one shape.
+   What replaces the click it used to demonstrate is a row's own three-stage
+   life — idle, `.is-hover` grey while the cursor rests on it, `.is-active`
+   navy once the click lands — which support's own rows share now that they
+   too carry real text. And the hand-off between Verification and Support no
+   longer happens on its own after the record screen's own click: the cursor
+   crosses to the rail and clicks the section it is moving to, both ways,
+   because that is what moving between two sections of the console actually
+   is. Opening a record within a section is still a row's own click. */
+
+/* A column, not a plain box, now: `.gm-mock-bar` and `.gm-mock-shell` used
+   to stack by block flow alone, with the shell fixed at 250px. The window
+   fills the aside now — see `.gm-mock-tilt` and `.gm-mock-shell` below — so
+   the shell needs `flex: 1` to mean something, and that needs `.gm-mock`
+   itself to be the flex container handing out the height. */
+.gm-login-aside .gm-mock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid rgba(16, 26, 38, 0.08);
+}
+
+/* No tilt, no drift — the window sits exactly where it is drawn. The one
+   motion left on this wrapper is the shared one-off entrance rise. It fills
+   the aside's height now (minus the panel's own padding and the pager under
+   it), rather than sitting at a fixed size in the middle of it — a column
+   in its own right, so `.gm-mock` inside it can take `flex: 1` and mean it. */
+.gm-login-aside .gm-mock-tilt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 14px;
+  animation: gm-login-rise 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-login-aside .gm-mock-tilt {
+    animation: none;
+  }
+}
+
+.gm-login-aside .gm-mock-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  background: #f5f6f8;
+  border-bottom: 1px solid #e8eaee;
+}
+
+.gm-login-aside .gm-mock-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c9cdd6;
+}
+
+/* The chrome's own name for whichever screen is showing: four lines stacked
+   and crossfaded on a plain opacity transition rather than a word that
+   jumps. */
+.gm-login-aside .gm-mock-crumb {
+  position: relative;
+  flex: 1;
+  height: 15px;
+  margin-left: 10px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #4b5768;
+}
+
+.gm-login-aside .gm-mock-crumb-x {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.gm-login-aside .gm-mock-crumb-x.is-on {
+  opacity: 1;
+}
+
+.gm-login-aside .gm-mock-live {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #4cae7e;
+}
+
+.gm-login-aside .gm-mock-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #33a873;
+  box-shadow: 0 0 0 2px rgba(51, 168, 115, 0.18);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gm-login-aside .gm-mock-live-dot {
+    animation: gm-login-live-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+/* A page-load line rather than a hard cut between screens: flat and
+   invisible at rest, sweeping to full width on the state machine's own
+   `loading` beat, then collapsing back before the next screen settles. */
+.gm-login-aside .gm-mock-loadbar {
+  position: absolute;
+  left: 0;
+  top: 41px;
+  z-index: 2;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold-300), var(--gold));
+  opacity: 0;
+  transition: width 0.45s ease, opacity 0.3s ease;
+}
+
+.gm-login-aside .gm-mock-loadbar.is-on {
+  width: 100%;
+  opacity: 1;
+}
+
+.gm-login-aside .gm-mock-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* -- the rail: one element, present on every screen -----------------------
+   Folded to its icon strip rather than hidden, the way a moderator who has
+   folded the real sidebar once keeps seeing it folded everywhere — and
+   shown once here rather than redrawn per screen, so there is one rail to
+   keep in sync with the state machine instead of four. */
+.gm-login-aside .gm-mock-rail {
+  flex: none;
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0;
+  background: #f7f8fa;
+  border-right: 1px solid #eceef2;
+  overflow: hidden;
+  transition: width 0.35s ease, padding 0.35s ease, opacity 0.25s ease,
+    border-color 0.35s ease;
+}
+
+/* Collapsed while the "next page" card is up — that screen has nothing
+   down its side in the reference, and a rail still sitting under it would
+   be a sidebar the card is pretending not to have. Width rather than
+   `display: none`, so it grows back on the same clock it shrank on. */
+.gm-login-aside .gm-mock-rail.is-hidden {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  border-right-color: transparent;
+}
+
+.gm-login-aside .gm-mock-railicon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: #97a2b3;
+  transition: background 0.3s ease, color 0.3s ease, transform 0.15s ease;
+}
+
+.gm-login-aside .gm-mock-railicon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.gm-login-aside .gm-mock-railicon.is-on {
+  background: linear-gradient(135deg, #2c3f59, #16202b);
+  color: var(--gold-300);
+}
+
+.gm-login-aside .gm-mock-pane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.gm-login-aside .gm-mock-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+}
+
+.gm-login-aside .gm-mock-screen.is-on {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* -- the "next page" card ---------------------------------------------
+   Sits over whichever real screen is still showing underneath it — an
+   opaque ground rather than a z-index, since it is written after the four
+   screens above and default stacking already puts it on top the moment its
+   own opacity comes up. Named after the reference this follows: a small
+   mark, a heading naming the section, one line about it, and a centred
+   button that is what actually moves the demo on. */
+.gm-login-aside .gm-mock-intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: #fff;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+}
+
+.gm-login-aside .gm-mock-intro.is-on {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.gm-login-aside .gm-mock-introicon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 5px;
+  border-radius: 12px;
+  color: var(--gold-300);
+  background: linear-gradient(135deg, #2c3f59, #16202b);
+}
+
+.gm-login-aside .gm-mock-introicon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.gm-login-aside .gm-mock-introhead {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #16202b;
+}
+
+.gm-login-aside .gm-mock-introsub {
+  margin: 0;
+  max-width: 32ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #8792a3;
+}
+
+.gm-login-aside .gm-mock-introbtn {
+  margin-top: 8px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2c3f59, #16202b);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gm-login-aside .gm-mock-introbtn.is-pressed {
+  transform: scale(0.94);
+  box-shadow: 0 0 0 3px rgba(31, 47, 69, 0.18);
+}
+
+/* -- the dashboard --------------------------------------------------------
+   The demo's opening section, entered through its own "next page" card the
+   same as every other section here. Built to echo the real dashboard's own
+   shape (`.gm-dash-hello`, the stat cards and `.gm-dash-chart` in page.tsx
+   and dashboard.css) rather than a generic panel of boxes: a quiet date over
+   a bold greeting, a row of figures, and one card with a heading, a button
+   and a chart under it. */
+.gm-login-aside .gm-mock-dashhead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gm-login-aside .gm-mock-dashhead span {
+  font-size: 11.5px;
+  color: #97a2b3;
+}
+
+.gm-login-aside .gm-mock-dashhead b {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #16202b;
+}
+
+.gm-login-aside .gm-mock-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.gm-login-aside .gm-mock-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 14px;
+  border-radius: 11px;
+  background: #fafbfc;
+  border: 1px solid #eef0f4;
+}
+
+.gm-login-aside .gm-mock-stat i {
+  font-style: normal;
+  font-size: 11px;
+  color: #97a2b3;
+}
+
+.gm-login-aside .gm-mock-stat b {
+  font-size: 17px;
+  font-weight: 700;
+  color: #16202b;
+}
+
+/* The card the chart sits in — a heading and a button over it, the same
+   idiom `CardHead`'s `right` slot gives the real "Marketplace volume" and
+   "Awaiting review" cards (a small primary pill that goes to the page owning
+   the figure). */
+.gm-login-aside .gm-mock-kpi {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px;
+  border-radius: 11px;
+  background: #fafbfc;
+  border: 1px solid #eef0f4;
+}
+
+.gm-login-aside .gm-mock-kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #16202b;
+}
+
+.gm-login-aside .gm-mock-kpi-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2c3f59, #16202b);
+}
+
+.gm-login-aside .gm-mock-kpi-btn i {
+  font-style: normal;
+}
+
+.gm-login-aside .gm-mock-chart {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 0;
+}
+
+.gm-login-aside .gm-mock-chart span {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #3a5169, #16202b);
+}
+
+.gm-login-aside .gm-mock-chart span:nth-child(1) { height: 38%; }
+.gm-login-aside .gm-mock-chart span:nth-child(2) { height: 58%; }
+.gm-login-aside .gm-mock-chart span:nth-child(3) { height: 46%; }
+.gm-login-aside .gm-mock-chart span:nth-child(4) { height: 74%; }
+.gm-login-aside .gm-mock-chart span:nth-child(5) { height: 55%; }
+.gm-login-aside .gm-mock-chart span:nth-child(6) { height: 85%; }
+
+.gm-login-aside .gm-mock-panehead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.gm-login-aside .gm-mock-panehead b {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #16202b;
+}
+
+.gm-login-aside .gm-mock-count {
+  font-size: 12px;
+  color: #8792a3;
+}
+
+.gm-login-aside .gm-mock-qrows,
+.gm-login-aside .gm-mock-trows {
+  display: grid;
+  gap: 11px;
+}
+
+.gm-login-aside .gm-mock-qrow,
+.gm-login-aside .gm-mock-trow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 14px;
+  border-radius: 11px;
+  background: #fff;
+  border: 1px solid #eef0f4;
+  transition: background 0.25s ease, border-color 0.25s ease, transform 0.15s ease;
+}
+
+/* A row's own life: grey while the cursor rests on it, and the same grey —
+   not the console's navy — once the click lands. A click used to turn the
+   row solid navy with white text; asked back to the hover grey instead, so
+   the queue and desk rows read the same colour whether the cursor is
+   resting or has just clicked. `.is-active` still wins over `.is-hover` by
+   cascade order (it is declared after it), which matters for the one tick
+   both classes are ever on together — it no longer needs to, since the two
+   states now paint the same, but the row's own text stays legible either
+   way this resolves. */
+.gm-login-aside .gm-mock-qrow.is-hover,
+.gm-login-aside .gm-mock-trow.is-hover,
+.gm-login-aside .gm-mock-qrow.is-active,
+.gm-login-aside .gm-mock-trow.is-active {
+  background: #e7e9ed;
+  border-color: #dde0e6;
+}
+
+.gm-login-aside .gm-mock-avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #dfe3ea, #c6ccd8);
+}
+
+/* A real line of detail under a real name, not a bar standing in for text —
+   the row now carries the same two-line shape the console's own table rows
+   do (a bold identifier, a muted line under it). */
+.gm-login-aside .gm-mock-rowtext {
+  flex: 1;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.gm-login-aside .gm-mock-rowtext b {
+  font-size: 13px;
+  font-weight: 700;
+  color: #16202b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.25s ease;
+}
+
+.gm-login-aside .gm-mock-rowtext i {
+  font-style: normal;
+  font-size: 11px;
+  color: #97a2b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.25s ease;
+}
+
+.gm-login-aside .gm-mock-time {
+  flex: none;
+  font-size: 12px;
+  color: #97a2b3;
+}
+
+/* Status tags are outlined, not filled — a transparent ground, a ring in the
+   tone, the label in that same tone — the way every tag in the console
+   itself is drawn. */
+.gm-login-aside .gm-mock-badge {
+  flex: none;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #4b5768;
+  background: transparent;
+  border: 1.3px solid #ccd2db;
+}
+
+/* A miniature of the real slab (`.gm-slab` in cards.css): a label strip
+   carrying the grade over a window with the same navy ground, the same soft
+   highlight suggesting a photograph, and the same dark bar suggesting the
+   card's text box — a card, not a block of colour standing in for one. */
+.gm-login-aside .gm-mock-slab {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 30px;
+  height: 41px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: linear-gradient(158deg, #f4f6f9 0%, #dfe5ec 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.gm-login-aside .gm-mock-slab-label {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 11px;
+  background: linear-gradient(180deg, #ffffff, #eef1f5);
+  border-bottom: 1px solid rgba(21, 33, 47, 0.16);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #a3801f;
+}
+
+.gm-login-aside .gm-mock-slab-window {
+  position: relative;
+  flex: 1;
+  background: linear-gradient(155deg, #2c4159, #131c26);
+}
+
+.gm-login-aside .gm-mock-slab-window img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The drawn stand-in — the soft highlight and the text-box bar — is what a
+   listing with no photograph gets, the same as the real `Slab` component.
+   Turned off the moment there is an actual card to show instead, the same
+   switch `gm-slab--art` makes there. */
+.gm-login-aside .gm-mock-slab-window::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 42% at 50% 30%, rgba(255, 255, 255, 0.3), transparent 70%);
+}
+
+.gm-login-aside .gm-mock-slab-window::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 10%;
+  height: 22%;
+  border-radius: 1px;
+  background: rgba(9, 14, 20, 0.42);
+}
+
+.gm-login-aside .gm-mock-slab--art .gm-mock-slab-window::before,
+.gm-login-aside .gm-mock-slab--art .gm-mock-slab-window::after {
+  content: none;
+}
+
+.gm-login-aside .gm-mock-slab--lg {
+  width: 58px;
+  height: 79px;
+  border-radius: 9px;
+}
+
+.gm-login-aside .gm-mock-slab--lg .gm-mock-slab-label {
+  height: 19px;
+  font-size: 11px;
+}
+
+.gm-login-aside .gm-mock-chev {
+  flex: none;
+  font-size: 19px;
+  line-height: 1;
+  color: #a6afbd;
+}
+
+/* -- the verification record ------------------------------------------- */
+.gm-login-aside .gm-mock-rechead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gm-login-aside .gm-mock-recchip {
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a3801f;
+  background: transparent;
+  border: 1.3px solid #e6d093;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.gm-login-aside .gm-mock-recchip--withdrawn {
+  color: #8792a3;
+  border-color: #d7dbe2;
+}
+
+.gm-login-aside .gm-mock-recchip--open {
+  color: #2f8f5f;
+  border-color: #a9dcc0;
+}
+
+/* The record's one action, drawn like the console's own secondary button —
+   a white ground, a 1.5px navy ring — and pressed navy the instant the
+   click lands (`.is-pressed`, shared with every other pressable element
+   below). */
+.gm-login-aside .gm-mock-recbtn {
+  padding: 8px 15px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #16202b;
+  background: #fff;
+  border: 1.5px solid #1f2f45;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.gm-login-aside .gm-mock-rec {
+  display: flex;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 12px;
+  background: #fafbfc;
+  border: 1px solid #eef0f4;
+}
+
+.gm-login-aside .gm-mock-recaside {
+  flex: none;
+  width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.gm-login-aside .gm-mock-recname {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16202b;
+}
+
+.gm-login-aside .gm-mock-recsub {
+  font-size: 10.5px;
+  color: #97a2b3;
+}
+
+.gm-login-aside .gm-mock-recmain {
+  flex: 1;
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+
+.gm-login-aside .gm-mock-recfact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f1f4;
+}
+
+.gm-login-aside .gm-mock-recfact:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.gm-login-aside .gm-mock-recfact i {
+  font-style: normal;
+  font-size: 12px;
+  color: #97a2b3;
+}
+
+.gm-login-aside .gm-mock-recfact b {
+  font-size: 14px;
+  font-weight: 700;
+  color: #16202b;
+}
+
+.gm-login-aside .gm-mock-toast {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  padding: 9px 14px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #16202b;
+  box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.gm-login-aside .gm-mock-toast.is-on {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* -- the support ticket --------------------------------------------------- */
+.gm-login-aside .gm-mock-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gm-login-aside .gm-mock-bubble {
+  max-width: 76%;
+  padding: 9px 13px;
+  border-radius: 13px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.gm-login-aside .gm-mock-bubble--them {
+  align-self: flex-start;
+  color: #3b4658;
+  background: #f1f2f5;
+  border-bottom-left-radius: 3px;
+}
+
+.gm-login-aside .gm-mock-bubble--us {
+  align-self: flex-end;
+  color: #fff;
+  background: #1f2f45;
+  border-bottom-right-radius: 3px;
+}
+
+.gm-login-aside .gm-mock-bubble--new {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.gm-login-aside .gm-mock-bubble--new.is-on {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gm-login-aside .gm-mock-chatbox {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 13px;
+  border-top: 1px solid #eef0f4;
+}
+
+/* A focus ring in the console's own navy rather than a fill — an input
+   turning solid navy reads as broken, a ring round it reads as "this is
+   where you are typing". */
+.gm-login-aside .gm-mock-chatinput {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gm-login-aside .gm-mock-chatinput.is-pressed {
+  border-color: #1f2f45;
+  box-shadow: 0 0 0 2.5px rgba(31, 47, 69, 0.15);
+}
+
+.gm-login-aside .gm-mock-chattype {
+  font-size: 12px;
+  color: #16202b;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.gm-login-aside .gm-mock-chattype.is-on {
+  opacity: 1;
+}
+
+.gm-login-aside .gm-mock-send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #2c3f59, #16202b);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* -- every pressable element shares this: the console's own navy, briefly,
+   the instant a click lands, the way a real `:active` state reads. Comes
+   after each element's own rules so it wins the moment both apply. -------- */
+.gm-login-aside .gm-mock-recbtn.is-pressed {
+  color: #fff;
+  background: linear-gradient(135deg, #2c3f59, #16202b);
+  transform: scale(0.95);
+}
+
+/* A row's own click already turns it navy via `.is-active` (above) and holds
+   it there — `.is-pressed` only adds the tactile dip for the one tick the
+   click itself lands, on top of whichever colour is already showing. */
+.gm-login-aside .gm-mock-qrow.is-pressed,
+.gm-login-aside .gm-mock-trow.is-pressed {
+  transform: scale(0.985);
+}
+
+.gm-login-aside .gm-mock-send.is-pressed {
+  transform: scale(0.88);
+  box-shadow: 0 0 0 3px rgba(31, 47, 69, 0.18);
+}
+
+/* The rail icon takes the same navy on a click as everything else, briefly
+   scaling down — its `.is-on` navy (the active section) already matches, so
+   a press there reads as confirming the section that is about to open
+   rather than a colour change. */
+.gm-login-aside .gm-mock-railicon.is-pressed {
+  transform: scale(0.88);
+}
+
+/* -- the window's own page dots -------------------------------------------- */
+.gm-login-aside .gm-mock-pager {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 0;
+}
+
+.gm-login-aside .gm-mock-pager-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.gm-login-aside .gm-mock-pager-dot.is-on {
+  width: 22px;
+  background: var(--gold-300);
+}
+
+/* Hidden outright rather than merely un-animated: under reduced motion the
+   panel is the static first screen it always opens on, with nothing standing
+   in for a pointer that never moves. */
+.gm-login-aside .gm-cursor,
+.gm-login-aside .gm-cursor-ring {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gm-login-aside .gm-cursor {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+    transition: transform 0.6s cubic-bezier(0.65, 0.05, 0.2, 1);
+  }
+
+  /* The ring's own click-feedback pulse is on screen for as little as 250ms
+     in the step sequence in page.tsx before the demo moves on to the next
+     beat — an "off" this can be interrupted mid-pulse by, not a rest state
+     it settles into first. A 0.5s fade could not finish inside that window,
+     so the ring was still visibly mid-fade (and, since it scales up as it
+     fades, growing) when the next screen or intro card arrived — on close
+     to every transition, not the one this was first noticed on. 0.15s clears
+     every dwell in the sequence with room to spare; the ring is meant to
+     read as a quick pulse in any case, not a lingering glow. */
+  .gm-login-aside .gm-cursor-ring {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--gold);
+    opacity: 0;
+    transform-origin: center;
+    transition: transform 0.6s cubic-bezier(0.65, 0.05, 0.2, 1), opacity 0.15s ease;
+  }
+
+  .gm-login-aside .gm-cursor-ring.is-on {
+    opacity: 0.55;
+  }
+}
+
+@keyframes gm-login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gm-login-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(51, 168, 115, 0.18); }
+  50% { box-shadow: 0 0 0 4px rgba(51, 168, 115, 0.32); }
+}

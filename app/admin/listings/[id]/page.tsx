@@ -24,7 +24,6 @@ import {
   type Photo,
 } from "../../lib/api";
 import {
-  ActionBar,
   Badge,
   Card,
   CardBody,
@@ -88,14 +87,14 @@ const DECISION_COPY: Record<
     title: "Reject this listing",
     sub: "The seller is told why, word for word, and the reason is filed on their record.",
     cta: "Reject and notify",
-    tone: "gm-btn--danger",
+    tone: "gm-btn--primary",
     status: "rejected",
   },
   request: {
     title: "Ask the seller for more",
     sub: "The listing pauses and the review clock stops until they reply.",
     cta: "Send the request",
-    tone: "gm-btn--gold",
+    tone: "gm-btn--primary",
     status: "info-requested",
   },
 };
@@ -145,19 +144,14 @@ function Angle({ url, label }: { url: string; label: string }) {
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
+    /* The shadow and the radius moved to a class: an inline style cannot be
+       overridden by a stylesheet, and the front-and-back pair at the top of
+       the page needs a deeper one than an angle in the ten-up grid. */
     <img
+      className="gm-photo"
       src={url}
       alt={label}
       loading="lazy"
-      style={{
-        width: "100%",
-        aspectRatio: "3 / 4",
-        objectFit: "cover",
-        borderRadius: "var(--r-sm)",
-        background: "var(--surface-2)",
-        boxShadow: "var(--sh-1)",
-        display: "block",
-      }}
       onError={() => setFailed(true)}
     />
   );
@@ -170,7 +164,9 @@ function historyStatus(s: string): ListingStatus {
     ? "awaiting"
     : s === "info_requested"
       ? "info-requested"
-      : (["live", "sold", "paused", "rejected"].includes(s) ? s : "withdrawn") as ListingStatus;
+      : (["live", "sold", "reserved", "paused", "rejected"].includes(s)
+          ? s
+          : "withdrawn") as ListingStatus;
 }
 
 /** The minimum a reason has to be before it is worth recording. */
@@ -192,6 +188,27 @@ function ListingRecord() {
   const open = record?.listing ?? null;
   const priceComps = record?.comps ?? [];
   const photoSet = record?.photos ?? [];
+
+  /* The two angles a moderator looks at before anything else: is this the card
+     it says it is, and is the back the same card. They are pulled out of the
+     set by name rather than by position — the upload order is the seller's, so
+     `photoSet[0]` is whichever angle they happened to send first — and they
+     stay in the full set below as well, because that panel is a count of ten
+     angles and removing two from it would make a complete submission read as
+     short.
+
+     Exact label first, and only then a loose match. The corner angles are
+     named "front-tl" and "front-tr", so a plain `includes("front")` over a set
+     that happens to lead with a corner puts a photograph of one edge of the
+     slab at the top of the page as the front of the card. The loose pass is
+     still there because real submissions also carry "Front" and "front of
+     card". */
+  const face = (want: string) => {
+    const at = (p: { angle?: string | null }) => (p.angle ?? "").trim().toLowerCase();
+    return photoSet.find((p) => at(p) === want) ?? photoSet.find((p) => at(p).includes(want));
+  };
+  const front = face("front");
+  const backPhoto = face("back");
   const sellerRecord = record?.history ?? [];
 
   /* Read the record, and take it if it is still waiting on a decision, so a
@@ -282,7 +299,7 @@ function ListingRecord() {
     try {
       const updated = await setMarketState(open.id, action);
       setRecord((r) => (r ? { ...r, listing: updated } : r));
-      setToast({ title, body: `${open.card} · written to the audit log` });
+      setToast({ title, body: open.card });
     } catch (e) {
       setToast({
         title: "That did not go through",
@@ -324,10 +341,110 @@ function ListingRecord() {
         title={open.card}
         sub={`${open.grader} ${open.grade} · ${open.setLine}`}
         back={back}
-        right={<ListingBadge status={open.status} />}
+        right={
+          waiting || open.status === "live" || open.status === "paused" ? (
+            <div className="gm-rec-actions">
+              <ListingBadge status={open.status} />
+              {waiting ? (
+                <>
+                  <button type="button" className="gm-btn" onClick={() => startDecision("request")}>
+                    <IconMail />
+                    Ask for more
+                  </button>
+                  <button
+                    type="button"
+                    className="gm-btn"
+                    onClick={() => startDecision("reject")}
+                  >
+                    <IconX />
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    className="gm-btn gm-btn--primary"
+                    onClick={() => startDecision("approve")}
+                  >
+                    <IconCheck />
+                    Approve and publish
+                  </button>
+                </>
+              ) : open.status === "live" ? (
+                <>
+                  <button
+                    type="button"
+                    className="gm-btn"
+                    onClick={() => setMarketStatus("withdraw", "Withdrawn")}
+                  >
+                    <IconBan />
+                    Withdraw
+                  </button>
+                  <button
+                    type="button"
+                    className="gm-btn gm-btn--primary"
+                    onClick={() => setMarketStatus("pause", "Paused")}
+                  >
+                    Pause
+                  </button>
+                </>
+              ) : open.status === "paused" ? (
+                <button
+                  type="button"
+                  className="gm-btn gm-btn--primary"
+                  onClick={() => setMarketStatus("resume", "Back on the market")}
+                >
+                  <IconCheck />
+                  Put it back on the market
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <span className="gm-sm gm-muted">
+              This listing is closed. Reopening it is an audit-log action.
+            </span>
+          )
+        }
       />
 
       <div className="gm-stack">
+        {/* ------------------------------------------- the card itself
+
+            Front and back, centred and large, above everything else. This
+            page used to open on the drawn slab beside the ask, with the
+            photographs eight hundred pixels down the page under the comps —
+            which put the two images the decision actually turns on below the
+            fold, and left the first screen showing a rendering of the card
+            rather than the card. A moderator opens a listing to look at it.
+
+            Only rendered when there is something to show: an empty pair of
+            tiles at the top of the page would be the loudest thing on it, and
+            the photo set below already reports a short submission as the
+            finding it is. */}
+        {front || backPhoto ? (
+          /* No card behind them. A photograph of a slab already has an edge, a
+             corner radius and a shadow of its own — a white panel around it
+             was a second card drawn round a picture of a card, and the page
+             opened on the panel rather than on the thing. The pair sits
+             straight on the page ground and casts its own shadow. */
+          <div className="gm-record-faces">
+              {front ? (
+                <figure>
+                  <Angle url={front.url} label={front.angle ?? "Front"} />
+                  <figcaption>Front</figcaption>
+                </figure>
+              ) : (
+                <div className="gm-photo-missing">front missing</div>
+              )}
+              {backPhoto ? (
+                <figure>
+                  <Angle url={backPhoto.url} label={backPhoto.angle ?? "Back"} />
+                  <figcaption>Back</figcaption>
+                </figure>
+              ) : (
+                <div className="gm-photo-missing">back missing</div>
+              )}
+          </div>
+        ) : null}
+
         {/* ------------------------------------------------ what it is */}
         <Card pad>
           <div className="gm-record-top">
@@ -555,7 +672,7 @@ function ListingRecord() {
                       )}
                     </span>
                     <div className="gm-feed-body">
-                      <p className="gm-row" style={{ gap: 8 }}>
+                      <p className="gm-feed-line">
                         <b>{e.card}</b>
                         <ListingBadge status={historyStatus(e.status)} />
                       </p>
@@ -609,76 +726,6 @@ function ListingRecord() {
           </CardBody>
         </Card>
 
-        {/* -------------------------------------------------- the actions */}
-        <ActionBar
-          note={
-            waiting
-              ? "Every decision is written to the audit log"
-              : open.status === "live" || open.status === "paused"
-                ? "Written to the audit log"
-                : undefined
-          }
-        >
-          {waiting ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                onClick={() => startDecision("approve")}
-              >
-                <IconCheck />
-                Approve and publish
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--gold"
-                onClick={() => startDecision("request")}
-              >
-                <IconMail />
-                Ask for more
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => startDecision("reject")}
-              >
-                <IconX />
-                Reject
-              </button>
-            </>
-          ) : open.status === "live" ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--gold"
-                onClick={() => setMarketStatus("pause", "Paused")}
-              >
-                Pause
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => setMarketStatus("withdraw", "Withdrawn")}
-              >
-                <IconBan />
-                Withdraw
-              </button>
-            </>
-          ) : open.status === "paused" ? (
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
-              onClick={() => setMarketStatus("resume", "Back on the market")}
-            >
-              <IconCheck />
-              Put it back on the market
-            </button>
-          ) : (
-            <span className="gm-sm gm-muted">
-              This listing is closed. Reopening it is an audit-log action.
-            </span>
-          )}
-        </ActionBar>
       </div>
 
       {/* ============================================================= modal
@@ -708,18 +755,18 @@ function ListingRecord() {
               )}
               {busy ? "Sending…" : decision ? DECISION_COPY[decision].cta : ""}
             </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setDecision(null)}>
+            <button type="button" className="gm-btn" onClick={() => setDecision(null)}>
               Cancel
             </button>
             {/* Why the button is off, beside the button. It used to sit greyed
                 with the requirement in a hint under the textarea, which is the
                 wrong place: the thing you are looking at when nothing happens
                 is the button. */}
-            <span className="gm-spacer gm-tiny gm-dim">
-              {short > 0
-                ? `${short} more character${short === 1 ? "" : "s"} needed`
-                : "Written to the audit log"}
-            </span>
+            {short > 0 ? (
+              <span className="gm-spacer gm-tiny gm-dim">
+                {short} more character{short === 1 ? "" : "s"} needed
+              </span>
+            ) : null}
           </>
         }
       >

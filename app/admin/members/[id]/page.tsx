@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   billingLabel,
@@ -32,7 +32,7 @@ import { MemberTimeline } from "../../components/MemberTimeline";
 import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
 import {
-  ActionBar,
+  Avatar,
   Badge,
   Card,
   CardBody,
@@ -44,6 +44,7 @@ import {
   Note,
   PageHead,
   Rating,
+  RowMenu,
   Select,
   Toast,
   Toggle,
@@ -51,6 +52,7 @@ import {
 import {
   IconBan,
   IconCheck,
+  IconInfo,
   IconKey,
   IconLock,
   IconMail,
@@ -60,6 +62,7 @@ import {
   IconTag,
   IconX,
 } from "../../components/icons";
+import "../../member-record.css";
 
 /**
  * One person, as a page.
@@ -88,13 +91,13 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
     title: "Revoke marketplace access",
     sub: "The member is signed out everywhere and cannot buy, sell or bid.",
     cta: "Revoke access",
-    cls: "gm-btn--danger",
+    cls: "gm-btn--primary",
   },
   restrict: {
     title: "Restrict this member",
     sub: "Selling and listing are paused. Buying and browsing continue.",
     cta: "Apply restriction",
-    cls: "gm-btn--gold",
+    cls: "gm-btn--primary",
   },
   reinstate: {
     title: "Reinstate this member",
@@ -106,7 +109,7 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
     title: "Reset verification",
     sub: "Their ID check starts again. They cannot buy or sell until it passes.",
     cta: "Reset verification",
-    cls: "gm-btn--gold",
+    cls: "gm-btn--primary",
   },
   "change-plan": {
     title: "Change plan",
@@ -118,7 +121,7 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
     title: "Suspend this admin account",
     sub: "Their sessions end and every scope is withdrawn until a lead restores it.",
     cta: "Suspend account",
-    cls: "gm-btn--danger",
+    cls: "gm-btn--primary",
   },
 };
 
@@ -128,6 +131,78 @@ const ROLE_LABEL: Record<string, string> = {
   "buyer-seller": "Buyer & seller",
   consignor: "Consignor",
 };
+
+/* The identity panel's height used to be read off the page with
+   `useAsideHeight` — the panel's own `getBoundingClientRect().top` on every
+   scroll and resize, so the card could grow to reach exactly the floor of the
+   window from wherever it happened to start. Asked for instead was one size,
+   set once: the full height the window gives the panel once it is pinned
+   under the topbar, which needs no measurement because it is a constant.
+   `.gm-rec-aside > .gm-card` in parts.css carries the formula now, and there
+   is nothing left here to read the page with. */
+
+/**
+ * The text behind the info button beside the standing actions: what revoking
+ * does, on demand rather than as a card of its own on the page.
+ *
+ * It used to be a `Card` in the main column, which meant reading it cost a
+ * whole panel's worth of scroll whether or not you needed reminding — and it
+ * said the same thing on every record, so it was the one card on the page
+ * that never changed. A popover is closer to what it actually is: a footnote
+ * to the Revoke action, open only when asked for.
+ */
+function RevokeInfoButton() {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement | null>(null);
+
+  /* Closed by anything outside it, the same as every other popover in this
+     console — a click on the page behind it, or Escape, neither of which
+     should need a second click on the button that opened it. */
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="gm-revokeinfo" ref={wrap}>
+      <button
+        type="button"
+        className="gm-btn gm-btn--ghost gm-btn--icon gm-btn--sm"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="What revoking does"
+        aria-label="What revoking does"
+      >
+        <IconInfo />
+      </button>
+      {open ? (
+        <div className="gm-revokeinfo-pop" role="note">
+          <ul className="gm-sm gm-muted">
+            <li>Every session ends and sign-in is blocked.</li>
+            <li>Live listings are pulled and open offers cancelled.</li>
+            <li>Messaging closes, including threads already open with other members.</li>
+            <li>
+              Trades already agreed are between the two members. No money passed through us, so
+              there is nothing here to unwind. Both sides are told the account is closed.
+            </li>
+            <li>The member is emailed the reason recorded at the time.</li>
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function MemberRecord() {
   const id = String(useParams().id ?? "");
@@ -371,10 +446,9 @@ function MemberRecord() {
             {action === "revoke" || action === "suspend" ? <IconBan /> : <IconCheck />}
             {action ? ACTION_COPY[action].cta : ""}
           </button>
-          <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setAction(null)}>
+          <button type="button" className="gm-btn" onClick={() => setAction(null)}>
             Cancel
           </button>
-          <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
         </>
       }
     >
@@ -561,7 +635,27 @@ function MemberRecord() {
           title={staff.name}
           sub={staff.title}
           back={back}
-          right={<MemberBadge status={staff.status} />}
+          right={
+            <div className="gm-rec-actions">
+              <MemberBadge status={staff.status} />
+              {staff.status === "active" ? (
+                <button
+                  type="button"
+                  className="gm-btn gm-btn--primary"
+                  onClick={() => startAction("suspend")}
+                  /* The one thing the old action bar's note said, kept as a
+                     tooltip now there is only one button to hang it on rather
+                     than a bar's width to print it across. */
+                  title="Changing what an account can reach is done under Settings, Team and access"
+                >
+                  <IconBan />
+                  Suspend account
+                </button>
+              ) : (
+                <span className="gm-sm gm-muted">This account is already restricted.</span>
+              )}
+            </div>
+          }
         />
 
         <div className="gm-stack">
@@ -594,21 +688,6 @@ function MemberRecord() {
               </CardBody>
             </Card>
           </div>
-
-          <ActionBar note="Changing what an account can reach is done under Settings, Team and access">
-            {staff.status === "active" ? (
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => startAction("suspend")}
-              >
-                <IconBan />
-                Suspend account
-              </button>
-            ) : (
-              <span className="gm-sm gm-muted">This account is already restricted.</span>
-            )}
-          </ActionBar>
         </div>
 
         {actionModal}
@@ -627,20 +706,126 @@ function MemberRecord() {
 
   if (!live) return null;
 
+  /* Written once because it is rendered in two places: beside Verification
+     when the viewer can see it, and on its own when they cannot. */
+  const verifiedSellerFact = (
+    <div className="gm-idfact">
+      <span>Verified seller</span>
+      <b>{live.verifiedSeller ? "Yes" : "No"}</b>
+    </div>
+  );
+
+  /* Reading a record and changing someone's standing are different
+     permissions. A moderator gets the first and not the second, and gets
+     told so in place of the buttons rather than a row of disabled ones. */
+  const readOnlyNote = (
+    <span className="gm-sm gm-muted">
+      Read only. Changing standing, plan or verification is Trust and safety.
+    </span>
+  );
+
+  /* The standing levers, once a row of up to five buttons at the foot of the
+     page. The single next step is a plain button — reinstate, lift the
+     restriction, or restrict — Message rides beside it since writing to the
+     member is nearly as common a follow-up, and change plan, reset
+     verification and revoke go behind `RowMenu` rather than growing the row
+     forever. The info button beside the menu is "what revoking does": it
+     used to be a card of its own the whole way down the page; now it is a
+     footnote to the one action it explains, open only when asked for. */
+  const recActions = (
+    <div className="gm-rec-actions">
+      {live.status === "revoked" ? (
+        <>
+          <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
+            <IconMail />
+            Message
+          </button>
+          <button
+            type="button"
+            className="gm-btn gm-btn--primary"
+            onClick={() => startAction("reinstate")}
+          >
+            <IconCheck />
+            Reinstate access
+          </button>
+        </>
+      ) : (
+        <>
+          <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
+            <IconMail />
+            Message
+          </button>
+          {live.status !== "restricted" ? (
+            <button
+              type="button"
+              className="gm-btn gm-btn--primary"
+              onClick={() => startAction("restrict")}
+            >
+              <IconLock />
+              Restrict selling
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="gm-btn gm-btn--primary"
+              onClick={() => startAction("reinstate")}
+            >
+              <IconCheck />
+              Lift restriction
+            </button>
+          )}
+          <RowMenu
+            label={`More actions for ${live.handle}`}
+            actions={[
+              {
+                key: "change-plan",
+                label: "Change plan",
+                icon: <IconKey />,
+                onClick: () => startAction("change-plan"),
+              },
+              {
+                key: "reset-verification",
+                label: "Reset verification",
+                icon: <IconRefresh />,
+                onClick: () => startAction("reset-verification"),
+              },
+              {
+                key: "revoke",
+                label: "Revoke access",
+                icon: <IconBan />,
+                onClick: () => startAction("revoke"),
+                tone: "danger",
+              },
+            ]}
+          />
+          <RevokeInfoButton />
+        </>
+      )}
+    </div>
+  );
+
   /* ============================================== a marketplace member */
   return (
     <>
-      <PageHead
-        title={live.name}
-        sub={`${live.handle} · ${ROLE_LABEL[live.role]}`}
-        back={back}
-        right={
-          <div className="gm-row" style={{ gap: 8 }}>
-            <Rating value={live.rating} />
-            <MemberBadge status={live.status} />
-          </div>
-        }
-      />
+      {/* The standing and the rating used to sit up here. They are on the
+          identity panel now, beside the face they describe and in view for as
+          long as the record is — which is the whole point of pinning it.
+
+          The name and the handle went the same way, and for a second reason.
+          They were printed here and printed again sixty pixels lower on the
+          identity card, and the copy up here cost 75px of head that the panel
+          below it could not use — height the panel is sized against now that
+          it is a constant rather than a figure read off the page. The
+          heading is the name on the card now.
+
+          What is up here instead is the standing actions. They were a row of
+          up to five buttons at the foot of the page, sticky and full width;
+          asked for as a line at the top instead, with the single most likely
+          next step as a plain button, Message beside it, and the rest —
+          change plan, reset verification, revoke — behind `RowMenu` so the
+          row stays one line rather than growing a sixth button every time
+          the record gains another lever. */}
+      <PageHead back={back} right={canAct ? recActions : readOnlyNote} />
 
       <div className="gm-stack">
         {live.note ? (
@@ -649,96 +834,172 @@ function MemberRecord() {
           </Note>
         ) : null}
 
-        <div className="gm-grid gm-grid--2">
-          <Card>
-            <CardHead
-              title="Account"
-              sub={
-                seeBilling && seeId
-                  ? `${planLabel[live.plan]} · ${verificationLabel[live.verification]}`
-                  : `${live.sales} sales · ${live.listed} listings published`
-              }
-            />
-            <CardBody>
-              <DL
-                rows={[
-                  ["Email", live.email],
-                  ["Role", ROLE_LABEL[live.role]],
-                  ...(seeBilling
-                    ? ([
-                        [
-                          "Plan",
-                          <span className="gm-row" style={{ gap: 6 }}>
-                            {planLabel[live.plan]}
-                            <span className="gm-dim">
-                              {planQuota[live.plan] === null
-                                ? "no listing ceiling"
-                                : `${live.liveListings} of ${planQuota[live.plan]} live`}
-                            </span>
-                          </span>,
-                        ],
-                      ] as [React.ReactNode, React.ReactNode][])
-                    : []),
-                  /* A moderator opens this record to judge a listing, and the
-                     roles table gives them no billing and no ID. Both rows are
-                     dropped rather than blanked — a greyed field still tells
-                     you the account has one. */
-                  ...(seeBilling
-                    ? ([
-                        [
-                          "Billing",
-                          live.billing === "past-due" ? (
+        <div className="gm-rec">
+          {/* ------------------------------------------- who this is */}
+          <aside className="gm-rec-aside">
+            <Card>
+              <div className="gm-idcard">
+                <div className="gm-idcard-band" aria-hidden />
+                <Avatar initials={live.initials} size="xl" />
+                {/* The page's heading, not a bold line: this is the only
+                    place the record is named now, and a page still needs one
+                    heading for anything reading it in order. */}
+                <h2 className="gm-idcard-name">{live.name}</h2>
+                <span className="gm-idcard-sub">
+                  {live.handle} · {ROLE_LABEL[live.role]}
+                </span>
+                <div className="gm-idcard-chips">
+                  <MemberBadge status={live.status} />
+                  <Rating value={live.rating} />
+                </div>
+
+                {/* The four facts that say who the account belongs to, as
+                    against what it has been doing — that is the split down
+                    the middle of this page, and it is why Plan, Billing and
+                    Verification are still in the Account card beside rather
+                    than up here. */}
+                <div className="gm-idfacts">
+                  <div className="gm-idfact">
+                    <span>Email</span>
+                    <b>{live.email}</b>
+                  </div>
+                  {/* No country. The store has no column for one — the
+                      normaliser fills it with "Unknown" for every account in
+                      the database — so the row was a label with a placeholder
+                      under it on every record, which says less than nothing.
+                      It is still a filter on the directory, where it will
+                      start working the day the column exists. */}
+                  {/* Two to a row from here down. Seven facts stacked ran to
+                      620px in a panel that gets 540 on a laptop, so the last
+                      of them were behind a scrollbar however the box was
+                      sized — a column that only ever grows is the wrong shape
+                      for a fixed height. The dates pair, the two billing facts
+                      pair, the two verification facts pair, and the foot strip
+                      below already reads as two columns, so this is the card's
+                      own idiom rather than a new one. Email stays full width:
+                      it is the one value long enough to burst a 304px panel on
+                      its own. */}
+                  <div className="gm-idpair">
+                  <div className="gm-idfact">
+                    <span>Member since</span>
+                    <b>{dateOnly(live.joined)}</b>
+                  </div>
+                  <div className="gm-idfact">
+                    <span>Last seen</span>
+                    <b>
+                      {/* Their most recent listing, which is the closest thing
+                          the store holds to "last seen" — and `dateOnly`, not
+                          the raw column, which printed the ISO string straight
+                          out of Postgres. */}
+                      {live.lastSeenDays >= LAPSED_DAYS ? (
+                        <span className="gm-row" style={{ gap: 6 }}>
+                          {dateOnly(live.lastSeen)}
+                          <Badge tone="warn">Lapsed</Badge>
+                        </span>
+                      ) : (
+                        dateOnly(live.lastSeen)
+                      )}
+                    </b>
+                  </div>
+                  </div>
+
+                  {/* The state of the account, which was a card of its own
+                      beside this one holding four rows. It belongs to the
+                      subject as much as the address does, and the panel is
+                      the thing that stays on screen — so a moderator who has
+                      scrolled to the timeline can still see whether this
+                      person is verified and whether their card is bouncing.
+
+                      Both halves are permission-gated as they were: a
+                      moderator's role carries neither billing nor ID, and the
+                      rows are dropped rather than blanked, because a greyed
+                      field still tells you the account has one. */}
+                  {seeBilling ? (
+                    <div className="gm-idpair">
+                      <div className="gm-idfact">
+                        <span>Plan</span>
+                        <b>
+                          {planLabel[live.plan]}{" "}
+                          <span className="gm-dim">
+                            {planQuota[live.plan] === null
+                              ? "no listing ceiling"
+                              : `${live.liveListings} of ${planQuota[live.plan]} live`}
+                          </span>
+                        </b>
+                      </div>
+                      <div className="gm-idfact">
+                        <span>Billing</span>
+                        <b>
+                          {live.billing === "past-due" ? (
                             <Badge tone="warn">{billingLabel[live.billing]}</Badge>
                           ) : live.billing === "cancelled" ? (
                             <Badge tone="bad">{billingLabel[live.billing]}</Badge>
                           ) : (
                             billingLabel[live.billing]
-                          ),
-                        ],
-                      ] as [React.ReactNode, React.ReactNode][])
-                    : []),
-                  ...(seeId
-                    ? ([
-                        [
-                          "Verification",
-                          live.verification === "id-verified" ? (
+                          )}
+                        </b>
+                      </div>
+                    </div>
+                  ) : null}
+                  {/* The two verification facts are one row when the viewer
+                      has ID, and the second one stands alone when they do not
+                      — a moderator's role carries no ID scope, and a lone half
+                      of a pair would sit in a column with nothing beside it. */}
+                  {seeId ? (
+                    <div className="gm-idpair">
+                      <div className="gm-idfact">
+                        <span>Verification</span>
+                        <b>
+                          {live.verification === "id-verified" ? (
                             <Badge tone="ok">{verificationLabel[live.verification]}</Badge>
                           ) : (
                             <Badge tone="warn">{verificationLabel[live.verification]}</Badge>
-                          ),
-                        ],
-                      ] as [React.ReactNode, React.ReactNode][])
-                    : []),
-                  ["Verified seller", live.verifiedSeller ? "Yes" : "No"],
-                  ["Country", live.country],
-                  ["Member since", dateOnly(live.joined)],
-                  [
-                    /* Their most recent listing, which is the closest thing
-                       the store holds to "last seen" — and `dateOnly`, not
-                       the raw column, which printed the ISO string straight
-                       out of Postgres. */
-                    "Last seen",
-                    live.lastSeenDays >= LAPSED_DAYS ? (
-                      <span className="gm-row" style={{ gap: 6 }}>
-                        {dateOnly(live.lastSeen)}
-                        <Badge tone="warn">Lapsed</Badge>
-                      </span>
-                    ) : (
-                      dateOnly(live.lastSeen)
-                    ),
-                  ],
-                ]}
-              />
-            </CardBody>
-          </Card>
+                          )}
+                        </b>
+                      </div>
+                      {verifiedSellerFact}
+                    </div>
+                  ) : (
+                    verifiedSellerFact
+                  )}
+                </div>
 
+                {/* Pinned to the floor of the panel, the way the sidebar pins
+                    its theme switch. The panel is as tall as the window now,
+                    and a column with content only at the top is a column with
+                    a hole under it — two figures at the foot give it weight at
+                    both ends and put the slack in the middle, where it reads
+                    as spacing rather than as something missing. Neither figure
+                    is repeated in Trading beside it. */}
+                <div className="gm-idfoot">
+                  <span>
+                    <i>Lifetime volume</i>
+                    <b>{money(live.volume)}</b>
+                  </span>
+                  <span>
+                    <i>Sales · purchases</i>
+                    <b>
+                      {live.sales} · {live.purchases}
+                    </b>
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </aside>
+
+          {/* -------------------------------- what the account has done */}
+          <div className="gm-rec-main">
+        {/* Account went to the panel — see the note there. What is left on
+            this side is what the account has DONE, which is the other half of
+            the split this page is built on. No wrapper: `.gm-rec-main` is
+            already the column with the gap. */}
           <Card>
             <CardHead title="Trading" sub="What this account has actually done" />
             <CardBody>
               <DL
                 rows={[
-                  ["Lifetime volume", money(live.volume)],
-                  ["Sales · purchases", `${live.sales} · ${live.purchases}`],
+                  /* Lifetime volume and the sale counts are on the panel's
+                     foot, so they are not restated here. */
                   [
                     "Listings published",
                     live.listed === 0 ? <Badge tone="warn">Never listed</Badge> : live.listed,
@@ -759,7 +1020,6 @@ function MemberRecord() {
               />
             </CardBody>
           </Card>
-        </div>
 
         {/* ------------------------------------------------------ tags */}
         <Card>
@@ -819,7 +1079,7 @@ function MemberRecord() {
               </datalist>
               <button
                 type="button"
-                className="gm-btn gm-btn--sm"
+                className="gm-btn gm-btn--sm gm-btn--primary"
                 onClick={addTag}
                 disabled={!tagDraft.trim()}
               >
@@ -859,101 +1119,8 @@ function MemberRecord() {
             </div>
           </div>
         </MemberTimeline>
-
-        <Card>
-          <CardHead title="What revoking does" sub="So it is clear before you use it" />
-          <CardBody>
-            <ul
-              style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 7 }}
-              className="gm-sm gm-muted"
-            >
-              <li>Every session ends and sign-in is blocked.</li>
-              <li>Live listings are pulled and open offers cancelled.</li>
-              <li>Messaging closes, including threads already open with other members.</li>
-              <li>
-                Trades already agreed are between the two members. No money passed through us, so
-                there is nothing here to unwind. Both sides are told the account is closed.
-              </li>
-              <li>The member is emailed the reason recorded at the time.</li>
-            </ul>
-          </CardBody>
-        </Card>
-
-        {/* --------------------------------------------------- the levers */}
-        <ActionBar
-          note={
-            canAct ? "Every action here is written to the audit log" : undefined
-          }
-        >
-          {/* Reading a record and changing someone's standing are different
-              permissions. A moderator gets the first and not the second. */}
-          {!canAct ? (
-            <span className="gm-sm gm-muted">
-              Read only. Changing standing, plan or verification is Trust and safety.
-            </span>
-          ) : live.status === "revoked" ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                onClick={() => startAction("reinstate")}
-              >
-                <IconCheck />
-                Reinstate access
-              </button>
-              <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
-                <IconMail />
-                Message
-              </button>
-            </>
-          ) : (
-            <>
-              {live.status !== "restricted" ? (
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--gold"
-                  onClick={() => startAction("restrict")}
-                >
-                  <IconLock />
-                  Restrict selling
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
-                  onClick={() => startAction("reinstate")}
-                >
-                  <IconCheck />
-                  Lift restriction
-                </button>
-              )}
-              <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
-                <IconMail />
-                Message
-              </button>
-              <button type="button" className="gm-btn" onClick={() => startAction("change-plan")}>
-                <IconKey />
-                Change plan
-              </button>
-              <button
-                type="button"
-                className="gm-btn"
-                onClick={() => startAction("reset-verification")}
-              >
-                <IconRefresh />
-                Reset verification
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => startAction("revoke")}
-              >
-                <IconBan />
-                Revoke access
-              </button>
-            </>
-          )}
-        </ActionBar>
+          </div>
+        </div>
       </div>
 
       {actionModal}
@@ -977,12 +1144,11 @@ function MemberRecord() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setComposing(false)}
             >
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Logged against this record</span>
           </>
         }
       >

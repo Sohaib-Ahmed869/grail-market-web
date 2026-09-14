@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiBase } from "../../../lib/apibase";
 
 /**
  * The console's way to the account endpoints.
@@ -18,14 +19,13 @@ import { NextResponse } from "next/server";
  * token, which is the only thing that can say whose password is being changed.
  */
 
-const API = (process.env.GRAILMARKET_API_URL ?? "http://localhost:8180").replace(/\/+$/, "");
-
 /** Nothing here is cacheable, and nothing here is safe to guess at. */
 export const dynamic = "force-dynamic";
 
 const ALLOWED = new Set(["password", "profile", "me", "methods"]);
 
 async function forward(req: Request, path: string[], method: "GET" | "POST") {
+  const API = apiBase();
   const route = path.join("/");
   if (!ALLOWED.has(route)) {
     return NextResponse.json({ error: "not-found", message: "No such route." }, { status: 404 });

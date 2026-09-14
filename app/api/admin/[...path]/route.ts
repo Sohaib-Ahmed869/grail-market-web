@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiBase } from "../../../lib/apibase";
 
 /**
  * The console's way to the admin API.
@@ -17,12 +18,11 @@ import { NextResponse } from "next/server";
  * Authorization header below and nothing here changes.
  */
 
-const API = (process.env.GRAILMARKET_API_URL ?? "http://localhost:8180").replace(/\/+$/, "");
-
 /** Nothing here is cacheable — it is a work queue. */
 export const dynamic = "force-dynamic";
 
 async function forward(req: Request, path: string[], method: "GET" | "POST") {
+  const API = apiBase();
   const url = new URL(req.url);
   const target = `${API}/admin/${path.map(encodeURIComponent).join("/")}${url.search}`;
 
