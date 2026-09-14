@@ -45,6 +45,8 @@ import {
   IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button } from "../components/Button";
+import { TextField } from "../components/Field";
 
 type Tab = "plans" | "boosts" | "billing";
 
@@ -277,16 +279,15 @@ function PricingPage() {
               <IconExternal />
               Stripe
             </a>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               onClick={resync}
               disabled={syncing || !stripeReady}
               title={stripeReady ? undefined : "STRIPE_SECRET_KEY is not set on the API"}
             >
               <IconRefresh />
               {syncing ? "Reading…" : "Read from Stripe"}
-            </button>
+            </Button>
           </>
         }
       />
@@ -550,15 +551,15 @@ function PricingPage() {
                                   Stripe: a control that cannot work is worse
                                   than one that is not there. */}
                               {canEditPlans ? (
-                                <button
-                                  type="button"
-                                  className="gm-btn gm-btn--sm gm-btn--icon"
+                                <Button
+                                  size="sm"
+                                  icon
                                   onClick={() => startEdit(p)}
                                   title="Edit at Stripe"
                                   aria-label={`Edit ${shortPlanName(p.name)} at Stripe`}
                                 >
                                   <IconTag />
-                                </button>
+                                </Button>
                               ) : null}
                             </div>
                           </td>
@@ -651,14 +652,14 @@ function PricingPage() {
                           and only when the API can reach Stripe. A control
                           that cannot work is worse than one that is absent. */}
                       {canEditPlans ? (
-                        <button
-                          type="button"
-                          className="gm-btn gm-btn--sm gm-btn--primary"
+                        <Button
+                          variant="primary"
+                          size="sm"
                           onClick={() => startEdit(p)}
                         >
                           <IconTag />
                           Edit at Stripe
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   </CardBody>
@@ -778,9 +779,10 @@ function PricingPage() {
                                     the column is deliberately empty rather
                                     than filled with a disabled control. */}
                                 {broken ? (
-                                  <button
-                                    type="button"
-                                    className="gm-btn gm-btn--sm gm-btn--icon gm-btn--primary"
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    icon
                                     disabled={busy}
                                     title="Apply now and extend"
                                     aria-label={`Apply ${b.tierName} on ${b.card} now and extend it`}
@@ -794,7 +796,7 @@ function PricingPage() {
                                     }
                                   >
                                     <IconClock />
-                                  </button>
+                                  </Button>
                                 ) : null}
                               </div>
                             </td>
@@ -862,9 +864,10 @@ function PricingPage() {
 
                       {broken ? (
                         <div className="gm-person-foot">
-                          <button
-                            type="button"
-                            className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="gm-spacer"
                             disabled={busy}
                             onClick={() =>
                               run(async () => {
@@ -877,7 +880,7 @@ function PricingPage() {
                           >
                             <IconClock />
                             Apply now and extend
-                          </button>
+                          </Button>
                         </div>
                       ) : null}
                     </article>
@@ -968,18 +971,17 @@ function PricingPage() {
         sub="Written straight to Stripe, then read back. Nothing is stored here as a second copy."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={!draftValid || saving}
               onClick={savePlan}
             >
               <IconTag />
               {saving ? "Saving at Stripe…" : "Save at Stripe"}
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setEditing(null)}>
+            </Button>
+            <Button onClick={() => setEditing(null)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -989,9 +991,8 @@ function PricingPage() {
               <label className="gm-label" htmlFor="pl-name">
                 Name
               </label>
-              <input
+              <TextField
                 id="pl-name"
-                className="gm-input"
                 value={draft.name}
                 onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
               />
@@ -1002,9 +1003,8 @@ function PricingPage() {
               <label className="gm-label" htmlFor="pl-blurb">
                 Description
               </label>
-              <input
+              <TextField
                 id="pl-blurb"
-                className="gm-input"
                 value={draft.blurb}
                 onChange={(e) => setDraft((d) => ({ ...d, blurb: e.target.value }))}
               />
@@ -1014,9 +1014,8 @@ function PricingPage() {
               <label className="gm-label" htmlFor="pl-price">
                 {editing.currency} a {editing.interval}
               </label>
-              <input
+              <TextField
                 id="pl-price"
-                className="gm-input"
                 type="number"
                 min={0}
                 step="0.01"

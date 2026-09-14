@@ -31,6 +31,8 @@ import {
   IconRefresh,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button } from "../components/Button";
+import { TextField } from "../components/Field";
 import "../policy.css";
 
 /**
@@ -65,16 +67,16 @@ function GradingInfoButton() {
 
   return (
     <div className="gm-policyinfo" ref={wrap}>
-      <button
-        type="button"
-        className="gm-btn gm-btn--ghost gm-btn--icon gm-btn--sm"
+      <Button
+        variant="ghost-icon"
+        size="sm"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title="Accepted grading companies"
         aria-label="Accepted grading companies"
       >
         <IconInfo />
-      </button>
+      </Button>
       {open ? (
         <div className="gm-policyinfo-pop" role="note">
           <p className="gm-sm gm-muted" style={{ marginTop: 0 }}>
@@ -185,25 +187,22 @@ function PolicyPage() {
         sub="What happens on its own when one member reports another. No money passes through the platform, so every lever here acts on standing."
         right={
           <>
-            <button
-              type="button"
-              className="gm-btn"
+            <Button
               disabled={!changes || saving}
               onClick={() => setDirty({})}
             >
               <IconRefresh />
               Discard {changes > 0 ? changes : ""}
-            </button>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            </Button>
+            <Button
+              variant="primary"
               disabled={!changes || saving || !canEdit}
               onClick={save}
               title={canEdit ? undefined : "Your role cannot change settings."}
             >
               <IconCheck />
               {saving ? "Saving…" : changes > 0 ? `Save ${changes}` : "Save changes"}
-            </button>
+            </Button>
           </>
         }
       />
@@ -234,13 +233,13 @@ function PolicyPage() {
               right={
                 <>
                   {canEdit ? (
-                    <button
-                      type="button"
-                      className="gm-btn gm-btn--primary gm-btn--sm"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => setEditingPolicy(true)}
                     >
                       Edit policy
-                    </button>
+                    </Button>
                   ) : null}
                   <GradingInfoButton />
                 </>
@@ -287,10 +286,10 @@ function PolicyPage() {
         title="Edit policy"
         sub="Changes here join the rest of the page's unsaved changes — Save still commits them."
         footer={
-          <button type="button" className="gm-btn gm-btn--primary" onClick={() => setEditingPolicy(false)}>
+          <Button variant="primary" onClick={() => setEditingPolicy(false)}>
             <IconCheck />
             Done
-          </button>
+          </Button>
         }
       >
         <div className="gm-field">
@@ -307,9 +306,9 @@ function PolicyPage() {
             Reporting window
           </label>
           <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
-            <input
+            <TextField
               id="pl-window"
-              className="gm-input gm-mono"
+              className="gm-mono"
               style={{ width: 84, textAlign: "right" }}
               value={reportWindow}
               onChange={(e) => setReportWindow(e.target.value)}
@@ -326,9 +325,9 @@ function PolicyPage() {
             Auto-escalate after
           </label>
           <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
-            <input
+            <TextField
               id="pl-escalate"
-              className="gm-input gm-mono"
+              className="gm-mono"
               style={{ width: 84, textAlign: "right" }}
               value={autoEscalate}
               onChange={(e) => setAutoEscalate(e.target.value)}
@@ -347,9 +346,9 @@ function PolicyPage() {
           <label className="gm-label" htmlFor="pl-strikes">
             Strikes before automatic member review
           </label>
-          <input
+          <TextField
             id="pl-strikes"
-            className="gm-input gm-mono"
+            className="gm-mono"
             style={{ width: 84, textAlign: "right" }}
             value={strikeLimit}
             onChange={(e) => setStrikeLimit(e.target.value)}

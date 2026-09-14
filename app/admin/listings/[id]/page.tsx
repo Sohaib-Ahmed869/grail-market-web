@@ -54,6 +54,8 @@ import {
 } from "../../components/icons";
 import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
+import { Button } from "../../components/Button";
+import { TextArea } from "../../components/Field";
 
 /**
  * One listing, as a page.
@@ -347,54 +349,38 @@ function ListingRecord() {
               <ListingBadge status={open.status} />
               {waiting ? (
                 <>
-                  <button type="button" className="gm-btn" onClick={() => startDecision("request")}>
+                  <Button type="button" onClick={() => startDecision("request")}>
                     <IconMail />
                     Ask for more
-                  </button>
-                  <button
-                    type="button"
-                    className="gm-btn"
-                    onClick={() => startDecision("reject")}
-                  >
+                  </Button>
+                  <Button type="button" onClick={() => startDecision("reject")}>
                     <IconX />
                     Reject
-                  </button>
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary"
-                    onClick={() => startDecision("approve")}
-                  >
+                  </Button>
+                  <Button type="button" variant="primary" onClick={() => startDecision("approve")}>
                     <IconCheck />
                     Approve and publish
-                  </button>
+                  </Button>
                 </>
               ) : open.status === "live" ? (
                 <>
-                  <button
-                    type="button"
-                    className="gm-btn"
-                    onClick={() => setMarketStatus("withdraw", "Withdrawn")}
-                  >
+                  <Button type="button" onClick={() => setMarketStatus("withdraw", "Withdrawn")}>
                     <IconBan />
                     Withdraw
-                  </button>
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary"
-                    onClick={() => setMarketStatus("pause", "Paused")}
-                  >
+                  </Button>
+                  <Button type="button" variant="primary" onClick={() => setMarketStatus("pause", "Paused")}>
                     Pause
-                  </button>
+                  </Button>
                 </>
               ) : open.status === "paused" ? (
-                <button
+                <Button
                   type="button"
-                  className="gm-btn gm-btn--primary"
+                  variant="primary"
                   onClick={() => setMarketStatus("resume", "Back on the market")}
                 >
                   <IconCheck />
                   Put it back on the market
-                </button>
+                </Button>
               ) : null}
             </div>
           ) : (
@@ -738,12 +724,7 @@ function ListingRecord() {
         sub={decision ? DECISION_COPY[decision].sub : ""}
         footer={
           <>
-            <button
-              type="button"
-              className={`gm-btn ${decision ? DECISION_COPY[decision].tone : ""}`}
-              disabled={short > 0 || busy}
-              onClick={commit}
-            >
+            <Button type="button" variant="primary" disabled={short > 0 || busy} onClick={commit}>
               {decision === "approve" ? (
                 <IconCheck />
               ) : decision === "reject" ? (
@@ -752,10 +733,10 @@ function ListingRecord() {
                 <IconMail />
               )}
               {busy ? "Sending…" : decision ? DECISION_COPY[decision].cta : ""}
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setDecision(null)}>
+            </Button>
+            <Button type="button" onClick={() => setDecision(null)}>
               Cancel
-            </button>
+            </Button>
             {/* Why the button is off, beside the button. It used to sit greyed
                 with the requirement in a hint under the textarea, which is the
                 wrong place: the thing you are looking at when nothing happens
@@ -818,9 +799,8 @@ function ListingRecord() {
                     ? "Reason shown to the seller"
                     : "What do you need from the seller?"}
               </label>
-              <textarea
+              <TextArea
                 id="gm-listing-reason"
-                className="gm-textarea"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={

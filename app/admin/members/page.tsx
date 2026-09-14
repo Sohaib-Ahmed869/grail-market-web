@@ -26,6 +26,8 @@ import {
 import { exportCsv } from "../lib/csv";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
+import { Button } from "../components/Button";
+import { TextField, TextArea } from "../components/Field";
 import {
   Avatar,
   Badge,
@@ -340,9 +342,8 @@ function MembersPage() {
             /* Export moved out of here, into the marketplace directory's
                own toolbar, beside the filter it exports the result of.
                Messaging is the page's primary action and stays. */
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={audience.length === 0}
               onClick={() => setComposing(true)}
             >
@@ -350,7 +351,7 @@ function MembersPage() {
               {chosen.length > 0
                 ? `Message ${chosen.length} selected`
                 : `Message this segment (${marketRows.length})`}
-            </button>
+            </Button>
           ) : (
             /* Inviting someone, changing what they can reach and revoking
                them all live together on their own page now. This directory
@@ -413,16 +414,23 @@ function MembersPage() {
                 of their own was the last idiom left in the console. */}
             <BlockHead
               title="Admin team"
-              sub={
-                loading && teamRows.length === 0
-                  ? "Reading the team…"
-                  : `${teamRows.length} of ${team.length} account${team.length === 1 ? "" : "s"}${
-                      teamApplied === 0 ? "" : ` · ${teamApplied} filter${teamApplied === 1 ? "" : "s"}`
-                    }`
+              /* The view switch and the count sit together in the controls
+                 row, the same order the verification queue's own tablebar
+                 uses — the count reads to the right of the toggle it
+                 describes. The filter stays on the right, the same split
+                 as the marketplace directory below. */
+              left={
+                <div className="gm-row" style={{ gap: 8 }}>
+                  <ViewToggle value={layout} onChange={setLayout} />
+                  <span className="gm-tablebar-count">
+                    {loading && teamRows.length === 0
+                      ? "Reading the team…"
+                      : `${teamRows.length} of ${team.length} account${team.length === 1 ? "" : "s"}${
+                          teamApplied === 0 ? "" : ` · ${teamApplied} filter${teamApplied === 1 ? "" : "s"}`
+                        }`}
+                  </span>
+                </div>
               }
-              /* The view switch on the left and the filter on the right, the
-                 same split as the marketplace directory below. */
-              left={<ViewToggle value={layout} onChange={setLayout} />}
               right={
                 <FilterMenu
                   applied={teamApplied}
@@ -628,17 +636,12 @@ function MembersPage() {
                 which is what the chips were there to guarantee. */}
             <BlockHead
               title="Marketplace members"
-              sub={
-                loading && marketRows.length === 0
-                  ? "Reading the directory…"
-                  : `${marketRows.length} of ${people.length} member${people.length === 1 ? "" : "s"}${
-                      marketApplied === 0
-                        ? ""
-                        : ` · ${marketApplied} filter${marketApplied === 1 ? "" : "s"}`
-                    }`
-              }
-              /* Search and the layout switch sit left of the heading;
-                 the filter and the export it applies to cluster right —
+              /* Search, the layout switch and the count all sit in the
+                 controls row together, the same order the verification
+                 queue's own tablebar uses — the count reads to the right of
+                 the toggle it is describing, rather than stacked under the
+                 title with nothing to do with the controls below it. The
+                 filter and the export it applies to cluster right —
                  divided, as asked, rather than all balled up against one
                  side. */
               left={
@@ -653,6 +656,15 @@ function MembersPage() {
                     />
                   </div>
                   <ViewToggle value={layout} onChange={setLayout} />
+                  <span className="gm-tablebar-count">
+                    {loading && marketRows.length === 0
+                      ? "Reading the directory…"
+                      : `${marketRows.length} of ${people.length} member${people.length === 1 ? "" : "s"}${
+                          marketApplied === 0
+                            ? ""
+                            : ` · ${marketApplied} filter${marketApplied === 1 ? "" : "s"}`
+                        }`}
+                  </span>
                 </div>
               }
               right={
@@ -751,9 +763,8 @@ function MembersPage() {
                         : []),
                     ]}
                   />
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary"
+                  <Button
+                    variant="primary"
                     onClick={() =>
                       exportCsv("grailmarket-members", marketRows, [
                         { header: "Member", value: (m) => m.id },
@@ -777,7 +788,7 @@ function MembersPage() {
                   >
                     <IconDownload />
                     Export
-                  </button>
+                  </Button>
                 </div>
               }
             />
@@ -801,13 +812,13 @@ function MembersPage() {
                 </span>
               </label>
               {chosen.length > 0 ? (
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--sm gm-btn--primary"
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={() => setPicked(new Set())}
                 >
                   Clear
-                </button>
+                </Button>
               ) : null}
               <span className="gm-spacer gm-tiny gm-dim">
                 {segments.find((x) => x.key === segment)?.detail}
@@ -1017,22 +1028,17 @@ function MembersPage() {
         sub="Push and email. Nothing here reaches a member who has opted out of that channel."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={sending || !subject.trim() || body.trim().length < 10 || audience.length === 0}
               onClick={sendToAudience}
             >
               <IconSend />
               {sending ? "Sending…" : `Send to ${audience.length}`}
-            </button>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setComposing(false)}
-            >
+            </Button>
+            <Button onClick={() => setComposing(false)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -1083,9 +1089,8 @@ function MembersPage() {
           <label className="gm-label" htmlFor="gm-subject">
             Subject
           </label>
-          <input
+          <TextField
             id="gm-subject"
-            className="gm-input"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
           />
@@ -1095,9 +1100,8 @@ function MembersPage() {
           <label className="gm-label" htmlFor="gm-body">
             Message
           </label>
-          <textarea
+          <TextArea
             id="gm-body"
-            className="gm-textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />

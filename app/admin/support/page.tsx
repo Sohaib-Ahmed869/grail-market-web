@@ -36,6 +36,8 @@ import {
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
+import { Button } from "../components/Button";
+import { TextField, TextArea } from "../components/Field";
 
 /**
  * The support desk — one table, and a route per ticket.
@@ -230,14 +232,10 @@ function SupportPage() {
           /* One button, and it does something. "Claim next unassigned" was a
              second way to do what "Assign to me" already does on the ticket
              itself, and Compose was wired to nothing at all. */
-          <button
-            type="button"
-            className="gm-btn gm-btn--primary"
-            onClick={() => setRaising(true)}
-          >
+          <Button variant="primary" onClick={() => setRaising(true)}>
             <IconMail />
             Raise a ticket
-          </button>
+          </Button>
         }
       />
 
@@ -512,9 +510,8 @@ function SupportPage() {
         sub="For the calls and emails that never reach in-app help. It lands in Tier 1 like any other."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={
                 !newTicket.memberId.trim() ||
                 newTicket.subject.trim().length < 3 ||
@@ -524,10 +521,8 @@ function SupportPage() {
             >
               <IconInbox />
               Raise it
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setRaising(false)}>
-              Cancel
-            </button>
+            </Button>
+            <Button onClick={() => setRaising(false)}>Cancel</Button>
           </>
         }
       >
@@ -535,9 +530,9 @@ function SupportPage() {
           <label className="gm-label" htmlFor="nt-member">
             Member
           </label>
-          <input
+          <TextField
             id="nt-member"
-            className="gm-input gm-mono"
+            className="gm-mono"
             value={newTicket.memberId}
             onChange={(e) => setNewTicket((t) => ({ ...t, memberId: e.target.value }))}
             placeholder="u_…"
@@ -548,9 +543,8 @@ function SupportPage() {
           <label className="gm-label" htmlFor="nt-subject">
             Subject
           </label>
-          <input
+          <TextField
             id="nt-subject"
-            className="gm-input"
             value={newTicket.subject}
             onChange={(e) => setNewTicket((t) => ({ ...t, subject: e.target.value }))}
             placeholder="What they got in touch about"
@@ -560,9 +554,8 @@ function SupportPage() {
           <label className="gm-label" htmlFor="nt-body">
             What they said
           </label>
-          <textarea
+          <TextArea
             id="nt-body"
-            className="gm-textarea"
             value={newTicket.body}
             onChange={(e) => setNewTicket((t) => ({ ...t, body: e.target.value }))}
             placeholder="In their words, so the next agent is not reading your summary of a summary."

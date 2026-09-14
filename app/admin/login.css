@@ -924,11 +924,13 @@
   margin-top: 0;
 }
 
+/* Ink, not white: the panel behind this is a pale wash now, not the solid
+   navy it was drawn against originally — see `.gm-login-aside` in parts.css. */
 .gm-login-aside .gm-mock-pager-dot {
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(16, 26, 38, 0.22);
   transition: width 0.3s ease, background 0.3s ease;
 }
 

@@ -41,6 +41,8 @@ import {
 } from "./components/icons";
 import { Gate } from "./components/Gate";
 import { useRole } from "./components/RoleContext";
+import { Button } from "./components/Button";
+import { TextArea } from "./components/Field";
 
 /* Three columns, six boxes, and all of it inside one window.
 
@@ -637,18 +639,17 @@ function DashboardPage() {
         sub="The seller sees the reason you write, word for word."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={reason.trim().length < 8}
               onClick={confirmReject}
             >
               <IconXCircle />
               Reject and notify
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setRejecting(null)}>
+            </Button>
+            <Button onClick={() => setRejecting(null)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -680,9 +681,8 @@ function DashboardPage() {
               <label className="gm-label" htmlFor="gm-dash-reason">
                 Reason shown to the seller
               </label>
-              <textarea
+              <TextArea
                 id="gm-dash-reason"
-                className="gm-textarea"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Be specific. The seller acts on this."

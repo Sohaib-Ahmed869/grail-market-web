@@ -52,6 +52,7 @@ import {
   IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button } from "../components/Button";
 import { exportCsv } from "../lib/csv";
 
 const AREA_LABEL: Record<AuditArea, string> = {
@@ -242,15 +243,10 @@ function AuditPage() {
                     },
                   ]}
                 />
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
-                  onClick={exportRows}
-                  disabled={rows.length === 0}
-                >
+                <Button variant="primary" onClick={exportRows} disabled={rows.length === 0}>
                   <IconDownload />
                   Export
-                </button>
+                </Button>
               </div>
             }
           />
