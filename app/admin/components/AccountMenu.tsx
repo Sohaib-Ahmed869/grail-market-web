@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { roleLabel, ROLES } from "../lib/data";
+import { roleLabel } from "../lib/data";
 import { useRole } from "./RoleContext";
-import { IconLogout, IconSettings, IconUsers } from "./icons";
+import { IconLogout, IconSettings } from "./icons";
 
 /**
  * The signed-in operator, as an avatar in the topbar with a menu under it.
@@ -17,7 +17,7 @@ import { IconLogout, IconSettings, IconUsers } from "./icons";
 export default function AccountMenu() {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
-  const { role, me, previewing, setPreview, signOut, loading } = useRole();
+  const { me, previewing, setPreview, signOut, loading } = useRole();
 
   /* Until the sign-in screen lands, the API answers with its development
      operator; `me` is that operator either way, so the topbar shows whoever
@@ -56,6 +56,14 @@ export default function AccountMenu() {
     };
   }, [open]);
 
+  /* The switcher was removed, so if a preview is leftover from before,
+     clear it now rather than strand someone in another role. */
+  useEffect(() => {
+    if (previewing) {
+      setPreview(null);
+    }
+  }, [previewing, setPreview]);
+
   return (
     <div className="gm-account" ref={wrap}>
       <button
@@ -84,74 +92,8 @@ export default function AccountMenu() {
 
           <div className="gm-menu-sep" />
 
-          {/* Preview another role.
-
-              Not a permission, and not a way to gain one: the API answers
-              every request from the role on the operator's own user row, so
-              this only ever changes what the console draws. Offered to owners
-              alone, because for anyone else "view as" can only mean seeing
-              less than they already see. */}
-          {ownRole === "owner" ? (
-          <div style={{ padding: "8px 12px 4px" }}>
-            <div className="gm-label" style={{ marginBottom: 6 }}>
-              View the console as
-            </div>
-            <div style={{ display: "grid", gap: 3 }}>
-              {ROLES.map((r) => {
-                const on = role === r.key;
-                return (
-                  <button
-                    key={r.key}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={on}
-                    onClick={() => setPreview(r.key === ownRole ? null : r.key)}
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 8px",
-                      borderRadius: "var(--r-sm)",
-                      cursor: "pointer",
-                      font: "inherit",
-                      fontSize: 12.5,
-                      background: on ? "var(--surface-2)" : "transparent",
-                      color: on ? "var(--ink)" : "var(--ink-3)",
-                      border: `1px solid ${on ? "var(--line)" : "transparent"}`,
-                    }}
-                  >
-                    <b style={{ fontWeight: on ? 600 : 500 }}>{r.label}</b>
-                    <div className="gm-tiny gm-dim">{r.who}</div>
-                  </button>
-                );
-              })}
-            </div>
-            {previewing ? (
-              <button
-                type="button"
-                className="gm-btn gm-btn--sm gm-btn--ghost"
-                style={{ marginTop: 7, width: "100%" }}
-                onClick={() => setPreview(null)}
-              >
-                Back to {roleLabel(ownRole)}
-              </button>
-            ) : null}
-          </div>
-          ) : null}
-
-          <div className="gm-menu-sep" />
-
-          {/* Your own account first, then the marketplace's. They are
-              different things and used to be one page: Settings is rules an
-              owner sets for everybody, this is one person's name and
-              password — and most roles cannot open Settings at all. */}
-          <Link
-            href="/admin/profile"
-            className="gm-menu-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            <IconUsers />
-            Your profile
-          </Link>
+          {/* Preview options removed at user request for now;
+              RoleContext still supports preview mode if this feature returns. */}
 
           <Link
             href="/admin/settings"

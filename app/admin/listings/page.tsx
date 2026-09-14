@@ -9,6 +9,7 @@ import {
   Badge,
   Card,
   Empty,
+  KpiBar,
   ListingBadge,
   Loading,
   Note,
@@ -16,6 +17,7 @@ import {
   PageHead,
   Pagination,
   Slab,
+  StatTile,
   Tier,
   GameChip,
   CardTile,
@@ -25,9 +27,11 @@ import {
 import {
   IconBan,
   IconCheck,
+  IconClock,
   IconDownload,
   IconEye,
   IconListing,
+  IconMail,
   IconSearch,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
@@ -175,7 +179,7 @@ function ListingsPage() {
     try {
       await setMarketState(l.id, action);
       reload();
-      setToast({ title, body: `${l.card} · written to the audit log` });
+      setToast({ title, body: l.card });
     } catch (e) {
       setToast({
         title: "That did not go through",
@@ -216,22 +220,47 @@ function ListingsPage() {
 
   return (
     <>
-      <PageHead
-        title="Verification"
-        sub="Approving a listing publishes it straight away."
-        right={
-          /* "Claim next in queue" is gone. It spent most of its life disabled,
-             reading "Queue is clear" — a control that is mostly a status
-             message, in the one place on the page reserved for the action you
-             came to take. The queue itself claims a row when you open it. */
-          <button type="button" className="gm-btn" onClick={exportRows}>
-            <IconDownload />
-            Export
-          </button>
-        }
-      />
+      {/* "Claim next in queue" is gone. It spent most of its life disabled,
+          reading "Queue is clear" — a control that is mostly a status
+          message, in the one place on the page reserved for the action you
+          came to take. The queue itself claims a row when you open it.
+          Export moved out of here too, into the toolbar's right-hand
+          cluster beside the filter it exports the result of — this page
+          has no primary action left to sit here on its own. */}
+      <PageHead title="Verification" sub="Approving a listing publishes it straight away." />
 
       <div className="gm-stack">
+        <KpiBar>
+          <StatTile
+            tone="blue"
+            label="Total listings"
+            value={String(counts.all)}
+            icon={<IconListing />}
+            foot="Every status"
+          />
+          <StatTile
+            tone="orange"
+            label="Needs a decision"
+            value={String(counts.queue)}
+            icon={<IconClock />}
+            foot="Awaiting or in review"
+          />
+          <StatTile
+            tone="green"
+            label="On the market"
+            value={String(counts.market)}
+            icon={<IconCheck />}
+            foot="Live, reserved or sold"
+          />
+          <StatTile
+            tone="violet"
+            label="Waiting on seller"
+            value={String(counts.seller)}
+            icon={<IconMail />}
+            foot="Info requested"
+          />
+        </KpiBar>
+
         {/* A console that cannot reach its API must say so. An empty queue and
             a broken connection look identical otherwise, and one of them is a
             quiet day while the other is an outage. */}
@@ -251,7 +280,20 @@ function ListingsPage() {
         {/* The card now holds only the table; the controls that filter it sit
             above it, here, where they read as belonging to the page rather
             than as part of the data underneath them. */}
+        {/* Search and the layout switch sit left, against the page's own
+            edge; the filter and the export it applies to cluster right —
+            divided, as asked, rather than all balled up against one side. */}
         <div className="gm-tablebar">
+          <div className="gm-search" style={{ width: 224 }}>
+            <IconSearch />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Card, cert, listing id, seller…"
+              aria-label="Search listings"
+            />
+          </div>
+          <ViewToggle value={layout} onChange={setLayout} />
           <span className="gm-tablebar-count">
             {loading
               ? "Reading the queue…"
@@ -259,16 +301,7 @@ function ListingsPage() {
                   tier === "all" ? "" : ` · ${tier === "high-value" ? "high value" : tier} tier`
                 }`}
           </span>
-          <div className="gm-row" style={{ gap: 8 }}>
-            <div className="gm-search" style={{ width: 224 }}>
-              <IconSearch />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Card, cert, listing id, seller…"
-                aria-label="Search listings"
-              />
-            </div>
+          <div className="gm-row gm-tablebar-end" style={{ gap: 8 }}>
             <FilterMenu
               applied={(view === "all" ? 0 : 1) + (tier === "all" ? 0 : 1)}
               onClear={() => {
@@ -301,7 +334,10 @@ function ListingsPage() {
                 },
               ]}
             />
-            <ViewToggle value={layout} onChange={setLayout} />
+            <button type="button" className="gm-btn gm-btn--primary" onClick={exportRows}>
+              <IconDownload />
+              Export
+            </button>
           </div>
         </div>
 
@@ -356,7 +392,7 @@ function ListingsPage() {
                           {l.seller.handle} · {l.seller.reviews} reviews
                         </span>
                         <Link
-                          className="gm-btn gm-btn--sm gm-spacer"
+                          className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
                           href={`/admin/listings/${l.id}`}
                         >
                           <IconEye />

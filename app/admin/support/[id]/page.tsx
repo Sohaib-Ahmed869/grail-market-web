@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import "../../support-chat.css";
 import {
   cannedReplies,
   money,
@@ -21,7 +22,6 @@ import {
   type TicketContext,
 } from "../../lib/api";
 import {
-  ActionBar,
   Badge,
   Card,
   CardBody,
@@ -92,6 +92,7 @@ function TicketRecord() {
   const [loading, setLoading] = useState(true);
 
   const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
   const [escalating, setEscalating] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [handover, setHandover] = useState("");
@@ -102,6 +103,25 @@ function TicketRecord() {
     tone?: "ok" | "bad";
   } | null>(null);
   const [writes, setWrites] = useState(0);
+
+  /* The scroller is the card's own message list, not the page — a chat opens
+     on its newest message, not on whatever the thread's first line is. */
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thread]);
+
+  /* A few lines of growth and then a scrollbar, not a card that keeps
+     stretching down the page as someone writes a long reply. */
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [reply]);
 
   useEffect(() => {
     if (!id) return;
@@ -133,14 +153,15 @@ function TicketRecord() {
   const canSeeContext = role !== "tier-1";
   const up = active ? nextTier(active.tier) : null;
 
-  async function send(alsoResolve: boolean) {
-    if (!active || reply.trim().length < 4) return;
+  /* The only send path left. It used to have a sibling — "send and resolve" —
+     that sent the reply and then opened the resolve modal; resolving is its
+     own button now, so this does one thing: put the typed message on the
+     thread and hand the ticket back to the member. */
+  async function send() {
+    if (!active || reply.trim().length < 4 || sending) return;
+    setSending(true);
     try {
       await replyToTicket(active.id, reply.trim());
-      if (alsoResolve) {
-        setResolving(true);
-        return;
-      }
       await setTicketState(active.id, { status: "waiting" });
       setReply("");
       setWrites((n) => n + 1);
@@ -151,6 +172,8 @@ function TicketRecord() {
         body: e instanceof ApiError ? e.message : String(e),
         tone: "bad",
       });
+    } finally {
+      setSending(false);
     }
   }
 
@@ -231,10 +254,34 @@ function TicketRecord() {
         sub={`${active.category} · opened ${shortDate(active.opened)}`}
         back={back}
         right={
-          <div className="gm-row" style={{ gap: 8 }}>
-            <TicketBadge status={active.status} />
-            <Sla t={active} />
-          </div>
+          active.status === "resolved" ? (
+            <span className="gm-sm gm-muted">
+              Resolved. A reply from the member reopens it with the thread intact.
+            </span>
+          ) : (
+            <div className="gm-rec-actions">
+              <TicketBadge status={active.status} />
+              <Sla t={active} />
+              {up ? (
+                <button
+                  type="button"
+                  className="gm-btn"
+                  onClick={() => setEscalating(true)}
+                >
+                  <IconArrowUp />
+                  Escalate to {supportTierLabel[up]}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="gm-btn gm-btn--primary"
+                onClick={() => setResolving(true)}
+              >
+                <IconCheck />
+                Resolve
+              </button>
+            </div>
+          )
         }
       />
 
@@ -254,7 +301,7 @@ function TicketRecord() {
             ) : (
               <button
                 type="button"
-                className="gm-btn gm-btn--sm gm-btn--gold gm-spacer"
+                className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
                 onClick={async () => {
                   await setTicketState(active.id, { assign: true }).catch(() => null);
                   setWrites((n) => n + 1);
@@ -281,106 +328,12 @@ function TicketRecord() {
           </div>
         </Card>
 
-        {/* --------------------------------------------- conversation */}
-        <Card>
-          <CardHead
-            title="Conversation"
-            sub={`${thread.length} message${thread.length === 1 ? "" : "s"}`}
-          />
-          <CardBody>
-            <div className="gm-thread">
-              {thread.map((m) =>
-                m.from === "system" ? (
-                  <div key={m.id} className="gm-feed-time" style={{ textAlign: "center" }}>
-                    {m.body}
-                  </div>
-                ) : (
-                  <div key={m.id} className={`gm-msg${m.from === "admin" ? " gm-msg--out" : ""}`}>
-                    <div style={{ minWidth: 0 }}>
-                      {/* An internal note is on the same thread but is never
-                          sent to the member, so it has to be unmistakable from
-                          a reply that was. */}
-                      <div className="gm-msg-bubble">
-                        {m.internal ? (
-                          <>
-                            <b className="gm-tiny">Internal note · not sent</b>
-                            <br />
-                          </>
-                        ) : null}
-                        {m.body}
-                      </div>
-                      <div className="gm-msg-meta">
-                        {m.author} · {shortDate(m.at)}
-                      </div>
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* ---------------------------------------------------- reply */}
-        {active.status === "resolved" ? (
-          <Note>
-            <b>This ticket is resolved.</b> A reply from the member reopens it with the thread
-            intact.
-          </Note>
-        ) : (
-          <Card>
-            <CardHead
-              title="Reply"
-              sub="The member sees this exactly as written."
-              right={
-                <span className="gm-tiny gm-dim">
-                  <span className="gm-kbd">⌘</span> <span className="gm-kbd">↵</span> to send
-                </span>
-              }
-            />
-            <CardBody>
-              <div className="gm-row" style={{ gap: 6, marginBottom: 11 }}>
-                {cannedReplies.map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    className="gm-btn gm-btn--sm gm-btn--ghost"
-                    title={c.when}
-                    /* Appends rather than replaces: an agent who has already
-                       typed something specific should not lose it to a
-                       template. */
-                    onClick={() =>
-                      setReply((r) => (r.trim() ? `${r.trimEnd()}\n\n${c.body}` : c.body))
-                    }
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                className="gm-textarea"
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    void send(false);
-                  }
-                }}
-                placeholder="Answer the question that was actually asked, and say what happens next."
-                style={{ minHeight: 116 }}
-              />
-              <span className="gm-hint">
-                Sending moves the ticket to waiting. The buttons are at the foot of this page.
-              </span>
-            </CardBody>
-          </Card>
-        )}
-
         {/* ------------------------------------------- member context
 
             The agent should not have to leave the ticket to find out who they
             are talking to. Tier 1 does not get this panel — their scope is
-            their own queue, and the role table says so.
+            their own queue, and the role table says so. This appears before
+            the conversation so context is available while reading the thread.
         */}
         {canSeeContext ? (
           <Card>
@@ -454,50 +407,115 @@ function TicketRecord() {
           </Note>
         )}
 
-        <ActionBar
-          note={
-            active.status !== "resolved" && reply.trim().length < 4
-              ? "Write a reply first"
-              : undefined
-          }
-        >
+        {/* ------------------------------------- conversation, as a chat
+
+            The thread and the reply were two cards — a transcript to read,
+            then a form below it, sent by a button at the foot of the whole
+            page. Answering a ticket is a back-and-forth with one person, so
+            it reads as one now: a scrolling message list with a composer
+            pinned to the foot of the same card, the way any chat does it.
+            Resolving and escalating stay where they were, because they are
+            not part of writing a message — they end the conversation or
+            hand it off. */}
+        <Card className="gm-chatcard">
+          <CardHead
+            title="Conversation"
+            sub={`${thread.length} message${thread.length === 1 ? "" : "s"}`}
+          />
+          <div className="gm-chat-scroll" ref={scrollRef}>
+            <div className="gm-thread">
+              {thread.map((m) =>
+                m.from === "system" ? (
+                  <div key={m.id} className="gm-feed-time" style={{ textAlign: "center" }}>
+                    {m.body}
+                  </div>
+                ) : (
+                  <div key={m.id} className={`gm-msg${m.from === "admin" ? " gm-msg--out" : ""}`}>
+                    <div style={{ minWidth: 0 }}>
+                      {/* An internal note is on the same thread but is never
+                          sent to the member, so it has to be unmistakable from
+                          a reply that was. */}
+                      <div className="gm-msg-bubble">
+                        {m.internal ? (
+                          <>
+                            <b className="gm-tiny">Internal note · not sent</b>
+                            <br />
+                          </>
+                        ) : null}
+                        {m.body}
+                      </div>
+                      <div className="gm-msg-meta">
+                        {m.author} · {shortDate(m.at)}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+
           {active.status === "resolved" ? (
-            <span className="gm-sm gm-muted">
-              Resolved. A reply from the member reopens it with the thread intact.
-            </span>
+            <div className="gm-chat-resolved">
+              <Note>
+                <b>This ticket is resolved.</b> A reply from the member reopens it with the thread
+                intact.
+              </Note>
+            </div>
           ) : (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                disabled={reply.trim().length < 4}
-                onClick={() => send(false)}
-              >
-                <IconSend />
-                Send reply
-              </button>
-              <button
-                type="button"
-                className="gm-btn"
-                disabled={reply.trim().length < 4}
-                onClick={() => send(true)}
-              >
-                <IconCheck />
-                Send and resolve
-              </button>
-              {up ? (
+            <div className="gm-chat-composer">
+              <div className="gm-chat-canned">
+                {cannedReplies.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    className="gm-btn gm-btn--sm gm-btn--ghost"
+                    title={c.when}
+                    /* Appends rather than replaces: an agent who has already
+                       typed something specific should not lose it to a
+                       template. */
+                    onClick={() =>
+                      setReply((r) => (r.trim() ? `${r.trimEnd()}\n\n${c.body}` : c.body))
+                    }
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="gm-chat-inputrow">
+                <textarea
+                  ref={textareaRef}
+                  className="gm-textarea gm-chat-textarea"
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void send();
+                    }
+                  }}
+                  placeholder="Answer the question that was actually asked, and say what happens next."
+                  rows={1}
+                />
                 <button
                   type="button"
-                  className="gm-btn gm-btn--gold"
-                  onClick={() => setEscalating(true)}
+                  className="gm-btn gm-btn--primary gm-btn--icon"
+                  title="Send reply"
+                  aria-label="Send reply"
+                  disabled={reply.trim().length < 4 || sending}
+                  onClick={() => void send()}
                 >
-                  <IconArrowUp />
-                  Escalate to {supportTierLabel[up]}
+                  <IconSend />
                 </button>
-              ) : null}
-            </>
+              </div>
+              <span className="gm-hint">
+                <span className="gm-kbd">Enter</span> to send ·{" "}
+                <span className="gm-kbd">Shift</span> + <span className="gm-kbd">Enter</span> for
+                a new line. Sending moves the ticket to waiting.
+              </span>
+            </div>
           )}
-        </ActionBar>
+        </Card>
+
       </div>
 
       {/* ==================================================== escalate */}
@@ -510,7 +528,7 @@ function TicketRecord() {
           <>
             <button
               type="button"
-              className="gm-btn gm-btn--gold"
+              className="gm-btn gm-btn--primary"
               disabled={handover.trim().length < 10}
               onClick={doEscalate}
             >
@@ -519,12 +537,11 @@ function TicketRecord() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setEscalating(false)}
             >
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Written to the member record</span>
           </>
         }
       >
@@ -574,7 +591,7 @@ function TicketRecord() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setResolving(false)}
             >
               Go back

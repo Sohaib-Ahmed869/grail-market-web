@@ -131,7 +131,7 @@ export function SupportDeskPanel({ support }: { support: Dashboard["support"] })
       <div className="gm-blockhead">
         <h3>Support desk</h3>
         <p>{support.live === 0 ? "Nothing open" : `${support.live} open`}</p>
-        <Link href="/admin/support" className="gm-spacer gm-btn gm-btn--sm">
+        <Link href="/admin/support" className="gm-spacer gm-btn gm-btn--sm gm-btn--primary">
           Open queue
           <IconArrowRight />
         </Link>

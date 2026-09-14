@@ -437,7 +437,8 @@ export const ROUTE_CAPABILITY: { path: string; param?: [string, string]; cap: Ca
   { path: "/admin/audit", cap: "audit.read" },
   { path: "/admin/announcements", cap: "announce.write" },
   { path: "/admin/reports", cap: "reports.read" },
-  { path: "/admin/settings", cap: "settings.write" },
+  { path: "/admin/thresholds", cap: "settings.write" },
+  { path: "/admin/policy", cap: "settings.write" },
   { path: "/admin", cap: "dashboard.read" },
 ];
 
@@ -3262,7 +3263,12 @@ export const scopesOf = (role: Role): string[] => {
   if (can(role, "audit.read")) out.push("Audit log");
   if (can(role, "announce.write")) out.push("Announcements");
   if (can(role, "reports.read")) out.push("Reports");
-  if (can(role, "settings.write")) out.push("Settings");
+  /* Not "Settings" any more — that name now belongs to the personal profile
+     page every role can open, so a chip reading "Settings" on the owner's
+     row implied a reach nobody else lacked. `settings.write` is what gates
+     the two pages that actually moved out of the old org-wide Settings page
+     and into the nav. */
+  if (can(role, "settings.write")) out.push("Review thresholds", "Marketplace policy");
   return out;
 };
 

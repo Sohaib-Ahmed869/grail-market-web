@@ -167,10 +167,19 @@ export function Card({
 export function CardHead({
   title,
   sub,
+  left,
   right,
 }: {
   title: ReactNode;
   sub?: ReactNode;
+  /** Controls that belong beside the heading rather than at the far end —
+   *  the search box. Every control used to go in `right`, so a toolbar of
+   *  search, filter and export was one cluster against the right-hand edge
+   *  with the whole left of the row empty; asked for as some on the left and
+   *  some on the right. Search finds within what is shown, so it sits with
+   *  the heading that names it; filter and export act on it, so they go to
+   *  the end. */
+  left?: ReactNode;
   right?: ReactNode;
 }) {
   return (
@@ -179,6 +188,7 @@ export function CardHead({
         <h3>{title}</h3>
         {sub ? <p>{sub}</p> : null}
       </div>
+      {left ? <div className="gm-head-left">{left}</div> : null}
       {right ? <div className="gm-spacer">{right}</div> : null}
     </header>
   );
@@ -232,8 +242,11 @@ export function PageHead({
             {title ? <h2>{title}</h2> : null}
             {sub ? <p>{sub}</p> : null}
           </div>
+          {/* 12, not 8: a record's head holds a status chip and two or three
+              buttons, and at 8 they read as one cramped strip — asked for as
+              "the buttons and tags are too close together". */}
           {right ? (
-            <div className="gm-spacer gm-row" style={{ gap: 8 }}>
+            <div className="gm-spacer gm-row" style={{ gap: 12 }}>
               {right}
             </div>
           ) : null}
@@ -244,41 +257,10 @@ export function PageHead({
 }
 
 /* ==========================================================================
-   Action bar — what the dialog footer became
-
-   A record used to be a dialog, and its actions sat in the dialog's footer:
-   pinned to the bottom of the window, always in view, wrapping when there were
-   four of them. A record is a page now, so the same row lives at the foot of
-   the page and sticks to the bottom of the viewport while there is still
-   record above it.
-
-   It wraps rather than scrolls, for the reason the dialog footer wrapped: the
-   last action in the row is usually the most consequential one, and a row that
-   runs off the edge hides exactly that.
-   ========================================================================== */
-
-export function ActionBar({
-  children,
-  note,
-}: {
-  children: ReactNode;
-  /** Why a button is off, or where the action lands. Sits to the right on a
-   *  wide screen and under the buttons on a narrow one. */
-  note?: ReactNode;
-}) {
-  return (
-    <div className="gm-actionbar">
-      <div className="gm-actionbar-inner">
-        {children}
-        {note ? <span className="gm-actionbar-note">{note}</span> : null}
-      </div>
-    </div>
-  );
-}
-
-/* ==========================================================================
    Stat tile
    ========================================================================== */
+
+export type StatTone = "blue" | "orange" | "green" | "violet" | "gold" | "navy" | "plain";
 
 export function StatTile({
   label,
@@ -291,41 +273,65 @@ export function StatTile({
   label: string;
   value: string;
   icon?: ReactNode;
-  tone?: "navy" | "gold" | "plain";
+  tone?: StatTone;
   delta?: { dir: "up" | "down" | "flat"; text: string };
   foot?: string;
 }) {
   return (
     <div className="gm-stat">
-      <div className="gm-stat-top">
+      <div className="gm-stat-head">
         {icon ? (
-          <span
-            className={`gm-stat-ico${tone === "navy" ? " gm-stat-ico--navy" : tone === "gold" ? " gm-stat-ico--gold" : ""}`}
-          >
+          <span className={`gm-stat-ico${tone !== "plain" ? ` gm-stat-ico--${tone}` : ""}`}>
             {icon}
           </span>
         ) : null}
         <span className="gm-stat-label">{label}</span>
       </div>
       <div className="gm-stat-value">{value}</div>
-      <div className="gm-stat-foot">
-        {delta ? (
-          <span className={`gm-delta gm-delta--${delta.dir}`}>
-            {delta.dir === "up" ? <IconArrowUp /> : delta.dir === "down" ? <IconArrowDown /> : null}
-            {delta.text}
-          </span>
-        ) : null}
-        {foot ? <span>{foot}</span> : null}
-      </div>
+      {delta || foot ? (
+        <div className="gm-stat-foot">
+          {delta ? (
+            <span className={`gm-delta gm-delta--${delta.dir}`}>
+              {delta.dir === "up" ? <IconArrowUp /> : delta.dir === "down" ? <IconArrowDown /> : null}
+              {delta.text}
+            </span>
+          ) : null}
+          {foot ? <span>{foot}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * The frame around a row of `StatTile`s: one bordered strip with a hairline
+ * between each figure, rather than a card each. A grid of separate cards read
+ * as four unrelated boxes; these are four readings of the same board, so they
+ * share one edge.
+ */
+export function KpiBar({ children }: { children: ReactNode }) {
+  return <div className="gm-kpibar">{children}</div>;
 }
 
 /* ==========================================================================
    Badge / tier chip
    ========================================================================== */
 
-type BadgeTone = "ok" | "warn" | "bad" | "info" | "gold" | "navy" | "idle";
+/* Four hues were added to the five signals so every state in a family can
+   have one of its own — see the `--tag-*` tokens. The names are colours, not
+   meanings, because what they mean is decided per map below. */
+type BadgeTone =
+  | "ok"
+  | "warn"
+  | "bad"
+  | "info"
+  | "gold"
+  | "navy"
+  | "violet"
+  | "teal"
+  | "pink"
+  | "orange"
+  | "idle";
 
 export function Badge({
   tone = "idle",
@@ -2332,14 +2338,18 @@ export function ListingBadge({ status }: { status: string }) {
        are needed. "Awaiting" is a listing nobody has picked up; "Review" is
        one a moderator has claimed — the difference is who has it, which the
        shorter pair still carries. */
+    /* A hue per state. Review and Reserved were both `info`, Awaiting and
+       Paused both `warn`, Withdrawn and Rejected both `bad`, and Live was the
+       grey of nothing in particular — nine states in five colours, three of
+       them slates, which is what "the tags all feel the same" was about. */
     awaiting: { tone: "warn", label: "Awaiting" },
     "in-review": { tone: "info", label: "Review" },
-    "info-requested": { tone: "gold", label: "Info Requested" },
-    live: { tone: "idle", label: "Live" },
+    "info-requested": { tone: "violet", label: "Info Requested" },
+    live: { tone: "ok", label: "Live" },
     sold: { tone: "navy", label: "Sold" },
-    reserved: { tone: "info", label: "Reserved" },
-    paused: { tone: "warn", label: "Paused" },
-    withdrawn: { tone: "bad", label: "Withdrawn" },
+    reserved: { tone: "teal", label: "Reserved" },
+    paused: { tone: "gold", label: "Paused" },
+    withdrawn: { tone: "pink", label: "Withdrawn" },
     rejected: { tone: "bad", label: "Rejected" },
   };
   const m = map[status] ?? { tone: "idle" as BadgeTone, label: status };
@@ -2348,7 +2358,7 @@ export function ListingBadge({ status }: { status: string }) {
 
 export function MemberBadge({ status }: { status: string }) {
   const map: Record<string, { tone: BadgeTone; label: string }> = {
-    active: { tone: "idle", label: "Active" },
+    active: { tone: "ok", label: "Active" },
     restricted: { tone: "warn", label: "Restricted" },
     revoked: { tone: "bad", label: "Revoked" },
     pending: { tone: "info", label: "Pending" },
@@ -2362,7 +2372,7 @@ export function ConflictBadge({ status }: { status: string }) {
     open: { tone: "info", label: "Open" },
     "awaiting-evidence": { tone: "warn", label: "Awaiting evidence" },
     escalated: { tone: "bad", label: "Escalated" },
-    resolved: { tone: "idle", label: "Resolved" },
+    resolved: { tone: "ok", label: "Resolved" },
   };
   const m = map[status] ?? { tone: "idle" as BadgeTone, label: status };
   return <Badge tone={m.tone}>{m.label}</Badge>;
@@ -2370,10 +2380,10 @@ export function ConflictBadge({ status }: { status: string }) {
 
 export function TicketBadge({ status }: { status: string }) {
   const map: Record<string, { tone: BadgeTone; label: string }> = {
-    new: { tone: "bad", label: "New" },
+    new: { tone: "violet", label: "New" },
     open: { tone: "info", label: "Open" },
     waiting: { tone: "warn", label: "Waiting" },
-    resolved: { tone: "idle", label: "Resolved" },
+    resolved: { tone: "ok", label: "Resolved" },
   };
   const m = map[status] ?? { tone: "idle" as BadgeTone, label: status };
   return <Badge tone={m.tone}>{m.label}</Badge>;
@@ -2382,7 +2392,7 @@ export function TicketBadge({ status }: { status: string }) {
 export function PriorityBadge({ priority }: { priority: string }) {
   const map: Record<string, BadgeTone> = {
     urgent: "bad",
-    high: "warn",
+    high: "orange",
     normal: "info",
     low: "idle",
   };
@@ -3030,15 +3040,24 @@ export function SectionHead({
 export function BlockHead({
   title,
   sub,
+  left,
   right,
 }: {
   title: string;
   sub?: string;
+  /** The search box, beside the heading — see `CardHead`. */
+  left?: ReactNode;
   right?: ReactNode;
 }) {
   return (
     <div className="gm-blockhead">
       <h3>{title}</h3>
+      {/* `left` (the view switch, everywhere it is used) before `sub`: the
+          count it names sits on the switch's right, the same order the
+          verification queue's own tablebar puts them in — asked for after
+          the two drifted apart, the team directory reading switch-then-left
+          count against everywhere else's switch-then-right count. */}
+      {left ? <span className="gm-head-left">{left}</span> : null}
       {sub ? <p>{sub}</p> : null}
       {right ? <span className="gm-spacer">{right}</span> : null}
     </div>

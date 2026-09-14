@@ -8,7 +8,7 @@ import {
   type ReportSeries,
   type ReportsPayload,
 } from "../lib/api";
-import { aud, num } from "../lib/data";
+import { aud, dateOnly, num, shortDate } from "../lib/data";
 import {
   BarList,
   Card,
@@ -33,6 +33,7 @@ import {
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 import { exportCsv } from "../lib/csv";
+import "../reports-print.css";
 
 /**
  * Reports — the owner's page, not the moderator's.
@@ -154,6 +155,26 @@ function ReportsPage() {
   const [tick, setTick] = useState(0);
   const latest = useRef(0);
 
+  /* The printed page's own "Exported …" line. Written straight to the node
+     rather than through state: it is only ever read by the browser's print
+     pipeline, which runs synchronously off the same click that sets it, so a
+     re-render buys nothing and this stays out of the render path — nothing
+     here calls `Date.now()` while drawing the screen. */
+  const printedAtRef = useRef<HTMLSpanElement>(null);
+
+  /* Ctrl+P prints this page without going through the button, so the stamp
+     is written on `beforeprint` as well. Until then the line is empty rather
+     than a dash: nothing a reader sees is a dash, a PDF included. */
+  useEffect(() => {
+    function stamp() {
+      if (printedAtRef.current) {
+        printedAtRef.current.textContent = `Exported ${shortDate(new Date().toISOString())}`;
+      }
+    }
+    window.addEventListener("beforeprint", stamp);
+    return () => window.removeEventListener("beforeprint", stamp);
+  }, []);
+
   useEffect(() => {
     const seq = ++latest.current;
     setLoading(true);
@@ -210,28 +231,7 @@ function ReportsPage() {
       : { label: "Decided on time", value: sla.onTime, color: "var(--ink-2)" },
   ].filter(Boolean) as { label: string; value: number; color: string }[];
 
-  /** Every series on screen, as one spreadsheet. The period applies. */
-  function exportAll() {
-    if (!data) return;
-    const rows = reports.flatMap((r) =>
-      r.trend.map((value, i) => ({
-        report: r.name,
-        category: r.category,
-        bucket: r.labels[i] ?? `#${i + 1}`,
-        value,
-      })),
-    );
-    exportCsv(`grailmarket-reports-${period}`, rows, [
-      { header: "Report", value: (r) => r.report },
-      { header: "Category", value: (r) => r.category },
-      { header: "Period", value: () => data.period.label },
-      { header: "Bucket", value: (r) => r.bucket },
-      { header: "Value", value: (r) => r.value },
-    ]);
-  }
-
-  /** One series, as a spreadsheet. The row's own action — the page-wide
-   *  Export writes all nine, and a row you are reading is rarely all nine. */
+  /** One series, as a spreadsheet. */
   function exportSeries(r: ReportSeries) {
     exportCsv(
       `grailmarket-${r.id.toLowerCase()}-${period}`,
@@ -245,8 +245,50 @@ function ReportsPage() {
     );
   }
 
+  /** The report as a PDF, with no fourth dependency — the browser already
+   *  knows how to turn a page into one. `reports-print.css` reshapes this
+   *  same page for paper (the chrome gone, the fixed wash gone, the zoom
+   *  ladder reset) and `window.print()` does the rest.
+   *
+   *  Two small things make the printed file worth keeping. The browser
+   *  offers `document.title` as the default filename in the "save as PDF"
+   *  dialog, so it is swapped to name the report and the period for the few
+   *  seconds that matters and put back on `afterprint`, which fires whether
+   *  the operator saved, printed or cancelled. And the printed header's own
+   *  "Exported …" line is stamped at the moment of the click, not at the
+   *  moment the page loaded — a report pulled at nine and printed at noon
+   *  should say noon. */
+  function exportPdf() {
+    if (!data) return;
+    const now = new Date();
+    if (printedAtRef.current) {
+      printedAtRef.current.textContent = `Exported ${shortDate(now.toISOString())}`;
+    }
+    const previousTitle = document.title;
+    document.title = `GrailMarket report, ${label}, ${dateOnly(now.toISOString())}`;
+    const restore = () => {
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  }
+
   return (
     <>
+      {/* Print-only. `window.print()` rasterises whatever is on the page at
+          the moment it is called, and the on-screen head above is a period
+          picker and two buttons — neither means anything on paper. This
+          stands in for it; see `.gm-print-header` in reports-print.css for
+          the swap and `.gm-page-head`'s print rule for what it replaces. */}
+      <div className="gm-print-header gm-reportsprint">
+        <h1>GrailMarket reports</h1>
+        <p>{data ? label : "The numbers behind the marketplace."}</p>
+        <p>
+          <span ref={printedAtRef} />
+        </p>
+      </div>
+
       <PageHead
         title="Reports"
         sub={
@@ -263,6 +305,11 @@ function ReportsPage() {
               ariaLabel="Reporting period"
               options={REPORT_PERIODS.map((p) => ({ value: p.key, label: p.label }))}
             />
+            {/* The secondary sits before the primary, the rightmost position
+                in the row — the same sequence a filter trigger and Export
+                already give a table's own toolbar. Refresh re-reads figures
+                already on screen; Export PDF is what this page is opened to
+                take away, so it is the one at the end. */}
             <button
               type="button"
               className="gm-btn"
@@ -275,11 +322,11 @@ function ReportsPage() {
             <button
               type="button"
               className="gm-btn gm-btn--primary"
-              onClick={exportAll}
+              onClick={exportPdf}
               disabled={!data || reports.every((r) => !r.available)}
             >
               <IconDownload />
-              Export
+              Export PDF
             </button>
           </>
         }

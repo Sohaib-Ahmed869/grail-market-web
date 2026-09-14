@@ -24,7 +24,6 @@ import {
   type Photo,
 } from "../../lib/api";
 import {
-  ActionBar,
   Badge,
   Card,
   CardBody,
@@ -88,14 +87,14 @@ const DECISION_COPY: Record<
     title: "Reject this listing",
     sub: "The seller is told why, word for word, and the reason is filed on their record.",
     cta: "Reject and notify",
-    tone: "gm-btn--danger",
+    tone: "gm-btn--primary",
     status: "rejected",
   },
   request: {
     title: "Ask the seller for more",
     sub: "The listing pauses and the review clock stops until they reply.",
     cta: "Send the request",
-    tone: "gm-btn--gold",
+    tone: "gm-btn--primary",
     status: "info-requested",
   },
 };
@@ -300,7 +299,7 @@ function ListingRecord() {
     try {
       const updated = await setMarketState(open.id, action);
       setRecord((r) => (r ? { ...r, listing: updated } : r));
-      setToast({ title, body: `${open.card} · written to the audit log` });
+      setToast({ title, body: open.card });
     } catch (e) {
       setToast({
         title: "That did not go through",
@@ -342,7 +341,68 @@ function ListingRecord() {
         title={open.card}
         sub={`${open.grader} ${open.grade} · ${open.setLine}`}
         back={back}
-        right={<ListingBadge status={open.status} />}
+        right={
+          waiting || open.status === "live" || open.status === "paused" ? (
+            <div className="gm-rec-actions">
+              <ListingBadge status={open.status} />
+              {waiting ? (
+                <>
+                  <button type="button" className="gm-btn" onClick={() => startDecision("request")}>
+                    <IconMail />
+                    Ask for more
+                  </button>
+                  <button
+                    type="button"
+                    className="gm-btn"
+                    onClick={() => startDecision("reject")}
+                  >
+                    <IconX />
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    className="gm-btn gm-btn--primary"
+                    onClick={() => startDecision("approve")}
+                  >
+                    <IconCheck />
+                    Approve and publish
+                  </button>
+                </>
+              ) : open.status === "live" ? (
+                <>
+                  <button
+                    type="button"
+                    className="gm-btn"
+                    onClick={() => setMarketStatus("withdraw", "Withdrawn")}
+                  >
+                    <IconBan />
+                    Withdraw
+                  </button>
+                  <button
+                    type="button"
+                    className="gm-btn gm-btn--primary"
+                    onClick={() => setMarketStatus("pause", "Paused")}
+                  >
+                    Pause
+                  </button>
+                </>
+              ) : open.status === "paused" ? (
+                <button
+                  type="button"
+                  className="gm-btn gm-btn--primary"
+                  onClick={() => setMarketStatus("resume", "Back on the market")}
+                >
+                  <IconCheck />
+                  Put it back on the market
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <span className="gm-sm gm-muted">
+              This listing is closed. Reopening it is an audit-log action.
+            </span>
+          )
+        }
       />
 
       <div className="gm-stack">
@@ -666,76 +726,6 @@ function ListingRecord() {
           </CardBody>
         </Card>
 
-        {/* -------------------------------------------------- the actions */}
-        <ActionBar
-          note={
-            waiting
-              ? "Every decision is written to the audit log"
-              : open.status === "live" || open.status === "paused"
-                ? "Written to the audit log"
-                : undefined
-          }
-        >
-          {waiting ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                onClick={() => startDecision("approve")}
-              >
-                <IconCheck />
-                Approve and publish
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--gold"
-                onClick={() => startDecision("request")}
-              >
-                <IconMail />
-                Ask for more
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => startDecision("reject")}
-              >
-                <IconX />
-                Reject
-              </button>
-            </>
-          ) : open.status === "live" ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--gold"
-                onClick={() => setMarketStatus("pause", "Paused")}
-              >
-                Pause
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger gm-btn--withdraw"
-                onClick={() => setMarketStatus("withdraw", "Withdrawn")}
-              >
-                <IconBan />
-                Withdraw
-              </button>
-            </>
-          ) : open.status === "paused" ? (
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
-              onClick={() => setMarketStatus("resume", "Back on the market")}
-            >
-              <IconCheck />
-              Put it back on the market
-            </button>
-          ) : (
-            <span className="gm-sm gm-muted">
-              This listing is closed. Reopening it is an audit-log action.
-            </span>
-          )}
-        </ActionBar>
       </div>
 
       {/* ============================================================= modal
@@ -765,18 +755,18 @@ function ListingRecord() {
               )}
               {busy ? "Sending…" : decision ? DECISION_COPY[decision].cta : ""}
             </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setDecision(null)}>
+            <button type="button" className="gm-btn" onClick={() => setDecision(null)}>
               Cancel
             </button>
             {/* Why the button is off, beside the button. It used to sit greyed
                 with the requirement in a hint under the textarea, which is the
                 wrong place: the thing you are looking at when nothing happens
                 is the button. */}
-            <span className="gm-spacer gm-tiny gm-dim">
-              {short > 0
-                ? `${short} more character${short === 1 ? "" : "s"} needed`
-                : "Written to the audit log"}
-            </span>
+            {short > 0 ? (
+              <span className="gm-spacer gm-tiny gm-dim">
+                {short} more character{short === 1 ? "" : "s"} needed
+              </span>
+            ) : null}
           </>
         }
       >

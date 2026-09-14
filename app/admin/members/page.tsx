@@ -32,6 +32,7 @@ import {
   Card,
   DL,
   Empty,
+  KpiBar,
   MemberBadge,
   Modal,
   Loading,
@@ -39,12 +40,16 @@ import {
   PageHead,
   Rating,
   Select,
+  StatTile,
   BlockHead,
   FilterMenu,
   Toast,
   ViewToggle,
 } from "../components/ui";
 import {
+  IconAlert,
+  IconCheck,
+  IconClock,
   IconDownload,
   IconEye,
   IconLock,
@@ -296,6 +301,26 @@ function MembersPage() {
   );
   const titles = useMemo(() => Array.from(new Set(team.map((p) => p.title))).sort(), [team]);
 
+  /* The board behind the directory, not the filtered rows on screen — the
+     same reading the listing queue's own counts give, off the server's
+     total rather than off whatever tab happens to be open. */
+  const teamActive = useMemo(() => team.filter((p) => p.status === "active").length, [team]);
+  const teamRestricted = useMemo(
+    () => team.filter((p) => p.status === "restricted").length,
+    [team]
+  );
+  const teamRevoked = useMemo(() => team.filter((p) => p.status === "revoked").length, [team]);
+
+  const peopleActive = useMemo(() => people.filter((m) => m.status === "active").length, [people]);
+  const peopleIdVerified = useMemo(
+    () => people.filter((m) => m.verification === "id-verified").length,
+    [people]
+  );
+  const peopleLapsed = useMemo(
+    () => people.filter((m) => m.lastSeenDays >= LAPSED_DAYS).length,
+    [people]
+  );
+
   /** Swapping template rewrites the draft, but never a draft you have edited. */
   function pickTemplate(key: string) {
     const t = commsTemplates.find((x) => x.key === key);
@@ -312,34 +337,9 @@ function MembersPage() {
         sub={DIRECTORY[scope].sub}
         right={
           scope === "market" ? (
-            <>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() =>
-                exportCsv("grailmarket-members", marketRows, [
-                  { header: "Member", value: (m) => m.id },
-                  { header: "Handle", value: (m) => m.handle },
-                  { header: "Name", value: (m) => m.name },
-                  { header: "Email", value: (m) => m.email },
-                  { header: "Standing", value: (m) => m.status },
-                  { header: "Plan", value: (m) => m.plan },
-                  { header: "Billing", value: (m) => m.billing },
-                  { header: "Verification", value: (m) => m.verification },
-                  { header: "Joined", value: (m) => m.joined },
-                  { header: "Listings", value: (m) => m.listed },
-                  { header: "Live listings", value: (m) => m.liveListings },
-                  { header: "Sales", value: (m) => m.sales },
-                  { header: "Purchases", value: (m) => m.purchases },
-                  { header: "Volume", value: (m) => m.volume },
-                  { header: "Rating", value: (m) => m.rating },
-                  { header: "Tags", value: (m) => m.tags.join(" ") },
-                ])
-              }
-            >
-              <IconDownload />
-              Export
-            </button>
+            /* Export moved out of here, into the marketplace directory's
+               own toolbar, beside the filter it exports the result of.
+               Messaging is the page's primary action and stays. */
             <button
               type="button"
               className="gm-btn gm-btn--primary"
@@ -351,17 +351,15 @@ function MembersPage() {
                 ? `Message ${chosen.length} selected`
                 : `Message this segment (${marketRows.length})`}
             </button>
-            </>
           ) : (
             /* Inviting someone, changing what they can reach and revoking
-               them all live together under Settings. This directory is for
-               reading a colleague's record, so it points there rather than
-               carrying a second copy of the same three buttons. */
+               them all live together on their own page now. This directory
+               is for reading a colleague's record, so it points there rather
+               than carrying a second copy of the same three buttons. */
             /* `Link`, not `<a href>`. A bare anchor is a full page load: the
                whole console boots again and you watch an empty shell assemble
-               before the page you asked for appears. It also names the
-               section, so it lands on the team rather than on thresholds. */
-            <Link className="gm-btn" href="/admin/settings?section=team">
+               before the page you asked for appears. */
+            <Link className="gm-btn gm-btn--primary" href="/admin/members/access">
               <IconLock />
               Manage access
             </Link>
@@ -378,6 +376,37 @@ function MembersPage() {
         {/* ================================================== admin team */}
         {scope === "team" ? (
           <>
+            <KpiBar>
+              <StatTile
+                tone="blue"
+                label="Total accounts"
+                value={String(team.length)}
+                icon={<IconShield />}
+                foot="Hold a console role"
+              />
+              <StatTile
+                tone="orange"
+                label="Active"
+                value={String(teamActive)}
+                icon={<IconCheck />}
+                foot="Working the console"
+              />
+              <StatTile
+                tone="green"
+                label="Restricted"
+                value={String(teamRestricted)}
+                icon={<IconAlert />}
+                foot="Limited access"
+              />
+              <StatTile
+                tone="violet"
+                label="Revoked"
+                value={String(teamRevoked)}
+                icon={<IconLock />}
+                foot="No access"
+              />
+            </KpiBar>
+
             {/* One filter language, the same as every other page: the heading
                 names what is shown, its subtitle spells out what is applied,
                 and the control sits beside it. Three bare dropdowns in a bar
@@ -391,8 +420,10 @@ function MembersPage() {
                       teamApplied === 0 ? "" : ` · ${teamApplied} filter${teamApplied === 1 ? "" : "s"}`
                     }`
               }
+              /* The view switch on the left and the filter on the right, the
+                 same split as the marketplace directory below. */
+              left={<ViewToggle value={layout} onChange={setLayout} />}
               right={
-                <div className="gm-row" style={{ gap: 8 }}>
                 <FilterMenu
                   applied={teamApplied}
                   onClear={() => {
@@ -439,8 +470,6 @@ function MembersPage() {
                     },
                   ]}
                 />
-                <ViewToggle value={layout} onChange={setLayout} />
-                </div>
               }
             />
 
@@ -559,6 +588,37 @@ function MembersPage() {
         ) : (
           /* =========================================== marketplace members */
           <>
+            <KpiBar>
+              <StatTile
+                tone="blue"
+                label="Total members"
+                value={String(people.length)}
+                icon={<IconUsers />}
+                foot="Every status"
+              />
+              <StatTile
+                tone="orange"
+                label="Active"
+                value={String(peopleActive)}
+                icon={<IconCheck />}
+                foot="In good standing"
+              />
+              <StatTile
+                tone="green"
+                label="ID verified"
+                value={String(peopleIdVerified)}
+                icon={<IconShield />}
+                foot="Verification complete"
+              />
+              <StatTile
+                tone="violet"
+                label="Lapsed"
+                value={String(peopleLapsed)}
+                icon={<IconClock />}
+                foot={`${LAPSED_DAYS}+ days quiet`}
+              />
+            </KpiBar>
+
             {/* One filter language, the same as every other page. This was
                 the last of three idioms in the console: a bar of four bare
                 dropdowns, a "More filters" fold hiding four more, and a row
@@ -577,7 +637,11 @@ function MembersPage() {
                         : ` · ${marketApplied} filter${marketApplied === 1 ? "" : "s"}`
                     }`
               }
-              right={
+              /* Search and the layout switch sit left of the heading;
+                 the filter and the export it applies to cluster right —
+                 divided, as asked, rather than all balled up against one
+                 side. */
+              left={
                 <div className="gm-row" style={{ gap: 8 }}>
                   <div className="gm-search" style={{ width: 224 }}>
                     <IconSearch />
@@ -588,6 +652,11 @@ function MembersPage() {
                       aria-label="Search members"
                     />
                   </div>
+                  <ViewToggle value={layout} onChange={setLayout} />
+                </div>
+              }
+              right={
+                <div className="gm-row" style={{ gap: 8 }}>
                   <FilterMenu
                     applied={marketApplied}
                     onClear={clearMarketFilters}
@@ -682,7 +751,33 @@ function MembersPage() {
                         : []),
                     ]}
                   />
-                  <ViewToggle value={layout} onChange={setLayout} />
+                  <button
+                    type="button"
+                    className="gm-btn gm-btn--primary"
+                    onClick={() =>
+                      exportCsv("grailmarket-members", marketRows, [
+                        { header: "Member", value: (m) => m.id },
+                        { header: "Handle", value: (m) => m.handle },
+                        { header: "Name", value: (m) => m.name },
+                        { header: "Email", value: (m) => m.email },
+                        { header: "Standing", value: (m) => m.status },
+                        { header: "Plan", value: (m) => m.plan },
+                        { header: "Billing", value: (m) => m.billing },
+                        { header: "Verification", value: (m) => m.verification },
+                        { header: "Joined", value: (m) => m.joined },
+                        { header: "Listings", value: (m) => m.listed },
+                        { header: "Live listings", value: (m) => m.liveListings },
+                        { header: "Sales", value: (m) => m.sales },
+                        { header: "Purchases", value: (m) => m.purchases },
+                        { header: "Volume", value: (m) => m.volume },
+                        { header: "Rating", value: (m) => m.rating },
+                        { header: "Tags", value: (m) => m.tags.join(" ") },
+                      ])
+                    }
+                  >
+                    <IconDownload />
+                    Export
+                  </button>
                 </div>
               }
             />
@@ -708,7 +803,7 @@ function MembersPage() {
               {chosen.length > 0 ? (
                 <button
                   type="button"
-                  className="gm-btn gm-btn--sm gm-btn--ghost"
+                  className="gm-btn gm-btn--sm gm-btn--primary"
                   onClick={() => setPicked(new Set())}
                 >
                   Clear
@@ -933,12 +1028,11 @@ function MembersPage() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setComposing(false)}
             >
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Logged against every recipient</span>
           </>
         }
       >

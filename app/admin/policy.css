@@ -1,0 +1,29 @@
+/* ==========================================================================
+   MARKETPLACE POLICY
+
+   One page's rules, imported only by it — the same reasoning dashboard.css
+   gives for itself.
+   ========================================================================== */
+
+/* -- the grading-companies popover -----------------------------------------
+   The same footnote-beside-the-action idiom `.gm-revokeinfo`/
+   `.gm-revokeinfo-pop` already give the member record's "what revoking does"
+   — restated under its own name because that pair lives in
+   member-record.css, which loads only on the record page. */
+.gm-policyinfo {
+  position: relative;
+  display: inline-flex;
+}
+
+.gm-policyinfo-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--sh-2), var(--edge);
+}

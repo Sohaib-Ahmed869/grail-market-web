@@ -10,17 +10,21 @@ import {
   Card,
   ConflictBadge,
   Empty,
+  KpiBar,
   Loading,
   MetaBox,
   Note,
   FilterMenu,
   PageHead,
+  StatTile,
   ViewToggle,
 } from "../components/ui";
 import {
+  IconCheck,
   IconClock,
   IconDownload,
   IconEye,
+  IconFlag,
   IconScale,
   IconShield,
   IconTag,
@@ -95,51 +99,63 @@ function ConflictsPage() {
 
   return (
     <>
+      {/* "Claim oldest" is gone. A case is claimed by opening it, which is
+          what a moderator does anyway, and a second button that does the
+          same thing one row earlier was never worth the width. Export moved
+          out of here too, into the block head's right-hand cluster beside
+          the filter it exports the result of — this page has no primary
+          action left to sit here on its own. */}
       <PageHead
         title="Reports & Conduct"
         sub="No money passes through Grail Market, so a case closes on conduct: a warning, a restriction, a closed account, or a referral to police."
-        right={
-          /* "Claim oldest" is gone. A case is claimed by opening it, which is
-             what a moderator does anyway, and a second button that does the
-             same thing one row earlier was never worth the width. */
-          <button
-            type="button"
-            className="gm-btn"
-            onClick={() =>
-              exportCsv(`grailmarket-cases-${filter}`, list, [
-                { header: "Case", value: (c) => c.id },
-                { header: "Kind", value: (c) => conflictKindLabel[c.kind] },
-                { header: "State", value: (c) => c.status },
-                { header: "Opened", value: (c) => c.opened },
-                { header: "Hours open", value: (c) => c.ageHours },
-                { header: "Trade value", value: (c) => c.amount },
-                { header: "Against", value: (c) => c.against },
-                { header: "Buyer", value: (c) => c.buyer.handle },
-                { header: "Seller", value: (c) => c.seller.handle },
-                { header: "Listing", value: (c) => c.listing.id },
-                { header: "Card", value: (c) => c.listing.card },
-                { header: "Report", value: (c) => reportOf(c) },
-              ])
-            }
-          >
-            <IconDownload />
-            Export
-          </button>
-        }
       />
 
       <div className="gm-stack">
+        <KpiBar>
+          <StatTile
+            tone="blue"
+            label="Total cases"
+            value={String(counts.all ?? 0)}
+            icon={<IconScale />}
+            foot="Every case on the board"
+          />
+          <StatTile
+            tone="orange"
+            label="Open"
+            value={String(counts.open ?? 0)}
+            icon={<IconClock />}
+            foot="Not yet decided"
+          />
+          <StatTile
+            tone="green"
+            label="Resolved"
+            value={String(counts.resolved ?? 0)}
+            icon={<IconCheck />}
+            foot="Closed with a finding"
+          />
+          <StatTile
+            tone="violet"
+            label="Escalated"
+            value={String(counts.escalated ?? 0)}
+            icon={<IconFlag />}
+            foot="With Trust and safety"
+          />
+        </KpiBar>
+
         {/* The filter sits beside the heading it changes rather than as a row
             of five pills above it. The heading names the state being shown,
             so nothing is hidden by moving the control. */}
+        {/* The layout switch sits left of the heading; the filter and the
+            export it applies to cluster right — divided, as asked, rather
+            than all balled up against one side. */}
         <BlockHead
           title={filter === "all" ? "Needs a decision" : FILTERS.find((f) => f.key === filter)!.label}
           sub={`${list.length} case${list.length === 1 ? "" : "s"}${
             party === "all" ? "" : party === "staff" ? " · staff involved" : " · members only"
           }`}
+          left={<ViewToggle value={layout} onChange={setLayout} />}
           right={
-            <>
-              <ViewToggle value={layout} onChange={setLayout} />
+            <div className="gm-row" style={{ gap: 8 }}>
               <FilterMenu
               applied={(filter === "all" ? 0 : 1) + (party === "all" ? 0 : 1)}
               onClear={() => {
@@ -171,7 +187,30 @@ function ConflictsPage() {
                 },
               ]}
               />
-            </>
+              <button
+                type="button"
+                className="gm-btn gm-btn--primary"
+                onClick={() =>
+                  exportCsv(`grailmarket-cases-${filter}`, list, [
+                    { header: "Case", value: (c) => c.id },
+                    { header: "Kind", value: (c) => conflictKindLabel[c.kind] },
+                    { header: "State", value: (c) => c.status },
+                    { header: "Opened", value: (c) => c.opened },
+                    { header: "Hours open", value: (c) => c.ageHours },
+                    { header: "Trade value", value: (c) => c.amount },
+                    { header: "Against", value: (c) => c.against },
+                    { header: "Buyer", value: (c) => c.buyer.handle },
+                    { header: "Seller", value: (c) => c.seller.handle },
+                    { header: "Listing", value: (c) => c.listing.id },
+                    { header: "Card", value: (c) => c.listing.card },
+                    { header: "Report", value: (c) => reportOf(c) },
+                  ])
+                }
+              >
+                <IconDownload />
+                Export
+              </button>
+            </div>
           }
         />
 
@@ -344,7 +383,7 @@ function ConflictsPage() {
                       can be handed to the moderator who should be working it. */}
                   <div className="gm-case-actions">
                     {c.status === "resolved" ? (
-                      <Link className="gm-btn gm-btn--sm" href={`/admin/conflicts/${c.id}`}>
+                      <Link className="gm-btn gm-btn--sm gm-btn--primary" href={`/admin/conflicts/${c.id}`}>
                         <IconEye />
                         View details
                       </Link>

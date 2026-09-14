@@ -21,12 +21,14 @@ import {
   CardBody,
   DL,
   Empty,
+  KpiBar,
   Modal,
   Loading,
   Note,
   FilterMenu,
   SectionTabs,
   PageHead,
+  StatTile,
   Toast,
   ViewToggle,
 } from "../components/ui";
@@ -34,11 +36,13 @@ import {
   IconAlert,
   IconCheck,
   IconClock,
+  IconDollar,
   IconExternal,
   IconInfo,
   IconRefresh,
   IconTag,
   IconSparkle,
+  IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 
@@ -165,6 +169,7 @@ function PricingPage() {
      its own corner. Three plans in a row comparing on price read better when
      nothing is shouting. */
   const stuck = boosts.filter((b) => b.state === "paid-not-applied");
+  const boostsRunning = boosts.filter((b) => b.state === "active").length;
 
   /* A plan with no Stripe price behind it cannot be sold, whatever the page
      says it costs. Said once, at the top, rather than three times. */
@@ -268,9 +273,13 @@ function PricingPage() {
         }
         right={
           <>
+            <a className="gm-btn" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
+              <IconExternal />
+              Stripe
+            </a>
             <button
               type="button"
-              className="gm-btn"
+              className="gm-btn gm-btn--primary"
               onClick={resync}
               disabled={syncing || !stripeReady}
               title={stripeReady ? undefined : "STRIPE_SECRET_KEY is not set on the API"}
@@ -278,15 +287,42 @@ function PricingPage() {
               <IconRefresh />
               {syncing ? "Reading…" : "Read from Stripe"}
             </button>
-            <a className="gm-btn" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
-              <IconExternal />
-              Stripe
-            </a>
           </>
         }
       />
 
       <div className="gm-stack">
+        <KpiBar>
+          <StatTile
+            tone="blue"
+            label="Monthly revenue"
+            value={aud(mrr)}
+            icon={<IconDollar />}
+            foot="Recurring, every plan"
+          />
+          <StatTile
+            tone="orange"
+            label="Subscribers"
+            value={subscribers.toLocaleString("en-AU")}
+            icon={<IconUsers />}
+            foot="Across all plans"
+          />
+          <StatTile
+            tone="green"
+            label="Boosts running"
+            value={String(boostsRunning)}
+            icon={<IconSparkle />}
+            foot="Currently featured"
+          />
+          <StatTile
+            tone="violet"
+            label="Failed payments"
+            value={String(pastDue)}
+            icon={<IconAlert />}
+            foot="On a failed card"
+          />
+        </KpiBar>
+
         {loadError ? (
           <Note tone="bad">
             <b>The ledger could not be read.</b> {loadError}
@@ -941,10 +977,9 @@ function PricingPage() {
               <IconTag />
               {saving ? "Saving at Stripe…" : "Save at Stripe"}
             </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setEditing(null)}>
+            <button type="button" className="gm-btn" onClick={() => setEditing(null)}>
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
           </>
         }
       >
