@@ -10,7 +10,6 @@ import {
   type Conflict,
 } from "../../lib/data";
 import {
-  ActionBar,
   Badge,
   Card,
   CardBody,
@@ -22,12 +21,14 @@ import {
   Modal,
   Note,
   PageHead,
+  Select,
   Toast,
 } from "../../components/ui";
 import {
   IconCalendar,
   IconCheck,
   IconClock,
+  IconMail,
   IconNote,
   IconScale,
   IconSend,
@@ -44,6 +45,7 @@ import {
 } from "../../lib/api";
 import { toConflict } from "../../lib/cases";
 import { Gate } from "../../components/Gate";
+import "../../conduct.css";
 
 /**
  * One case, as a page.
@@ -261,7 +263,34 @@ function CaseRecord() {
            made-up score sitting next to real facts invites being trusted
            like one. The three inputs are all on this page in their own
            words. */
-        right={<ConflictBadge status={open.status} />}
+        right={
+          open.status !== "resolved" ? (
+            <div className="gm-rec-actions">
+              <ConflictBadge status={open.status} />
+              <button
+                type="button"
+                className="gm-btn"
+                onClick={() => setMessaging(true)}
+              >
+                <IconMail />
+                Message both
+              </button>
+              <button
+                type="button"
+                className="gm-btn gm-btn--primary"
+                disabled={!!blocked}
+                onClick={() => setConfirming(true)}
+              >
+                <IconShield />
+                Apply outcome
+              </button>
+            </div>
+          ) : (
+            <span className="gm-sm gm-muted">
+              Closed. Reopening needs a lead moderator and leaves a record.
+            </span>
+          )
+        }
       />
 
       <div className="gm-stack">
@@ -280,7 +309,7 @@ function CaseRecord() {
                 <b style={{ fontSize: 15 }}>{money(open.amount)}</b>
                 <span>What the trade was worth. Nothing is held against it.</span>
               </div>
-              <div className="gm-metagrid">
+              <div className="gm-metagrid gm-metagrid--row">
                 <MetaBox label="Opened" value={shortDate(open.opened)} icon={<IconCalendar />} />
                 <MetaBox
                   label="Running"
@@ -317,29 +346,38 @@ function CaseRecord() {
           </Note>
         ) : null}
 
-        {/* the two sides */}
-        <div className="gm-split">
-          <div className="gm-side-panel gm-side-panel--buyer">
-            <h4>Buyer{open.against === "buyer" ? " · reported" : ""}</h4>
-            <div className="gm-row" style={{ gap: 9, marginBottom: 10, flexWrap: "nowrap" }}>
-              <div className="gm-cell2">
-                <b>{open.buyer.name}</b>
-                <span>{open.buyer.handle}</span>
+        {/* the two accounts, one card instead of two boxes side by side */}
+        <Card>
+          <CardHead title="What each side says" sub="The buyer's account and the seller's." />
+          <CardBody style={{ paddingTop: 8 }}>
+            <div className="gm-claims">
+              <div className="gm-claim">
+                <h4>Buyer{open.against === "buyer" ? " · reported" : ""}</h4>
+                <div className="gm-cell2" style={{ marginBottom: 10 }}>
+                  <b>{open.buyer.name}</b>
+                  <span>{open.buyer.handle}</span>
+                </div>
+                <div className="gm-quote">&ldquo;{open.buyerClaim}&rdquo;</div>
+                <div className="gm-feed-time" style={{ marginTop: 6, fontSize: 12 }}>
+                  {shortDate(open.opened)}
+                </div>
+              </div>
+              <div className="gm-claim">
+                <h4>Seller{open.against === "seller" ? " · reported" : ""}</h4>
+                <div className="gm-cell2" style={{ marginBottom: 10 }}>
+                  <b>{open.seller.name}</b>
+                  <span>{open.seller.handle}</span>
+                </div>
+                <div className="gm-quote">&ldquo;{open.sellerClaim}&rdquo;</div>
+                {open.timeline.length > 0 && open.timeline[0].side !== "admin" ? (
+                  <div className="gm-feed-time" style={{ marginTop: 6, fontSize: 12 }}>
+                    {shortDate(open.timeline[0].at)}
+                  </div>
+                ) : null}
               </div>
             </div>
-            <div className="gm-quote">&ldquo;{open.buyerClaim}&rdquo;</div>
-          </div>
-          <div className="gm-side-panel gm-side-panel--seller">
-            <h4>Seller{open.against === "seller" ? " · reported" : ""}</h4>
-            <div className="gm-row" style={{ gap: 9, marginBottom: 10, flexWrap: "nowrap" }}>
-              <div className="gm-cell2">
-                <b>{open.seller.name}</b>
-                <span>{open.seller.handle}</span>
-              </div>
-            </div>
-            <div className="gm-quote">&ldquo;{open.sellerClaim}&rdquo;</div>
-          </div>
-        </div>
+          </CardBody>
+        </Card>
 
         <Card>
           <CardHead title="Evidence" sub={`${open.evidence.length} items submitted`} />
@@ -448,80 +486,28 @@ function CaseRecord() {
                 </span>
               </div>
 
-              <div className="gm-field" style={{ marginBottom: 10 }}>
-                <span className="gm-label">Pick one</span>
+              <div className="gm-field" style={{ marginBottom: 14 }}>
+                <label className="gm-label" htmlFor="gm-outcome">Pick one</label>
+                <Select
+                  id="gm-outcome"
+                  ariaLabel="Outcome"
+                  value={outcome ?? ""}
+                  onChange={setOutcome}
+                  options={conductActions.map((o) => ({
+                    value: o.key,
+                    label: o.title,
+                  }))}
+                />
               </div>
 
-              {/* A chosen option used to differ from an unchosen one by the
-                  colour of its one-pixel border, which is not a difference
-                  anybody saw. The mark on the left is the answer to "why is the
-                  button still off". */}
-              <div className="gm-stack" style={{ gap: 9 }} role="radiogroup" aria-label="Outcome">
-                {conductActions.map((o) => {
-                  const on = outcome === o.key;
-                  return (
-                    <button
-                      key={o.key}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => setOutcome(o.key)}
-                      className="gm-row"
-                      style={{
-                        gap: 11,
-                        alignItems: "flex-start",
-                        flexWrap: "nowrap",
-                        textAlign: "left",
-                        padding: "12px 14px",
-                        borderRadius: "var(--r-md)",
-                        cursor: "pointer",
-                        font: "inherit",
-                        background: on ? "var(--surface-2)" : "transparent",
-                        color: "var(--ink-2)",
-                        border: `1px solid ${on ? "var(--ink)" : "var(--line)"}`,
-                        transition: "border-color .2s ease, background .2s ease",
-                      }}
-                    >
-                      <span
-                        aria-hidden
-                        style={{
-                          flex: "none",
-                          marginTop: 2,
-                          width: 16,
-                          height: 16,
-                          display: "grid",
-                          placeItems: "center",
-                          borderRadius: 999,
-                          border: `1px solid ${on ? "var(--ink)" : "var(--line-2)"}`,
-                          background: on ? "var(--ink)" : "transparent",
-                          color: "var(--paper)",
-                        }}
-                      >
-                        {on ? <IconCheck style={{ width: 11, height: 11 }} /> : null}
-                      </span>
-                      <span style={{ minWidth: 0 }}>
-                        {/* The title takes a floor so the two badges below
-                            it line up with each other — see `.gm-choice-line`
-                            for the measurement and the reason. */}
-                        <span className="gm-choice-line">
-                          <b>{o.title}</b>
-                          {o.escalates ? <Badge tone="bad">Trust and safety</Badge> : null}
-                        </span>
-                        <span
-                          style={{
-                            display: "block",
-                            fontSize: 12.2,
-                            lineHeight: 1.5,
-                            color: "var(--ink-3)",
-                          }}
-                        >
-                          {o.detail}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {chosen ? (
+                <div style={{ marginBottom: 12 }}>
+                  {chosen.escalates ? <Badge tone="bad">Trust and safety</Badge> : null}
+                  <p className="gm-hint" style={{ margin: "6px 0 0 0" }}>
+                    {chosen.detail}
+                  </p>
+                </div>
+              ) : null}
 
               {chosen?.escalates ? (
                 <Note tone="warn">
@@ -551,29 +537,6 @@ function CaseRecord() {
           </Card>
         ) : null}
 
-        <ActionBar note={open.status !== "resolved" ? blocked ?? undefined : undefined}>
-          {open.status !== "resolved" ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                disabled={!!blocked}
-                onClick={() => setConfirming(true)}
-              >
-                <IconShield />
-                Apply outcome
-              </button>
-              <button type="button" className="gm-btn" onClick={() => setMessaging(true)}>
-                <IconSend />
-                Message both
-              </button>
-            </>
-          ) : (
-            <span className="gm-sm gm-muted">
-              Closed. Reopening needs a lead moderator and leaves a record.
-            </span>
-          )}
-        </ActionBar>
       </div>
 
       {/* ============================================================= modal */}
@@ -590,7 +553,7 @@ function CaseRecord() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setConfirming(false)}
             >
               Go back
@@ -650,7 +613,7 @@ function CaseRecord() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setMessaging(false)}
             >
               Cancel

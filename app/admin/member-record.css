@@ -1,0 +1,51 @@
+/* ==========================================================================
+   MEMBER RECORD — the pieces added when its actions moved off the page
+
+   The record used to end in an `.gm-actionbar`: a full-width row, sticky at
+   the foot of the window, carrying up to five buttons. Asked for instead was
+   a line at the top of the page — the single most likely next step as a
+   plain button, one secondary beside it, everything else behind a menu — so
+   `.gm-rec*` and `.gm-idcard*` in parts.css are untouched and this file is
+   only the new pieces: the row itself, and the "what revoking does" popover
+   that replaced a card of its own further down the page.
+   ========================================================================== */
+
+/* Anchors the "what revoking does" popover without a portal. `RowMenu`'s own
+   menu has to escape a table cell and so works out fixed coordinates from
+   `localRect`/`localViewport`; this trigger sits in the page head instead,
+   clear of anything that would clip it, so a plain `position: relative`
+   wrapper with an absolutely positioned child is enough. */
+.gm-revokeinfo {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Right-aligned on the trigger, the same idiom as `.gm-account-menu` — a
+   control near the end of a row opens a panel that extends back over the row
+   rather than off the edge of the page. Width is capped rather than measured
+   against the trigger's own position, because at 390px there is no position
+   for a fixed width to be safe at: `min(320px, calc(100vw - 32px))` is the
+   popover's own width floor giving way once the viewport cannot hold it,
+   with 32px matching the page's own side gutters. */
+.gm-revokeinfo-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  /* The depth pair every raised box in this console carries: a shadow
+     beneath, plus a one-pixel top highlight — shadow alone reads as blurry
+     rather than raised. */
+  box-shadow: var(--sh-2), var(--edge);
+}
+
+.gm-revokeinfo-pop ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 7px;
+}

@@ -1,0 +1,86 @@
+/* ==========================================================================
+   SUPPORT TICKET — conversation as a chat
+
+   The thread and the reply were two cards: a transcript to read, then a
+   form below it, sent from a button at the foot of the whole page. That is
+   not how anyone actually answers a ticket — it is a back-and-forth with
+   one person — so the two are one card here: a message list that scrolls
+   inside itself and a composer pinned to its own foot, the way a messaging
+   app is built. The bubbles themselves (`.gm-msg`, `.gm-msg-bubble`,
+   `.gm-msg--out`) already existed in admin.css and already told the two
+   sides apart by tint; nothing about them changes here.
+   ========================================================================== */
+
+/* The composer paints its own band in `--surface-2`, and a band that reaches
+   a rounded card's edge needs the CARD to do the rounding — see the note in
+   CLAUDE.md about a band drawing its own corners inside a card's. `overflow:
+   hidden` lets `.gm-card`'s own radius clip the header and the composer
+   rather than each drawing a corner that has to agree with the border. */
+.gm-chatcard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The transcript is the part that grows with the ticket, not the card — a
+   long-running thread scrolls inside a fixed pane instead of pushing the
+   composer, and the whole page, further down every time someone replies. */
+.gm-chat-scroll {
+  overflow-y: auto;
+  max-height: 320px;
+  min-height: 140px;
+  padding: 16px 18px;
+}
+
+.gm-chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.gm-chat-canned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gm-chat-inputrow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* One line to start, three or four before it gives up and scrolls inside
+   itself — `useEffect` in the page grows the element to its content up to
+   the same 160px this sets as the fallback. A composer that kept stretching
+   with a long reply would push its own send button off the bottom of the
+   card. */
+.gm-chat-textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 160px;
+  resize: none;
+  overflow-y: auto;
+}
+
+/* The resolved note replaces the composer rather than sitting beside it, so
+   it takes the same inset the composer would have had instead of touching
+   the card's own edge. */
+.gm-chat-resolved {
+  padding: 14px 18px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.gm-chat-resolved .gm-note {
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .gm-chat-scroll {
+    max-height: 360px;
+  }
+}

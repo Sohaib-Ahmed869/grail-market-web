@@ -36,6 +36,7 @@ import {
   IconSend,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import "../announcements.css";
 
 type View = "compose" | "scheduled" | "history";
 
@@ -122,7 +123,7 @@ function Handset({
           ) : (
             <div className="gm-handset-push">
               <div className="gm-handset-pushhead">
-                <span className="gm-handset-appicon" />
+                <img className="gm-handset-appicon" src="/brand/mark.svg" alt="" />
                 <span className="gm-handset-appname">Grail Market · now</span>
               </div>
               <div className="gm-handset-title">
@@ -291,7 +292,7 @@ function AnnouncementsPage() {
             time, so anything new replaces it.{" "}
             <button
               type="button"
-              className="gm-btn gm-btn--sm gm-btn--ghost"
+              className="gm-btn gm-btn--sm gm-btn--primary"
               onClick={() => pull(live, "taken-down")}
             >
               Take it down
@@ -327,21 +328,20 @@ function AnnouncementsPage() {
 
         {/* ================================================= compose */}
         {view === "compose" ? (
-          <div className="gm-row" style={{ gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-            {/* `min(320px, 100%)`, not a bare 320.
-             *
-             * The floor is here so the form does not collapse to a column of
-             * one-word inputs when it shares this row with the channel picker
-             * beside it. On a phone there is nothing beside it and no 320 to
-             * be had: the content box at 390 is 282, so a hard floor made the
-             * form — and the three cards in it — 38px wider than the page,
-             * which is the whole of the console's horizontal scroll at that
-             * width. Capped at the parent, the floor applies where there is
-             * room for it and gets out of the way where there is not. */}
-            <div className="gm-stack" style={{ flex: "1 1 420px", minWidth: "min(320px, 100%)" }}>
+          /* `min(320px, 100%)` lives in announcements.css now — the grid
+           * column, not this element, carries the floor, capped the same
+           * way it always was so the form still gets out of the way on a
+           * phone rather than running 38px wider than the page. */
+          <div className="gm-announce-compose">
+            <div className="gm-announce-form">
               <Card>
                 <CardHead title="Message" sub="Written once, shown on every channel you pick." />
                 <CardBody>
+
+                  {/* Title and Kind share a row: both are one line, and stacked they
+                      were two full-width bands of form under a phone that had
+                      already ended. */}
+                  <div className="gm-announce-row">
                   <div className="gm-field">
                     <label className="gm-label" htmlFor="an-title">
                       Title
@@ -357,6 +357,23 @@ function AnnouncementsPage() {
                       {title.length}/40 before a push notification truncates
                       {title.length > 40 ? ". The preview shows where it cuts." : ""}
                     </span>
+                  </div>
+                  <div className="gm-field">
+                    <label className="gm-label" htmlFor="an-tone">
+                      Kind
+                    </label>
+                    <Select
+                      id="an-tone"
+                      value={tone}
+                      onChange={(v) => setTone(v as BannerTone)}
+                      options={[
+                        { value: "info", label: "Information" },
+                        { value: "outage", label: "Outage" },
+                        { value: "policy", label: "Policy change" },
+                      ]}
+                      style={{ width: "100%" }}
+                    />
+                  </div>
                   </div>
 
                   <div className="gm-field">
@@ -374,145 +391,143 @@ function AnnouncementsPage() {
                       No prices or figures in a broadcast. They are out of date by the time it lands.
                     </span>
                   </div>
-
-                  <div className="gm-field">
-                    <label className="gm-label" htmlFor="an-tone">
-                      Kind
-                    </label>
-                    <Select
-                      id="an-tone"
-                      value={tone}
-                      onChange={(v) => setTone(v as BannerTone)}
-                      options={[
-                        { value: "info", label: "Information" },
-                        { value: "outage", label: "Outage" },
-                        { value: "policy", label: "Policy change" },
-                      ]}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
                 </CardBody>
               </Card>
 
-              <Card>
-                <CardHead title="Where it goes" />
-                <CardBody>
-                  <div className="gm-setrow">
-                    <div className="gm-setrow-main">
-                      <b>Push notification</b>
-                      <span>Arrives now, gone once it is swiped away.</span>
+              {/* The two cards that do not need a full-width column of their
+                  own — see announcements.css for why they now share a row. */}
+              <div className="gm-announce-pair">
+                <Card>
+                  <CardHead title="Where it goes" />
+                  <CardBody>
+                    <div className="gm-setrow">
+                      <div className="gm-setrow-main">
+                        <b>Push notification</b>
+                        <span>Arrives now, gone once it is swiped away.</span>
+                      </div>
+                      <div className="gm-setrow-ctl">
+                        <Toggle checked={push} onChange={setPush} label="Push" />
+                      </div>
                     </div>
-                    <div className="gm-setrow-ctl">
-                      <Toggle checked={push} onChange={setPush} label="Push" />
+                    <div className="gm-setrow">
+                      <div className="gm-setrow-main">
+                        <b>Email</b>
+                        <span>Readable later. The only channel that counts as having told someone.</span>
+                      </div>
+                      <div className="gm-setrow-ctl">
+                        <Toggle checked={email} onChange={setEmail} label="Email" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="gm-setrow">
-                    <div className="gm-setrow-main">
-                      <b>Email</b>
-                      <span>Readable later. The only channel that counts as having told someone.</span>
+                    <div className="gm-setrow">
+                      <div className="gm-setrow-main">
+                        <b>In-app banner</b>
+                        <span>Stays until it is taken down. One at a time, across the whole app.</span>
+                      </div>
+                      <div className="gm-setrow-ctl">
+                        <Toggle checked={banner} onChange={setBanner} label="Banner" />
+                      </div>
                     </div>
-                    <div className="gm-setrow-ctl">
-                      <Toggle checked={email} onChange={setEmail} label="Email" />
-                    </div>
-                  </div>
-                  <div className="gm-setrow">
-                    <div className="gm-setrow-main">
-                      <b>In-app banner</b>
-                      <span>Stays until it is taken down. One at a time, across the whole app.</span>
-                    </div>
-                    <div className="gm-setrow-ctl">
-                      <Toggle checked={banner} onChange={setBanner} label="Banner" />
-                    </div>
-                  </div>
 
-                  {tone === "policy" && !email ? (
-                    <Note tone="warn">
-                      <b>A policy change needs email.</b> A push gets swiped away and a banner
-                      comes down, so neither one shows the member was told.
-                    </Note>
-                  ) : null}
+                    {tone === "policy" && !email ? (
+                      <Note tone="warn">
+                        <b>A policy change needs email.</b> A push gets swiped away and a banner
+                        comes down, so neither one shows the member was told.
+                      </Note>
+                    ) : null}
 
-                  <div className="gm-field" style={{ marginTop: 12 }}>
-                    <label className="gm-label" htmlFor="an-aud">
-                      Audience
-                    </label>
-                    <Select
-                      id="an-aud"
-                      value={audience}
-                      onChange={setAudience}
-                      options={segments.map((x) => ({ value: x.key, label: seg(x.key) }))}
-                      style={{ width: "100%" }}
-                    />
-                    <span className="gm-hint">
-                      {SEGMENT_DETAIL[audience] ?? ""}{" "}
-                      {/* A count the API could not work out is not zero people. */}
-                      {reach === null ? (
-                        <b>Could not count this segment.</b>
-                      ) : (
-                        <>
-                          <b>{reach.toLocaleString("en-AU")}</b>
-                          {everyone !== null ? ` of ${everyone.toLocaleString("en-AU")}` : ""}{" "}
-                          accounts.
-                        </>
-                      )}
-                    </span>
-                  </div>
-                </CardBody>
-              </Card>
+                  </CardBody>
+                </Card>
 
-              <Card>
-                <CardHead title="When" />
-                <CardBody>
-                  <div className="gm-field">
-                    <Select
-                      value={when}
-                      onChange={setWhen}
-                      ariaLabel="When to send"
-                      options={[
-                        { value: "now", label: "Send now" },
-                        { value: "later", label: "Schedule it" },
-                      ]}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                  {when === "later" ? (
+                <Card>
+                  {/* Audience lived at the foot of Where it goes, which made that
+                      card twice the height of this one and the pair of them the
+                      reason the form ran on past the phone. Who it reaches and
+                      when it goes are the two things settled last, just before
+                      the send button, so they sit together above it. */}
+                  <CardHead title="Who and when" />
+                  <CardBody>
                     <div className="gm-field">
-                      <label className="gm-label" htmlFor="an-at">
-                        Goes out
+                      <label className="gm-label" htmlFor="an-aud">
+                        Audience
                       </label>
-                      <input
-                        id="an-at"
-                        type="datetime-local"
-                        className="gm-input"
-                        value={at}
-                        onChange={(e) => setAt(e.target.value)}
+                      <Select
+                        id="an-aud"
+                        value={audience}
+                        onChange={setAudience}
+                        options={segments.map((x) => ({ value: x.key, label: seg(x.key) }))}
+                        style={{ width: "100%" }}
                       />
                       <span className="gm-hint">
-                        Local time. A scheduled send can be cancelled up until it goes.
+                        {SEGMENT_DETAIL[audience] ?? ""}{" "}
+                        {/* A count the API could not work out is not zero people. */}
+                        {reach === null ? (
+                          <b>Could not count this segment.</b>
+                        ) : (
+                          <>
+                            <b>{reach.toLocaleString("en-AU")}</b>
+                            {everyone !== null ? ` of ${everyone.toLocaleString("en-AU")}` : ""}{" "}
+                            accounts.
+                          </>
+                        )}
                       </span>
                     </div>
-                  ) : null}
+                    <div className="gm-field">
+                      <Select
+                        value={when}
+                        onChange={setWhen}
+                        ariaLabel="When to send"
+                        options={[
+                          { value: "now", label: "Send now" },
+                          { value: "later", label: "Schedule it" },
+                        ]}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    {when === "later" ? (
+                      <div className="gm-field">
+                        <label className="gm-label" htmlFor="an-at">
+                          Goes out
+                        </label>
+                        <input
+                          id="an-at"
+                          type="datetime-local"
+                          className="gm-input"
+                          value={at}
+                          onChange={(e) => setAt(e.target.value)}
+                        />
+                        <span className="gm-hint">
+                          Local time. A scheduled send can be cancelled up until it goes.
+                        </span>
+                      </div>
+                    ) : null}
 
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary"
-                    style={{ marginTop: 6 }}
-                    disabled={!ready || busy}
-                    onClick={send}
-                  >
-                    {when === "now" ? <IconSend /> : <IconCalendar />}
-                    {busy
-                      ? "Recording…"
-                      : when === "now"
-                        ? `Send to ${headCount(reach)}`
-                        : `Schedule for ${headCount(reach)}`}
-                  </button>
-                </CardBody>
-              </Card>
+                    {/* In a row so the card can push it to its own foot: the pair
+                        stretch to one height, and the send button belongs at
+                        the bottom of this card, level with nothing in
+                        particular on the other side, not halfway up it. */}
+                    <div className="gm-announce-sendrow">
+                      <button
+                        type="button"
+                        className="gm-btn gm-btn--primary"
+                        disabled={!ready || busy}
+                        onClick={send}
+                      >
+                        {when === "now" ? <IconSend /> : <IconCalendar />}
+                        {busy
+                          ? "Recording…"
+                          : when === "now"
+                            ? `Send to ${headCount(reach)}`
+                            : `Schedule for ${headCount(reach)}`}
+                      </button>
+                    </div>
+                  </CardBody>
+                </Card>
+              </div>
             </div>
 
-            {/* the preview */}
-            <div className="gm-stack" style={{ flex: "0 0 auto", gap: 10 }}>
+            {/* the preview, pinned under the topbar so the two columns end
+                at roughly the same place — see announcements.css. */}
+            <div className="gm-announce-preview">
               <div className="gm-label">Preview</div>
               <Handset channel={previewChannel} title={title} body={body} tone={tone} />
               <p className="gm-tiny gm-dim" style={{ maxWidth: 264, margin: 0 }}>
@@ -576,7 +591,7 @@ function AnnouncementsPage() {
                           <div className="gm-rowact">
                             <button
                               type="button"
-                              className="gm-btn gm-btn--sm gm-btn--ghost"
+                              className="gm-btn gm-btn--sm gm-btn--primary"
                               onClick={() => pull(a, "cancelled")}
                             >
                               Cancel
@@ -623,7 +638,7 @@ function AnnouncementsPage() {
                   <div className="gm-person-foot">
                     <button
                       type="button"
-                      className="gm-btn gm-btn--sm gm-btn--ghost gm-spacer"
+                      className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
                       onClick={() => pull(a, "cancelled")}
                     >
                       Cancel

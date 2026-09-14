@@ -13,6 +13,7 @@ import {
   Badge,
   Card,
   Empty,
+  KpiBar,
   Modal,
   Loading,
   Note,
@@ -20,11 +21,14 @@ import {
   Pagination,
   PriorityBadge,
   FilterMenu,
+  StatTile,
   TicketBadge,
   Toast,
   ViewToggle,
 } from "../components/ui";
 import {
+  IconAlert,
+  IconClock,
   IconEye,
   IconInbox,
   IconMail,
@@ -238,6 +242,37 @@ function SupportPage() {
       />
 
       <div className="gm-stack">
+        <KpiBar>
+          <StatTile
+            tone="blue"
+            label="Total tickets"
+            value={String(counts.all ?? 0)}
+            icon={<IconInbox />}
+            foot="Every status"
+          />
+          <StatTile
+            tone="orange"
+            label="Open"
+            value={String(counts.open ?? 0)}
+            icon={<IconMail />}
+            foot="Being worked"
+          />
+          <StatTile
+            tone="green"
+            label="Waiting"
+            value={String(counts.waiting ?? 0)}
+            icon={<IconClock />}
+            foot="On the member"
+          />
+          <StatTile
+            tone="violet"
+            label="Past first-reply target"
+            value={String(breaching)}
+            icon={<IconAlert />}
+            foot="Unanswered and over SLA"
+          />
+        </KpiBar>
+
         {loadError ? (
           <Note tone="bad">
             <b>The desk could not be read.</b> {loadError}
@@ -256,7 +291,21 @@ function SupportPage() {
         {/* The card now holds only the table; the controls that filter it sit
             above it, here, where they read as belonging to the page rather
             than as part of the data underneath them. */}
+        {/* Search and the layout switch sit left, against the page's own
+            edge; the filter clusters right on its own, this desk having no
+            export to keep it company — divided, as asked, rather than all
+            balled up against one side. */}
         <div className="gm-tablebar">
+          <div className="gm-search" style={{ width: 224 }}>
+            <IconSearch />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Subject, ticket id, member…"
+              aria-label="Search tickets"
+            />
+          </div>
+          <ViewToggle value={layout} onChange={setLayout} />
           <span className="gm-tablebar-count">
             {loading && rows.length === 0
               ? "Reading the queue…"
@@ -264,16 +313,7 @@ function SupportPage() {
                   priority === "all" ? "" : ` · ${priority} priority`
                 }`}
           </span>
-          <div className="gm-row" style={{ gap: 8 }}>
-            <div className="gm-search" style={{ width: 224 }}>
-              <IconSearch />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Subject, ticket id, member…"
-                aria-label="Search tickets"
-              />
-            </div>
+          <div className="gm-row gm-tablebar-end" style={{ gap: 8 }}>
             <FilterMenu
               applied={(filter === "all" ? 0 : 1) + (priority === "all" ? 0 : 1)}
               onClear={() => {
@@ -301,7 +341,6 @@ function SupportPage() {
                 },
               ]}
             />
-            <ViewToggle value={layout} onChange={setLayout} />
           </div>
         </div>
 
@@ -486,7 +525,7 @@ function SupportPage() {
               <IconInbox />
               Raise it
             </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setRaising(false)}>
+            <button type="button" className="gm-btn" onClick={() => setRaising(false)}>
               Cancel
             </button>
           </>

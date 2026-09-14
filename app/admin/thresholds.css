@@ -1,0 +1,158 @@
+/* ==========================================================================
+   REVIEW THRESHOLDS — THE TIER LADDER
+
+   One page's rules, imported only by it — the same reasoning dashboard.css
+   gives for itself. Three continuous ranges on one shared scale rather than
+   three numbers in a settings list, so the tiers read as adjoining rather
+   than as unrelated figures that happen to sit near each other.
+   ========================================================================== */
+
+.gm-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The three tick labels above the rows, positioned by the same `pct()` the
+   rows themselves use, so a floor's tick sits directly over the point in
+   every row's track where that floor actually falls.
+
+   The ruler used to fake this with a single `margin-left` standing in for
+   the row grid's first column, so its own box ran the full width of the
+   card rather than stopping where the range column starts eating into it —
+   a percentage taken against that wider box landed to the right of where
+   the track actually ends, and the grail floor's own tick (the one marking
+   where High-value stops and Grail starts) drifted out past the track
+   entirely. The ruler now carries the row's own three-column grid, empty on
+   both ends, so its middle cell is exactly the track's width and a tick's
+   `left: N%` is measured against the same box the segment underneath it
+   is. */
+.gm-ladder-ruler {
+  display: grid;
+  grid-template-columns: 180px 1fr 190px;
+  align-items: center;
+  gap: 14px;
+  height: 16px;
+  margin: 0 0 4px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.gm-ladder-ruler-track {
+  position: relative;
+  height: 100%;
+}
+
+.gm-ladder-ruler-track span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.gm-ladder-ruler-track span:first-child {
+  transform: none;
+}
+
+.gm-ladder-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A plain row, not a control — there is nothing under it to select or
+   preview, so it carries none of the affordances (hover tint, cursor,
+   `:active` state) a clickable row would. */
+.gm-ladder-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 190px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 12px;
+}
+
+.gm-ladder-row-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gm-ladder-row-id > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.gm-ladder-row-id b {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-ladder-row-id i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-ladder-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tier-color);
+}
+
+.gm-ladder-track {
+  position: relative;
+  height: 22px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.gm-ladder-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--tier-color);
+}
+
+.gm-ladder-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.gm-ladder-range b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+@media (max-width: 720px) {
+  .gm-ladder-ruler {
+    display: none;
+  }
+  .gm-ladder-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .gm-ladder-range {
+    justify-content: flex-start;
+    gap: 14px;
+  }
+}

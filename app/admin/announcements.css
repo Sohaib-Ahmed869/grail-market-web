@@ -1,0 +1,136 @@
+/* ==========================================================================
+   ANNOUNCEMENTS — COMPOSE LAYOUT
+
+   The form used to stack three cards one under another — Message, Where it
+   goes, When — with the phone pinned beside them, and the two smaller cards
+   between them added up to more height than the phone ever needed, so the
+   page ran on well past the bottom of the handset. Where it goes and When
+   are the two that do not need the full column: paired side by side in
+   `.gm-announce-pair`, and with the padding this page carries tightened a
+   notch from the console's own (`--control-h`-driven forms elsewhere keep
+   more air because they stand alone), the column now ends close to where
+   the phone does instead of trailing on beneath it.
+
+   The pair narrows on its own terms rather than at the layout's own
+   breakpoint: `minmax(min(230px, 100%), 1fr)` is the same idiom `.gm-gallery`
+   uses, so two cards that no longer fit side by side drop to one column
+   however the surrounding grid happens to be sized, rather than at a fixed
+   width picked to match this page alone. */
+.gm-announce-compose {
+  display: grid;
+  grid-template-columns: minmax(min(320px, 100%), 1fr) auto;
+  align-items: start;
+  gap: 20px;
+}
+
+.gm-announce-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Title and Kind, side by side — the title gets the larger share because it
+   is typed into and the kind is picked from three. */
+.gm-announce-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.gm-announce-row + .gm-field {
+  margin-top: 10px;
+}
+
+/* The form's own `.gm-field + .gm-field` spacing reads Kind as the field
+   after Title and pushes it 10px down, so the two labels and the two boxes
+   sat on different lines. Side by side they are not a sequence. Stated
+   one class deeper than that rule so it wins wherever it sits in the file. */
+.gm-announce-compose .gm-announce-row > .gm-field + .gm-field {
+  margin-top: 0;
+}
+
+@media (max-width: 560px) {
+  .gm-announce-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* `stretch`, not `start`: the two cards used to stop wherever their own
+   content did, 310px beside 247, which read as a mistake rather than as a
+   pair. Each is a flex column so its body can take the slack and the send
+   row can sit at the foot of it. */
+.gm-announce-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.gm-announce-pair > .gm-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.gm-announce-pair > .gm-card > .gm-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* `margin-top: auto` takes the slack; the padding is the gap it keeps when
+   there is none, which is every time the pair has stacked. */
+.gm-announce-sendrow {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.gm-announce-form > .gm-card > .gm-card-head,
+.gm-announce-pair > .gm-card > .gm-card-head {
+  padding: 12px 16px;
+}
+
+.gm-announce-form > .gm-card > .gm-card-body,
+.gm-announce-pair > .gm-card > .gm-card-body {
+  padding: 14px 16px;
+}
+
+/* Tightened from the shared 14px/18px so three fields read as one form
+   rather than three spaced-out ones — a form checked once before sending,
+   not lived in. */
+.gm-announce-compose .gm-field + .gm-field {
+  margin-top: 10px;
+}
+
+.gm-announce-compose .gm-setrow {
+  padding: 10px 0;
+  gap: 14px;
+}
+
+/* The preview holds still while the form beside it is read top to bottom,
+   and pinning it under the topbar is what lets the two columns end at
+   roughly the same place — without it the phone scrolls off with the page
+   long before the form does, on any window taller than the handset. */
+.gm-announce-preview {
+  position: sticky;
+  top: calc(var(--topbar-h) + 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: none;
+}
+
+/* Below this, the phone has nowhere to sit beside the form without
+   crowding it — the handset alone is 268px plus its own padding, which is
+   most of a phone screen's width already. One column, and nothing here
+   needs sticking to a topbar it is no longer beside. */
+@media (max-width: 1100px) {
+  .gm-announce-compose {
+    grid-template-columns: 1fr;
+  }
+
+  .gm-announce-preview {
+    position: static;
+  }
+}

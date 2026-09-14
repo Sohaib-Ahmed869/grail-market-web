@@ -86,6 +86,33 @@
   --info-bg: #eef1f5;
   --idle-bg: #eef1f5;
 
+  /* -- tags ----------------------------------------------------------
+     A hue per state, not a hue per mood. The badges used to borrow the five
+     signal tokens above, and `--info`, `--navy-600` and the neutral grey are
+     three slates a shade apart — asked for as "all the tags feel almost the
+     same", which on a queue of Awaiting, Review, Reserved and Sold rows they
+     did. These are spread round the wheel instead, each with its own stop in
+     the dark theme lifted enough to read as a ring on the dark card rather
+     than as a hole in it. They are for rings and marks only; nothing is
+     filled with them. */
+  --tag-green: #1f8a5b;
+  --tag-amber: #c27a0e;
+  --tag-red: #c0392f;
+  --tag-blue: #2f6fd0;
+  --tag-violet: #7a4fd0;
+  --tag-teal: #0e8a86;
+  --tag-gold: #a88d60;
+  --tag-navy: #2c4159;
+  --tag-pink: #c23f86;
+  --tag-orange: #d4602a;
+  --tag-grey: #7d8b9a;
+
+  /* The secondary button's edge: the primary's own navy ramp, drawn as a
+     ring. Stated as a token because the dark theme cannot reuse the ramp —
+     `--grad-navy` is dark at both ends there, and a ring in it on the dark
+     card is a ring in the colour of the card. */
+  --btn-line: var(--grad-navy);
+
   /* -- gradients ------------------------------------------------------
      Two. Navy for the primary button and the few solid navy surfaces, and
      gold for the charts on the reports page.
@@ -251,6 +278,20 @@
   --info: #93a7bd;
   --info-bg: #1e2833;
   --idle-bg: #1e2833;
+
+  --tag-green: #4cc48f;
+  --tag-amber: #e5ac4f;
+  --tag-red: #ec7d72;
+  --tag-blue: #6ea5f2;
+  --tag-violet: #ad8cf0;
+  --tag-teal: #4ec3bd;
+  --tag-gold: #d4b989;
+  --tag-navy: #9fb6d1;
+  --tag-pink: #ec86bd;
+  --tag-orange: #f09260;
+  --tag-grey: #8b9aaa;
+
+  --btn-line: linear-gradient(135deg, #7d97b5 0%, #536b86 62%, #3f546c 100%);
 
   --grad-navy: linear-gradient(135deg, #33485f 0%, #1e2b39 62%, #16202b 100%);
   /* Lighter at the top in both themes: the light end is where the light is,
@@ -437,7 +478,7 @@
  * any width, and it is exactly as light as the old bloom's brightest point —
  * the strength did not go up, it went everywhere. `--wash-top` is the gold cut
  * with white and `--wash-bot` is barely off the paper, so the foot of the page
- * still matches what `.gm-actionbar` fades into.
+ * is barely distinguishable from the paper under it.
  *
  * Both tokens are stated per theme, so this rule is not theme-aware and the
  * dark counterpart that used to live in parts.css is gone. */
@@ -474,9 +515,7 @@
  * the shell's one grid row is always at least a full window; a short page —
  * Verification with five rows, say — stopped 180px above the floor at
  * 1440x900 and nearly 300px above it at 1440x1000, and that band belonged to
- * nothing. It belongs to the content region now, which is what lets a sticky
- * `.gm-actionbar` inside a short record reach the bottom of the window
- * instead of parking halfway up it. */
+ * nothing. It belongs to the content region now. */
 .gm-content {
   flex: 1 1 auto;
   padding: 26px 30px 28px;
@@ -484,16 +523,6 @@
   margin: 0;
   width: 100%;
   animation: gm-rise 0.34s cubic-bezier(0.22, 0.9, 0.34, 1) both;
-}
-
-/* A record page ends with its action bar, and the bar is sticky — so once you
-   have scrolled to the bottom it stops being pinned and sits at its natural
-   place, which was 52px above the end of the page. That gap is the breathing
-   room above, and on every other page it is right: it keeps the last card off
-   the bottom edge. Under a bar that has already been holding the bottom edge
-   all the way down, it is just a hole. */
-.gm-content:has(.gm-actionbar) {
-  padding-bottom: 16px;
 }
 
 @keyframes gm-rise {
@@ -1250,9 +1279,18 @@
   height: var(--control-h);
   padding: 0 14px;
   border-radius: var(--r-sm);
-  border: 1px solid var(--line-2);
-  background: var(--surface);
-  color: var(--ink-2);
+  /* Every button that is not the primary is the secondary, and the
+     secondary is the primary's navy ramp drawn as a ring: asked for as one
+     primary/secondary logic across the whole console. A gradient cannot be
+     a `border-color`, so the ring is a second background clipped to the
+     border box under a paper one clipped to the padding box, with the
+     border itself left transparent for it to show through. A variant that
+     sets its own `background` (primary, danger, the icon-only ghost)
+     replaces both layers at once and keeps its own edge. */
+  border: 1.5px solid transparent;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--btn-line) border-box;
+  color: var(--ink);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -1275,8 +1313,8 @@
    put the brand colour on whatever the pointer happened to be over rather
    than on anything that meant something. */
 .gm-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--line-2);
+  background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box,
+    var(--btn-line) border-box;
   color: var(--ink);
   box-shadow: var(--sh-2);
   transform: translateY(-1px);
@@ -1313,27 +1351,12 @@
   box-shadow: 0 6px 14px rgba(26, 38, 50, 0.26), 0 20px 36px rgba(26, 38, 50, 0.24);
 }
 
-/* The third decision — ask the seller for more, pause, escalate — is a real
-   action but not the one being recommended, so it is outlined like Reject
-   rather than filled like Approve. One solid button per footer; the rest are
-   outlines. That is the whole button hierarchy. */
-/* Both outlines below were cut at 30-40% against transparent, which is
-   right for a wash sitting behind a filled shape but was never going to
-   read as an edge on its own — an outlined button has nothing else to say
-   where it stops. Neither is loud even at the strength restored: the word
-   in the button's own tone still carries the colour, the ring only has to
-   be there to look at rather than argued for. */
-.gm-btn--gold {
-  background: var(--surface);
-  color: var(--gold-600);
-  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
-}
-
-.gm-btn--gold:hover {
-  background: var(--gold-050);
-  border-color: color-mix(in srgb, var(--gold) 75%, transparent);
-  color: var(--gold-600);
-}
+/* `--gold` was the third decision — ask the seller for more, pause, put it
+   back on the market — outlined in gold so it read as neither the approval
+   nor the rejection. With one primary/secondary logic across the console it
+   is simply a secondary button, so it takes the base rule's navy ring and
+   has no rule of its own. The class stays on the markup because it still
+   says what the button is. */
 
 .gm-btn--danger {
   background: var(--surface);
@@ -1366,14 +1389,18 @@
   color: var(--ink);
 }
 
-.gm-btn--ghost {
+/* Only an icon-only ghost stays a ghost — the dialog's close cross. A
+   ghost with a word in it ("Cancel", "Remove", "Clear filters") is a
+   secondary action, and under the primary/secondary logic a secondary
+   action wears the navy ring, so those fall through to the base rule. */
+.gm-btn--ghost.gm-btn--icon {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
   color: var(--ink-3);
 }
 
-.gm-btn--ghost:hover {
+.gm-btn--ghost.gm-btn--icon:hover {
   background: var(--surface-2);
   border-color: var(--line);
   box-shadow: var(--sh-1);
@@ -1398,6 +1425,71 @@
 
 .gm-btn--block {
   width: 100%;
+}
+
+/* ==========================================================================
+   TIP — the word on a button that has none
+
+   An icon-only button carries its word in `title`, and the browser's own
+   title tooltip is a second of nothing followed by a small grey box — asked
+   for as "not easily visible, it should be highlighted". `IconTips` lifts the
+   word out of `title` on hover or keyboard focus and draws it here instead,
+   straight away and in the colours that stand furthest off the page in
+   either theme: ink ground, paper word. It is portalled to `#gm-overlays`
+   because the buttons it names mostly live in `.gm-tablewrap`, which scrolls
+   and so clips anything that hangs outside a row.
+   ========================================================================== */
+
+.gm-tip {
+  position: fixed;
+  z-index: 300;
+  padding: 6px 10px;
+  border-radius: var(--r-xs);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 12.8px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: var(--sh-3);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 9px));
+  animation: gm-tip-in 0.12s ease-out both;
+}
+
+.gm-tip--below {
+  transform: translate(-50%, 9px);
+}
+
+/* The point, so the word is visibly attached to one button in a row of
+   them rather than floating between two. `--tip-shift` is how far the box
+   itself moved to stay clear of the window's edge (see `IconTips.tsx`) — the
+   arrow moves back the same amount so it keeps pointing at the button the
+   box slid out from under, rather than at empty air beside it. */
+.gm-tip::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - var(--tip-shift, 0px));
+  top: 100%;
+  border: 5px solid transparent;
+  border-top-color: var(--ink);
+  transform: translateX(-50%);
+}
+
+.gm-tip--below::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--ink);
+}
+
+@keyframes gm-tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ==========================================================================
@@ -1445,6 +1537,20 @@
   margin-left: auto;
 }
 
+/* The search box's place in a head: straight after the heading, with the
+   spacer then pushing filter and export to the far end — some controls on
+   the left and some on the right, as asked, rather than every one of them
+   in a cluster against the right-hand edge. `align-self` because the block
+   head lines its words up on a baseline and a search box has none worth
+   lining up. */
+.gm-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  min-width: 0;
+}
+
 .gm-card-body {
   padding: 18px;
 }
@@ -1478,10 +1584,6 @@
 
 .gm-grid--2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.gm-grid--2a {
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
 }
 
 .gm-grid--2b {
@@ -1601,105 +1703,24 @@
   outline-offset: 2px;
 }
 
-/* ==========================================================================
-   ACTION BAR — what the dialog footer became
-
-   The actions on a record used to sit in a dialog footer: pinned, always in
-   view, wrapping when there were four of them. A record is a page now, so the
-   same row sits at the foot of the page and sticks to the bottom of the
-   viewport while there is still record underneath it.
-
-   It wraps rather than scrolls. The last button in the row is usually the most
-   consequential one — Reject, Revoke, Withdraw — and a row that runs off the
-   edge hides precisely that.
-   ========================================================================== */
-
-.gm-actionbar {
-  position: sticky;
-  bottom: 0;
-  z-index: 12;
-  margin: 4px -4px -8px;
-  padding: 10px 4px 12px;
-  /* The page scrolls under it, so it needs something to sit on. A fade rather
-     than a hard edge: a solid bar reads as a second page footer.
-   *
-   * It fades to `--wash-bot`, not to `--paper`. The page is not painted in
-   * `--paper` — `.gm-shell::before` lays a fixed gold-tinted wash over the
-   * whole viewport, and `--wash-bot` is the colour that wash has reached by
-   * the bottom of the window, which is where a sticky bar always sits. Faded
-   * to `--paper` this was a cool grey rectangle with square corners sitting
-   * on a warm page: on a short record, where the bar has nothing scrolling
-   * under it to justify a backdrop at all, that read as a second box drawn
-   * behind the buttons and hanging out below them. */
-  background: linear-gradient(
-    to top,
-    var(--wash-bot) 0%,
-    var(--wash-bot) 62%,
-    transparent 100%
-  );
-}
-
-.gm-actionbar-inner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-  padding: 12px 14px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: var(--sh-2), var(--edge);
-}
-
-.gm-actionbar-note {
-  margin-left: auto;
-  font-size: 12.8px;
-  color: var(--ink-4);
-}
-
-/* Below this a row of three or four buttons cannot sit on one line, and the
-   half-wrapped result puts one button on its own under the others looking like
-   it belongs to something else. They all go full width instead, in the order
-   they are written — the primary action first. */
-@media (max-width: 560px) {
-  /* And it stops sticking. Five buttons in a column is most of a phone
-     screen, so pinning them over the record turns an aid into a lid — you
-     scroll the page and see the same five buttons the whole way down with a
-     sliver of record behind them. It sits at the end of the page instead,
-     which is where the actions on a record belong when there is no room to
-     keep them in view. */
-  .gm-actionbar {
-    position: static;
-    background: none;
-    padding-left: 0;
-    padding-right: 0;
-    margin-left: 0;
-    margin-right: 0;
-  }
-
-  .gm-actionbar-inner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .gm-actionbar-inner > .gm-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .gm-actionbar-inner > .gm-spacer {
-    margin-left: 0;
-  }
-
-  .gm-actionbar-note {
-    margin-left: 0;
-    text-align: center;
-  }
-}
-
 /* 22px read as a section label rather than as the name of the page — asked
    to be larger. The sub-line under it is left where it is: growing both moves
    the pair up in weight together and the title stops leading. */
+/* A record's levers, in `PageHead`'s `right` slot: the status chip, the
+   primary, a secondary, sometimes a `RowMenu`. Every record page uses it, so
+   it lives here — it began in member-record.css, which only loads once a
+   member record has been opened, and on a conduct case or a ticket reached
+   first the wrapper was a plain block: the gap did nothing and the chip sat
+   flush against the button beside it. 12px, asked for as "the buttons and
+   tags are too close together". Wraps rather than scrolls, because the
+   last control in the row is often the one most worth keeping in view. */
+.gm-rec-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .gm-page-head h2 {
   margin: 0;
   font-size: 27px;
@@ -1719,67 +1740,80 @@
    STAT TILE
    ========================================================================== */
 
+/* A row of readings off one board, not four separate boxes — see `KpiBar`.
+   The card's own chrome (border, radius, shadow) now lives on `.gm-kpibar`;
+   a bare `.gm-stat` outside one is just a column with no frame of its own. */
 .gm-stat {
   position: relative;
-  overflow: hidden;
-  padding: 16px 17px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: var(--sh-2), var(--edge);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
 }
 
-
-
-.gm-stat-top {
+.gm-stat-head {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-bottom: 10px;
+  gap: 8px;
 }
 
+/* Bare and coloured, never a tile — the same treatment `gm-feed-ico` uses in
+   the audit log: no ring, no background, the icon's own stroke is the whole
+   mark. The default (no `tone`) stays `--ink-3`; a KPI row gives each column
+   its own hue off the `--tag-*` ramp so the four read apart at a glance. */
 .gm-stat-ico {
-  width: 30px;
-  height: 30px;
+  width: 15px;
+  height: 15px;
   flex: none;
-  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
-  background: transparent;
   color: var(--ink-3);
-  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 .gm-stat-ico svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
-/* icon chips sit flat — the shadow belongs to the tile they live on, not to
-   the chip. Two stacked shadows at this size just reads as smudge. */
 .gm-stat-ico--navy {
-  background: transparent;
   color: var(--ink-2);
-  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 .gm-stat-ico--gold {
-  background: transparent;
-  color: var(--gold);
-  box-shadow: inset 0 0 0 1px currentColor;
+  color: var(--tag-gold);
+}
+
+.gm-stat-ico--blue {
+  color: var(--tag-blue);
+}
+
+.gm-stat-ico--orange {
+  color: var(--tag-orange);
+}
+
+.gm-stat-ico--green {
+  color: var(--tag-green);
+}
+
+.gm-stat-ico--violet {
+  color: var(--tag-violet);
 }
 
 .gm-stat-label {
-  font-size: 13.2px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.005em;
   color: var(--ink-3);
 }
 
+/* 650, not the 750 this carried when the tile was still a dashboard KPI —
+   asked down a weight once a whole row of tiles turned into a marketplace
+   policy or a review-thresholds page's own answer, i.e. the first thing read
+   on the screen rather than one number among a wider dashboard. 750 next to
+   this page's own heading read as louder than the page. */
 .gm-stat-value {
-  font-size: 26px;
-  font-weight: 750;
+  margin-top: 9px;
+  font-size: 28px;
+  font-weight: 590;
   letter-spacing: -0.03em;
   line-height: 1.1;
   color: var(--ink);
@@ -1787,12 +1821,58 @@
 }
 
 .gm-stat-foot {
-  margin-top: 7px;
+  margin-top: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
   color: var(--ink-3);
+}
+
+/* --------------------------------------------------------------------------
+   KPI bar
+
+   One bordered strip, four readings of the same board with a hairline
+   between each rather than a card apiece — the shape the reference for this
+   asked for. Collapses to a 2x2 grid under 760px, where four columns run out
+   of room before the numbers do; the dividers move with it so a wrapped pair
+   still reads as ruled rather than as two stray boxes. */
+.gm-kpibar {
+  display: flex;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-2), var(--edge);
+  overflow: hidden;
+}
+
+.gm-kpibar > .gm-stat {
+  flex: 1 1 0;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+}
+
+.gm-kpibar > .gm-stat:first-child {
+  border-left: none;
+}
+
+@media (max-width: 760px) {
+  .gm-kpibar {
+    flex-wrap: wrap;
+  }
+
+  .gm-kpibar > .gm-stat {
+    flex: 1 1 50%;
+    border-top: 1px solid var(--line);
+  }
+
+  .gm-kpibar > .gm-stat:nth-child(odd) {
+    border-left: none;
+  }
+
+  .gm-kpibar > .gm-stat:nth-child(-n + 2) {
+    border-top: none;
+  }
 }
 
 .gm-delta {
@@ -1866,15 +1946,21 @@
   /* The tone travels in a variable, not in `currentColor`.
      It used to be the text colour, and the ring was mixed from it — so making
      the words ink would have taken the tone with them. */
-  /* `--tone` on its own was the raw brand colour, and `--navy-600` in
-     particular is a dark blue that sits only a little lighter than the dark
-     theme's own card surface — a badge in that tone read as a plain grey
-     rectangle rather than a coloured ring. Mixing every tone toward `--ink`
-     rather than using it straight fixes that in both directions at once:
-     `--ink` is near-black on paper and near-white on the dark ground, so the
-     mix always pulls the ring away from whatever surface it sits on instead
-     of pulling every tone toward the one fixed shade a straight mix would. */
-  border: 1px solid color-mix(in srgb, var(--tone, var(--ink-4)) 80%, var(--ink) 20%);
+  /* The ring is the tone straight, and a pixel and a half of it. It was a
+     1px ring mixed a fifth of the way toward `--ink`, which kept a dark navy
+     off the dark card but also pulled every tone toward the same slate —
+     asked for as "all the tags feel almost the same, make the border a
+     little bigger so the colour is visible". The `--tag-*` tokens carry
+     their own dark-theme stops now, so the mix has nothing left to fix.
+
+     Drawn as an inset `box-shadow` rather than a `border`, the way `.gm-tier`
+     already draws its own ring — asked for by name, "the tags should have
+     the border width like the tier column". The two read as different
+     weights at the same declared width because a border is laid at the
+     box's own edge and eats into its content box, where an inset shadow
+     paints just inside it without moving anything — the tier ring was
+     always the crisper of the two for that reason, not a different number. */
+  box-shadow: inset 0 0 0 1.5px var(--tone, var(--tag-grey));
   background: transparent;
   font-size: 12.5px;
   font-weight: 600;
@@ -1887,35 +1973,51 @@
 .gm-badge svg {
   width: 13px;
   height: 13px;
-  color: color-mix(in srgb, var(--tone, var(--ink-4)) 80%, var(--ink) 20%);
+  color: var(--tone, var(--tag-grey));
 }
 
 .gm-badge--ok {
-  --tone: var(--ok);
+  --tone: var(--tag-green);
 }
 
 .gm-badge--warn {
-  --tone: var(--warn);
+  --tone: var(--tag-amber);
 }
 
 .gm-badge--info {
-  --tone: var(--info);
+  --tone: var(--tag-blue);
 }
 
 .gm-badge--gold {
-  --tone: var(--gold-600);
+  --tone: var(--tag-gold);
 }
 
 .gm-badge--navy {
-  --tone: var(--navy-600);
+  --tone: var(--tag-navy);
+}
+
+.gm-badge--violet {
+  --tone: var(--tag-violet);
+}
+
+.gm-badge--teal {
+  --tone: var(--tag-teal);
+}
+
+.gm-badge--pink {
+  --tone: var(--tag-pink);
+}
+
+.gm-badge--orange {
+  --tone: var(--tag-orange);
 }
 
 /* Still the loudest state on the row, and now it says so with the ring alone:
-   a pixel and a half of it against everything else's one. The wash it used to
+   two pixels of it against everything else's one and a half. The wash it used to
    carry is gone with every other badge's — see the note above. */
 .gm-badge--bad {
-  --tone: var(--bad);
-  border-width: 1.5px;
+  --tone: var(--tag-red);
+  box-shadow: inset 0 0 0 2px var(--tag-red);
 }
 
 .gm-tier {
@@ -1939,12 +2041,15 @@
      around it. `--ink` reads the same weight of black on every tier, the way
      `--ink` already does on every other badge in the console. */
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--gold);
+  box-shadow: inset 0 0 0 1.5px var(--tag-violet);
   white-space: nowrap;
 }
 
+/* A hue per tier, for the reason the badges have one per state: Grail was a
+   black ring, High a gold one and Standard a grey one, and in a row beside
+   the status chips the three read as the same outline at three weights. */
 .gm-tier--high {
-  box-shadow: inset 0 0 0 1.5px var(--ink);
+  box-shadow: inset 0 0 0 2px var(--tag-gold);
 }
 
 /* `--line-2` is a hairline meant to split two white surfaces apart, not to
@@ -1953,7 +2058,7 @@
    still has to mean legible, not invisible. `--ink-3` is still a neutral, a
    shade darker than the hairline and clearly there at a glance. */
 .gm-tier--std {
-  box-shadow: inset 0 0 0 1px var(--ink-3);
+  box-shadow: inset 0 0 0 1.5px var(--tag-grey);
 }
 
 /* ==========================================================================
@@ -3986,7 +4091,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .gm-grid--2a,
   .gm-grid--2b {
     grid-template-columns: minmax(0, 1fr);
   }

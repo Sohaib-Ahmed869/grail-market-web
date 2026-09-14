@@ -1436,7 +1436,10 @@
     color-mix(in srgb, var(--th-ink) 22%, transparent) 0%,
     color-mix(in srgb, var(--th-ink) 11%, transparent) 100%
   );
-  border-color: color-mix(in srgb, var(--th-ink) 30%, transparent);
+  /* `.gm-badge`'s ring is an inset `box-shadow` now, not a `border` (see its
+     own rule in admin.css), so the override has to replace the whole shadow
+     rather than just a border-color. */
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--th-ink) 30%, transparent);
   color: var(--th-ink);
 }
 
@@ -1568,7 +1571,6 @@
    half a degree and scale the slab. Six variations of the same gesture across
    two products; this is the one the rest of the site already uses. */
 .gm-card--lift:hover,
-.gm-stat:hover,
 .gm-linkstat:hover,
 .gm-case:hover,
 .gm-person:hover,
@@ -1646,26 +1648,29 @@
      `--gm-zoom` divided out for the reason every other viewport unit in this
      console divides it out.
 
-     The chrome is the topbar above AND the action bar below. That bar is
-     sticky at the foot of the window and paints over everything under it, so
-     a panel measured only against the topbar put its own last two figures
-     behind the Revoke button. 92 is the bar at 82 plus a hair of daylight.
+     One figure, set once, rather than a value read off the page and rewritten
+     as it scrolled. `useAsideHeight` used to measure the panel's own
+     `getBoundingClientRect().top` on every scroll and resize so the card grew
+     to reach the floor of the window from wherever it happened to start — a
+     value CSS could not be told, since the head above the grid is not a
+     constant: the name wraps, a moderator note appears above the grid on some
+     records and not others. Asked for instead was a panel of one size that
+     fills the window once it is pinned rather than one that grows as you
+     scroll past that head, so the height below is a constant: the window,
+     less the topbar and the 6px this panel sits below it, less a little
+     daylight at the foot to match `.gm-content`'s own bottom padding now that
+     nothing sticky sits there. At the very top of the page, before the head
+     has scrolled away, the panel is still in flow beneath it and so starts
+     lower than this and can run a little past the bottom of the window —
+     accepted rather than compensated for, since a box that is bigger at the
+     top of the page than once it is pinned is what was asked for over one
+     that keeps changing size under you as you read it.
 
-     A record page always has one — `.gm-rec` is the member record and nothing
-     else — so the allowance is unconditional rather than a `:has()` that
-     would have exactly one page to match.
-
-     `--rec-aside-h` is that same figure measured rather than assumed, and it
-     is what the panel actually runs on — see `useAsideHeight` in the member
-     record. The fallback here is the sticky case written out longhand, which
-     is right only once the head above the grid has scrolled away: at the top
-     of the record the panel still sits below that head, so a height worked
-     out from the topbar alone hung ~140px past the bottom of the window with
-     its last two figures behind the action bar and a scrollbar inside a card
-     that had room going spare. It is the fallback and not the rule because a
-     page head is not a constant — the name wraps, the record loads — and
-     nothing in CSS can read where this box starts. */
-  height: var(--rec-aside-h, calc(100vh / var(--gm-zoom) - var(--topbar-h) - 122px));
+     The chrome used to be the topbar above AND an action bar sticky at the
+     foot, which painted over anything under it — the actions moved to a line
+     at the top of the page instead, so nothing is subtracted for them here
+     any more. */
+  height: calc(100vh / var(--gm-zoom) - var(--topbar-h) - 34px);
   overflow: hidden;
 }
 
@@ -2256,41 +2261,77 @@ h2.gm-idcard-name {
   background: var(--paper);
 }
 
+/* `--wash-top`/`--wash-bot` are calibrated for a full viewport — 13% and 5%
+   gold, twelve points apart, which is plenty of room to fade across a whole
+   window and next to nothing across one card. Measured: the two stops of the
+   first version of this gradient rendered at rgb(244,240,234) and
+   rgb(243,241,238) — three points apart, which is not a gradient anyone can
+   see. This states its own two stops straight off `--gold`/`--surface`
+   instead, far enough apart to actually read as one corner to the other, and
+   still exactly the tokens the rest of the console's warmth is built from. */
 .gm-login-shell {
   width: min(1180px, 100%);
-  min-height: min(680px, calc(100vh / var(--gm-zoom) - 96px));
+  min-height: min(760px, calc(100vh / var(--gm-zoom) - 64px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(16px, 3vw, 28px);
   padding: clamp(16px, 2.4vw, 22px);
   border-radius: 26px;
-  background: var(--surface);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--gold) 22%, var(--surface)) 0%,
+    color-mix(in srgb, var(--gold) 4%, var(--surface)) 100%
+  );
   border: 1px solid var(--line);
   box-shadow: 0 30px 70px -32px rgba(16, 26, 38, 0.28), 0 2px 6px rgba(16, 26, 38, 0.05);
 }
 
+/* No background of its own. The card used to repeat the shell's own gradient
+   at its own, separate top-left corner — meant to make the wash read past
+   the shell's thin padding, but a second diagonal starting over from the
+   card's own corner is a seam, not a continuation: it drew a visible box
+   around the form half where its restart disagreed with the one gradient
+   already running the full width of the shell behind it. Transparent, the
+   shell's own gradient shows through the whole panel undisturbed — one wash,
+   corner to corner, the way it was asked for. */
 .gm-login-card {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  border-radius: 20px;
+  padding: clamp(28px, 4vw, 44px) clamp(16px, 3vw, 28px);
+}
+
+.gm-login-cardin {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   width: min(386px, 100%);
   margin: 0 auto;
-  padding: clamp(28px, 4vw, 44px) clamp(8px, 2vw, 20px);
 }
 
-/* Centred, like the reference: the mark sits over the heading rather than
-   beside it, so the column reads top-down instead of L-shaped. */
+/* The mark and the "Grail Market" name, side by side — moved here from the
+   brand panel on the right, which now carries the bare mark only so the name
+   is not printed twice on the one screen. */
 .gm-login-brand {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 12px;
   margin-bottom: 2px;
 }
 
 .gm-login-mark {
-  width: 54px;
-  height: 54px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
+}
+
+.gm-login-brand-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 .gm-login-brand .gm-mark-dark { display: none; }
@@ -2317,34 +2358,24 @@ h2.gm-idcard-name {
   color: var(--ink-3);
 }
 
-/* -- the brand half ------------------------------------------------ */
+/* -- the brand half ------------------------------------------------
+   No logo of its own any more — the mark and the "Grail Market" name are
+   both said once, on the form side — so this panel is just the window,
+   padded off its own edge by the panel's padding, and the pager under it.
+   The window fills whatever height that leaves rather than sitting at a
+   fixed 250px in the middle of it; see `.gm-mock-tilt`/`.gm-mock`/
+   `.gm-mock-shell` in login.css, which is where the actual fill happens. */
 .gm-login-aside {
   position: relative;
   overflow: hidden;
   border-radius: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   padding: clamp(30px, 3.2vw, 42px);
   background:
     radial-gradient(620px 420px at 88% -8%, rgba(212, 185, 137, 0.46), transparent 62%),
     radial-gradient(520px 420px at -8% 108%, rgba(168, 141, 96, 0.18), transparent 66%),
     linear-gradient(158deg, #24344a 0%, #1a2632 56%, #131c26 100%);
-}
-
-.gm-login-logo {
-  width: clamp(150px, 14vw, 178px);
-  height: auto;
-}
-
-.gm-login-tag {
-  margin: 0;
-  max-width: 20ch;
-  font-size: clamp(20px, 1.9vw, 25px);
-  line-height: 1.25;
-  letter-spacing: -0.015em;
-  font-weight: 600;
-  color: #fff;
 }
 
 .gm-login-list {
@@ -2374,15 +2405,6 @@ h2.gm-idcard-name {
   height: 7px;
   border-radius: 2px;
   background: var(--gold);
-}
-
-.gm-login-note {
-  margin: auto 0 0;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.5);
 }
 
 /* -- the console mock ----------------------------------------------
@@ -2415,15 +2437,6 @@ h2.gm-idcard-name {
   height: 7px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.26);
-}
-
-.gm-mock-pill {
-  margin-left: 8px;
-  height: 8px;
-  flex: 1;
-  max-width: 120px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
 }
 
 .gm-mock-body {
@@ -2517,25 +2530,8 @@ h2.gm-idcard-name {
   background: rgba(203, 183, 148, 0.5);
 }
 
-.gm-mock-chart {
-  height: 56px;
-  padding: 8px 10px 6px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.gm-mock-chart svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
 /* Not enough height to show a mock AND a form without squashing both. The
    form wins; the mock is scene-setting. */
-@media (max-height: 720px) {
-  .gm-mock-chart { display: none; }
-}
-
 @media (max-height: 620px) {
   .gm-mock { display: none; }
 }
@@ -3033,8 +3029,8 @@ h2.gm-idcard-name {
    RECORD PAGES
 
    A listing, a member, a case or a ticket used to be a dialog over the list
-   that opened it. They are routes now — see the note on `ActionBar` in
-   admin.css — and these are the two pieces that were written inline in the
+   that opened it. They are routes now — see the record-page note in
+   CLAUDE.md §3 — and these are the two pieces that were written inline in the
    dialog body and needed somewhere to live once it became a page.
    ========================================================================== */
 
@@ -3554,14 +3550,17 @@ h2.gm-idcard-name {
   color: var(--ink-3);
 }
 
-/* Everything after the count is pushed to the far end, so the controls group
-   together however many of them a given page has. */
-.gm-tablebar > :nth-child(2) {
+/* The filter-and-export cluster is pushed to the far end. This used to be
+   the bar's second child, back when search sat first and everything else
+   followed it as one group — but the buttons were asked apart, search left
+   and filter/export right, so "second child" no longer names the right-hand
+   cluster reliably. The push now belongs to `.gm-tablebar-end` by name. */
+.gm-tablebar-end {
   margin-left: auto;
 }
 
 @media (max-width: 760px) {
-  .gm-tablebar > :nth-child(2) {
+  .gm-tablebar-end {
     margin-left: 0;
   }
 
@@ -3812,7 +3811,9 @@ h2.gm-idcard-name {
    are literal rather than tokens: this is the one place in the console
    drawing something that belongs to somebody else's operating system, and it
    should not shift when ours does. The one thing that IS ours is the app
-   icon, which is the brand navy.
+   icon, which is the real mark rather than a placeholder swatch — the push
+   card is near-white, so it is `mark.svg` (navy and gold on transparent),
+   not the on-navy inversion.
 
    9:19.5 is the proportion the message actually arrives on. It matters here
    because the body is clamped to two lines and the title cut at 40
@@ -3973,8 +3974,7 @@ h2.gm-idcard-name {
   flex: none;
   width: 14px;
   height: 14px;
-  border-radius: 4px;
-  background: var(--navy-500);
+  object-fit: contain;
 }
 
 /* The two small-caps lines on this mock are the operating system's, not ours

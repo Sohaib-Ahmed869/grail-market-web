@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   billingLabel,
@@ -32,7 +32,6 @@ import { MemberTimeline } from "../../components/MemberTimeline";
 import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
 import {
-  ActionBar,
   Avatar,
   Badge,
   Card,
@@ -45,6 +44,7 @@ import {
   Note,
   PageHead,
   Rating,
+  RowMenu,
   Select,
   Toast,
   Toggle,
@@ -52,6 +52,7 @@ import {
 import {
   IconBan,
   IconCheck,
+  IconInfo,
   IconKey,
   IconLock,
   IconMail,
@@ -61,6 +62,7 @@ import {
   IconTag,
   IconX,
 } from "../../components/icons";
+import "../../member-record.css";
 
 /**
  * One person, as a page.
@@ -89,13 +91,13 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
     title: "Revoke marketplace access",
     sub: "The member is signed out everywhere and cannot buy, sell or bid.",
     cta: "Revoke access",
-    cls: "gm-btn--danger",
+    cls: "gm-btn--primary",
   },
   restrict: {
     title: "Restrict this member",
     sub: "Selling and listing are paused. Buying and browsing continue.",
     cta: "Apply restriction",
-    cls: "gm-btn--gold",
+    cls: "gm-btn--primary",
   },
   reinstate: {
     title: "Reinstate this member",
@@ -107,7 +109,7 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
     title: "Reset verification",
     sub: "Their ID check starts again. They cannot buy or sell until it passes.",
     cta: "Reset verification",
-    cls: "gm-btn--gold",
+    cls: "gm-btn--primary",
   },
   "change-plan": {
     title: "Change plan",
@@ -119,7 +121,7 @@ const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls
     title: "Suspend this admin account",
     sub: "Their sessions end and every scope is withdrawn until a lead restores it.",
     cta: "Suspend account",
-    cls: "gm-btn--danger",
+    cls: "gm-btn--primary",
   },
 };
 
@@ -130,63 +132,76 @@ const ROLE_LABEL: Record<string, string> = {
   consignor: "Consignor",
 };
 
-/* What the identity panel has to leave for the action bar: the bar is 82 tall,
-   sticky at the foot of the window, and paints over whatever is under it. */
-const ASIDE_FOOT = 116;
-
-/* The shortest the panel is allowed to get. Below this it is no longer a
-   record of anything, and a window that small is already on the one-column
-   layout where the panel takes its own height instead. */
-const ASIDE_FLOOR = 240;
+/* The identity panel's height used to be read off the page with
+   `useAsideHeight` — the panel's own `getBoundingClientRect().top` on every
+   scroll and resize, so the card could grow to reach exactly the floor of the
+   window from wherever it happened to start. Asked for instead was one size,
+   set once: the full height the window gives the panel once it is pinned
+   under the topbar, which needs no measurement because it is a constant.
+   `.gm-rec-aside > .gm-card` in parts.css carries the formula now, and there
+   is nothing left here to read the page with. */
 
 /**
- * The height of the identity panel, measured rather than assumed.
+ * The text behind the info button beside the standing actions: what revoking
+ * does, on demand rather than as a card of its own on the page.
  *
- * `.gm-rec-aside` is sticky under the topbar and the CSS sized it from that
- * offset — window, less topbar, less the action bar. That is right only once
- * the page head has scrolled away. At the top of the record the panel is
- * still in flow below that head, so it started ~140px lower than the sum
- * allowed for and ran the same distance past the bottom of the window: its
- * last two figures behind the action bar, and a scrollbar inside a card that
- * had room going spare.
- *
- * Measuring from the panel's own `top` is right in both states — the box
- * grows as the head scrolls out from above it and stops at the floor of the
- * window either way — and it is the only way to be right, since the head is
- * not a constant CSS could be told: the name wraps, the record loads, the
- * moderator note appears above the grid. Reading the panel's `top` cannot
- * feed back into it, because the box is top-aligned: its height is what
- * changes, never where it starts.
- *
- * `--gm-zoom` is divided back out for the reason every other measurement
- * against the window in this console divides it out — `:root` carries a zoom
- * above 1600 and a client rectangle is reported after it.
+ * It used to be a `Card` in the main column, which meant reading it cost a
+ * whole panel's worth of scroll whether or not you needed reminding — and it
+ * said the same thing on every record, so it was the one card on the page
+ * that never changed. A popover is closer to what it actually is: a footnote
+ * to the Revoke action, open only when asked for.
  */
-function useAsideHeight(ref: React.RefObject<HTMLElement | null>) {
-  const measure = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const zoom = Number(getComputedStyle(el).getPropertyValue("--gm-zoom")) || 1;
-    const free = (window.innerHeight - el.getBoundingClientRect().top) / zoom - ASIDE_FOOT;
-    el.style.setProperty("--rec-aside-h", `${Math.round(Math.max(ASIDE_FLOOR, free))}px`);
-  }, [ref]);
+function RevokeInfoButton() {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement | null>(null);
 
+  /* Closed by anything outside it, the same as every other popover in this
+     console — a click on the page behind it, or Escape, neither of which
+     should need a second click on the button that opened it. */
   useEffect(() => {
-    measure();
-    window.addEventListener("scroll", measure, { passive: true });
-    window.addEventListener("resize", measure);
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("scroll", measure);
-      window.removeEventListener("resize", measure);
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
     };
-  }, [measure]);
+  }, [open]);
 
-  /* No dependency list, deliberately. What moves this panel is the height of
-     everything above it, and none of that is a value this component holds —
-     it is the head, the note that is there on a restricted account and not on
-     any other, and the fonts once they land. One rectangle read per render on
-     a page that renders when somebody clicks something. */
-  useEffect(measure);
+  return (
+    <div className="gm-revokeinfo" ref={wrap}>
+      <button
+        type="button"
+        className="gm-btn gm-btn--ghost gm-btn--icon gm-btn--sm"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="What revoking does"
+        aria-label="What revoking does"
+      >
+        <IconInfo />
+      </button>
+      {open ? (
+        <div className="gm-revokeinfo-pop" role="note">
+          <ul className="gm-sm gm-muted">
+            <li>Every session ends and sign-in is blocked.</li>
+            <li>Live listings are pulled and open offers cancelled.</li>
+            <li>Messaging closes, including threads already open with other members.</li>
+            <li>
+              Trades already agreed are between the two members. No money passed through us, so
+              there is nothing here to unwind. Both sides are told the account is closed.
+            </li>
+            <li>The member is emailed the reason recorded at the time.</li>
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function MemberRecord() {
@@ -196,9 +211,6 @@ function MemberRecord() {
      marketplace member are two different records with two different sets of
      levers, and the id alone does not say which one this is. */
   const team = params.get("scope") === "team";
-
-  const aside = useRef<HTMLElement | null>(null);
-  useAsideHeight(aside);
 
   const { role: viewerRole, me } = useRole();
   /* "No billing, no ID" is the moderator's line in the roles table, and it is
@@ -434,10 +446,9 @@ function MemberRecord() {
             {action === "revoke" || action === "suspend" ? <IconBan /> : <IconCheck />}
             {action ? ACTION_COPY[action].cta : ""}
           </button>
-          <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setAction(null)}>
+          <button type="button" className="gm-btn" onClick={() => setAction(null)}>
             Cancel
           </button>
-          <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
         </>
       }
     >
@@ -624,7 +635,27 @@ function MemberRecord() {
           title={staff.name}
           sub={staff.title}
           back={back}
-          right={<MemberBadge status={staff.status} />}
+          right={
+            <div className="gm-rec-actions">
+              <MemberBadge status={staff.status} />
+              {staff.status === "active" ? (
+                <button
+                  type="button"
+                  className="gm-btn gm-btn--primary"
+                  onClick={() => startAction("suspend")}
+                  /* The one thing the old action bar's note said, kept as a
+                     tooltip now there is only one button to hang it on rather
+                     than a bar's width to print it across. */
+                  title="Changing what an account can reach is done under Settings, Team and access"
+                >
+                  <IconBan />
+                  Suspend account
+                </button>
+              ) : (
+                <span className="gm-sm gm-muted">This account is already restricted.</span>
+              )}
+            </div>
+          }
         />
 
         <div className="gm-stack">
@@ -657,21 +688,6 @@ function MemberRecord() {
               </CardBody>
             </Card>
           </div>
-
-          <ActionBar note="Changing what an account can reach is done under Settings, Team and access">
-            {staff.status === "active" ? (
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => startAction("suspend")}
-              >
-                <IconBan />
-                Suspend account
-              </button>
-            ) : (
-              <span className="gm-sm gm-muted">This account is already restricted.</span>
-            )}
-          </ActionBar>
         </div>
 
         {actionModal}
@@ -699,6 +715,95 @@ function MemberRecord() {
     </div>
   );
 
+  /* Reading a record and changing someone's standing are different
+     permissions. A moderator gets the first and not the second, and gets
+     told so in place of the buttons rather than a row of disabled ones. */
+  const readOnlyNote = (
+    <span className="gm-sm gm-muted">
+      Read only. Changing standing, plan or verification is Trust and safety.
+    </span>
+  );
+
+  /* The standing levers, once a row of up to five buttons at the foot of the
+     page. The single next step is a plain button — reinstate, lift the
+     restriction, or restrict — Message rides beside it since writing to the
+     member is nearly as common a follow-up, and change plan, reset
+     verification and revoke go behind `RowMenu` rather than growing the row
+     forever. The info button beside the menu is "what revoking does": it
+     used to be a card of its own the whole way down the page; now it is a
+     footnote to the one action it explains, open only when asked for. */
+  const recActions = (
+    <div className="gm-rec-actions">
+      {live.status === "revoked" ? (
+        <>
+          <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
+            <IconMail />
+            Message
+          </button>
+          <button
+            type="button"
+            className="gm-btn gm-btn--primary"
+            onClick={() => startAction("reinstate")}
+          >
+            <IconCheck />
+            Reinstate access
+          </button>
+        </>
+      ) : (
+        <>
+          <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
+            <IconMail />
+            Message
+          </button>
+          {live.status !== "restricted" ? (
+            <button
+              type="button"
+              className="gm-btn gm-btn--primary"
+              onClick={() => startAction("restrict")}
+            >
+              <IconLock />
+              Restrict selling
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="gm-btn gm-btn--primary"
+              onClick={() => startAction("reinstate")}
+            >
+              <IconCheck />
+              Lift restriction
+            </button>
+          )}
+          <RowMenu
+            label={`More actions for ${live.handle}`}
+            actions={[
+              {
+                key: "change-plan",
+                label: "Change plan",
+                icon: <IconKey />,
+                onClick: () => startAction("change-plan"),
+              },
+              {
+                key: "reset-verification",
+                label: "Reset verification",
+                icon: <IconRefresh />,
+                onClick: () => startAction("reset-verification"),
+              },
+              {
+                key: "revoke",
+                label: "Revoke access",
+                icon: <IconBan />,
+                onClick: () => startAction("revoke"),
+                tone: "danger",
+              },
+            ]}
+          />
+          <RevokeInfoButton />
+        </>
+      )}
+    </div>
+  );
+
   /* ============================================== a marketplace member */
   return (
     <>
@@ -709,10 +814,18 @@ function MemberRecord() {
           The name and the handle went the same way, and for a second reason.
           They were printed here and printed again sixty pixels lower on the
           identity card, and the copy up here cost 75px of head that the panel
-          below it could not use — which is what put the panel's own foot
-          behind the action bar and a scrollbar inside a card that had the
-          record to show. The heading is the name on the card now. */}
-      <PageHead back={back} />
+          below it could not use — height the panel is sized against now that
+          it is a constant rather than a figure read off the page. The
+          heading is the name on the card now.
+
+          What is up here instead is the standing actions. They were a row of
+          up to five buttons at the foot of the page, sticky and full width;
+          asked for as a line at the top instead, with the single most likely
+          next step as a plain button, Message beside it, and the rest —
+          change plan, reset verification, revoke — behind `RowMenu` so the
+          row stays one line rather than growing a sixth button every time
+          the record gains another lever. */}
+      <PageHead back={back} right={canAct ? recActions : readOnlyNote} />
 
       <div className="gm-stack">
         {live.note ? (
@@ -723,7 +836,7 @@ function MemberRecord() {
 
         <div className="gm-rec">
           {/* ------------------------------------------- who this is */}
-          <aside className="gm-rec-aside" ref={aside}>
+          <aside className="gm-rec-aside">
             <Card>
               <div className="gm-idcard">
                 <div className="gm-idcard-band" aria-hidden />
@@ -966,7 +1079,7 @@ function MemberRecord() {
               </datalist>
               <button
                 type="button"
-                className="gm-btn gm-btn--sm"
+                className="gm-btn gm-btn--sm gm-btn--primary"
                 onClick={addTag}
                 disabled={!tagDraft.trim()}
               >
@@ -1006,109 +1119,8 @@ function MemberRecord() {
             </div>
           </div>
         </MemberTimeline>
-
-        <Card>
-          <CardHead title="What revoking does" sub="So it is clear before you use it" />
-          <CardBody>
-            <ul
-              style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 7 }}
-              className="gm-sm gm-muted"
-            >
-              <li>Every session ends and sign-in is blocked.</li>
-              <li>Live listings are pulled and open offers cancelled.</li>
-              <li>Messaging closes, including threads already open with other members.</li>
-              <li>
-                Trades already agreed are between the two members. No money passed through us, so
-                there is nothing here to unwind. Both sides are told the account is closed.
-              </li>
-              <li>The member is emailed the reason recorded at the time.</li>
-            </ul>
-          </CardBody>
-        </Card>
           </div>
         </div>
-
-        {/* --------------------------------------------------- the levers
-
-            Still full width and still the last thing on the page, rather than
-            a set of buttons inside the panel. The bar is sticky and the panel
-            has a ceiling: a lever pinned inside a box that can scroll is a
-            lever that can be scrolled out of reach, which is the one thing an
-            action bar must never do. */}
-        <ActionBar
-          note={
-            canAct ? "Every action here is written to the audit log" : undefined
-          }
-        >
-          {/* Reading a record and changing someone's standing are different
-              permissions. A moderator gets the first and not the second. */}
-          {!canAct ? (
-            <span className="gm-sm gm-muted">
-              Read only. Changing standing, plan or verification is Trust and safety.
-            </span>
-          ) : live.status === "revoked" ? (
-            <>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                onClick={() => startAction("reinstate")}
-              >
-                <IconCheck />
-                Reinstate access
-              </button>
-              <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
-                <IconMail />
-                Message
-              </button>
-            </>
-          ) : (
-            <>
-              {live.status !== "restricted" ? (
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--gold"
-                  onClick={() => startAction("restrict")}
-                >
-                  <IconLock />
-                  Restrict selling
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
-                  onClick={() => startAction("reinstate")}
-                >
-                  <IconCheck />
-                  Lift restriction
-                </button>
-              )}
-              <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
-                <IconMail />
-                Message
-              </button>
-              <button type="button" className="gm-btn" onClick={() => startAction("change-plan")}>
-                <IconKey />
-                Change plan
-              </button>
-              <button
-                type="button"
-                className="gm-btn"
-                onClick={() => startAction("reset-verification")}
-              >
-                <IconRefresh />
-                Reset verification
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => startAction("revoke")}
-              >
-                <IconBan />
-                Revoke access
-              </button>
-            </>
-          )}
-        </ActionBar>
       </div>
 
       {actionModal}
@@ -1132,12 +1144,11 @@ function MemberRecord() {
             </button>
             <button
               type="button"
-              className="gm-btn gm-btn--ghost"
+              className="gm-btn"
               onClick={() => setComposing(false)}
             >
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Logged against this record</span>
           </>
         }
       >

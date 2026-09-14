@@ -419,7 +419,7 @@ function DashboardPage() {
             title="Awaiting review"
             sub="Sorted by time left rather than by value. Decide on the row."
             right={
-              <Link href="/admin/listings" className="gm-btn gm-btn--sm">
+              <Link href="/admin/listings" className="gm-btn gm-btn--sm gm-btn--primary">
                 All {queue.length}
                 <IconArrowRight />
               </Link>
@@ -585,7 +585,7 @@ function DashboardPage() {
           <CardHead
             title="Members"
             right={
-              <Link href="/admin/members" className="gm-btn gm-btn--sm">
+              <Link href="/admin/members" className="gm-btn gm-btn--sm gm-btn--primary">
                 Directory
                 <IconArrowRight />
               </Link>
@@ -639,17 +639,16 @@ function DashboardPage() {
           <>
             <button
               type="button"
-              className="gm-btn gm-btn--danger"
+              className="gm-btn gm-btn--primary"
               disabled={reason.trim().length < 8}
               onClick={confirmReject}
             >
               <IconXCircle />
               Reject and notify
             </button>
-            <button type="button" className="gm-btn gm-btn--ghost" onClick={() => setRejecting(null)}>
+            <button type="button" className="gm-btn" onClick={() => setRejecting(null)}>
               Cancel
             </button>
-            <span className="gm-spacer gm-tiny gm-dim">Written to the audit log</span>
           </>
         }
       >

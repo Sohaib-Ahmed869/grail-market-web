@@ -160,15 +160,12 @@ function AuditPage() {
 
   return (
     <>
+      {/* Export moved out of here, into the card head's right-hand cluster
+          beside the filter it exports the result of — this page has no
+          primary action left to sit here on its own. */}
       <PageHead
         title="Audit Log"
         sub="Who approved, rejected, restricted, comped or escalated, and when. Nothing here can be edited or deleted by anyone."
-        right={
-          <button type="button" className="gm-btn" onClick={exportRows} disabled={rows.length === 0}>
-            <IconDownload />
-            Export
-          </button>
-        }
       />
 
       <div className="gm-stack">
@@ -186,6 +183,7 @@ function AuditPage() {
               board: the heading names what is shown, its subtitle spells out
               what is applied, and the control sits beside it. This page used
               to carry a bar of four bare dropdowns of its own. */}
+          {/* Search, filter and export cluster on the right, as asked. */}
           <CardHead
             title="Entries"
             sub={
@@ -244,6 +242,15 @@ function AuditPage() {
                     },
                   ]}
                 />
+                <button
+                  type="button"
+                  className="gm-btn gm-btn--primary"
+                  onClick={exportRows}
+                  disabled={rows.length === 0}
+                >
+                  <IconDownload />
+                  Export
+                </button>
               </div>
             }
           />

@@ -1,0 +1,71 @@
+/* ==========================================================================
+   CONDUCT CASE RECORD — decluttering the four facts and the two accounts
+
+   Three things were asked for, all in the same direction: less to read
+   before you get to the case itself. The four small facts (opened, running,
+   trade value, prior cases) went from a two-by-two block to one line, so
+   they read as a strip rather than a section. The buyer's account and the
+   seller's stopped being two boxes side by side — each with its own border
+   and shadow, which read as two cards even though they answer one question
+   — and now share a single card, told apart by a heading and a rule rather
+   than a second frame. And the actions moved off a sticky foot bar (this
+   page had asked elsewhere for those to go) up to a single primary button
+   plus a `RowMenu` for the rest, which sits at the top of the page instead
+   of listing every action before you have read what the case is.
+   ========================================================================== */
+
+/* `.gm-metagrid` stays a two-column grid everywhere else it is used (the
+   board's own case cards, at ~260px). This page has the width for all four
+   in one row, so the row variant states its own column count rather than
+   changing the shared one. */
+.gm-metagrid--row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 620px) {
+  .gm-metagrid--row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.gm-claims {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 760px) {
+  .gm-claims {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.gm-claim {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gm-claim h4 {
+  margin: 0 0 9px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+/* The divider between the two accounts turns from a vertical rule to a
+   horizontal one once they stack, so there is always something marking
+   where the buyer's claim ends and the seller's starts. */
+.gm-claim + .gm-claim {
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
+}
+
+@media (max-width: 760px) {
+  .gm-claim + .gm-claim {
+    border-left: none;
+    padding-left: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+}

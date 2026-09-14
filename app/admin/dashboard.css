@@ -56,28 +56,52 @@
    What is left is the part that earns its height on a page whose whole
    promise is that it fits: what day it is, and who is reading.
 
+   The date sits to the right of the line rather than above it, and the
+   heading is the thing the row is for — asked to read as the most prominent
+   word on the page, so it is sized well past the biggest figure in the grid
+   below it (the members count, 29px) rather than beside it. `order` moves
+   the date without touching the markup: it stays first in the DOM, so a
+   screen reader still hears the day before the greeting, and only the
+   painted position changes. `align-items: baseline` is what keeps a caption
+   this much smaller sitting on the heading's own text line instead of
+   floating in the middle of its height.
+
    The line is two weights of one size. "Welcome back," is the page's ink and
    the name is three steps lighter, so the sentence reads as one thing with
    the person picked out of it rather than as a label and a value. The heading
    is `h2` because `h1` is the shell's, and it is sentence case like every
-   other string in this console. */
+   other string in this console.
+
+   On a phone the two no longer fit one line: the heading's own text is
+   nowrap, so a name long enough to matter would otherwise squeeze the date
+   into a sliver rather than give way to it. `flex-wrap` lets the date drop
+   to a line of its own instead — the heading still gets the full width first,
+   and nothing is asked to overflow it to make room for a caption. */
 .gm-dash-hello {
   flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: 14px;
+  row-gap: 2px;
   min-width: 0;
 }
 
 .gm-dash-date {
+  order: 2;
+  flex: none;
+  white-space: nowrap;
   font-size: 11.8px;
   font-weight: 550;
   color: var(--ink-4);
 }
 
 .gm-dash-hello h2 {
+  order: 1;
   margin: 0;
-  font-size: 19px;
+  min-width: 0;
+  font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -89,7 +113,7 @@
 
 /* The name carries the console's navy gradient — the same fill as a selected
    sidebar row and a primary button — asked for by name. `CLAUDE.md` said no
-   gradient text, and this is the exception it now records: one word, at 19px
+   gradient text, and this is the exception it now records: one word, at 32px
    and weight 600, which is heavy enough to hold a ramp without it turning
    into fringing on the strokes.
 
@@ -519,12 +543,27 @@
 }
 
 .gm-dash-queuebody .gm-slab--sm {
-  width: 26px;
-  height: 37px;
+  width: 30px;
+  height: 43px;
+}
+
+/* `--tight` has exactly one table on the console — this one — but the rule
+   that shrinks its slab lives in admin.css beside the rest of `--tight`, and
+   it scales every slab down by 0.82 and pulls it 8px toward the text on top
+   of the size set above. Two shrinks stacked into one: the slab read as
+   squashed and the text ran straight into its corner with no gap at all.
+   Cancelled here, so the size above is the only reduction and the text keeps
+   the flex gap below rather than losing it to a negative margin.
+
+   Margin-right added to create breathing room between the card picture and
+   adjacent text. */
+.gm-dash-queuebody .gm-table--tight .gm-slab {
+  transform: none;
+  margin-right: 8px;
 }
 
 .gm-dash-queuebody .gm-cell-user {
-  gap: 8px;
+  gap: 9px;
 }
 
 .gm-dash-queuebody .gm-cell2 {
@@ -824,7 +863,7 @@
    file. 1600 is deliberately not one of them: at `zoom: 1.1` a 1600 window is
    1454 layout pixels, which is a 1440 desktop with no room to spare. */
 @media (min-width: 1900px) {
-  .gm-dash-hello h2 { font-size: 22px; }
+  .gm-dash-hello h2 { font-size: 38px; }
   .gm-dash3 .gm-card-head h3 { font-size: 16px; }
   .gm-dash-rev .gm-money-value { font-size: 27px; }
   .gm-dash-weekvalue { font-size: 29px; }
@@ -842,7 +881,7 @@
 }
 
 @media (min-width: 2300px) {
-  .gm-dash-hello h2 { font-size: 26px; }
+  .gm-dash-hello h2 { font-size: 44px; }
   .gm-dash3 .gm-card-head h3 { font-size: 18px; }
   .gm-dash3 .gm-card-head p { font-size: 13px; }
   .gm-dash-rev .gm-money-value { font-size: 32px; }

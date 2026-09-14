@@ -1,0 +1,178 @@
+/* reports-print.css — the reports page's own print stylesheet.
+ *
+ * Imported once, from app/admin/reports/page.tsx, the same way
+ * dashboard.css belongs to the dashboard alone: nothing else renders the
+ * markup these rules key off, so nothing else should pay for it.
+ *
+ * The export itself has no library behind it — the owner's cap on runtime
+ * dependencies rules out jsPDF, html2canvas and the rest. `page.tsx`'s
+ * `exportPdf` sets a useful `document.title` and calls the browser's own
+ * `window.print()`; everything below is a plain `@media print` block that
+ * reshapes the SAME dom for paper. The current theme is whatever the
+ * console is already drawing — light or dark — because nothing here forces
+ * one: "as in the admin portal" means printing what is on screen, not a
+ * third look of the page's own.
+ *
+ * Every rule that hides or reshapes chrome is scoped under
+ * `.gm:has(.gm-reportsprint)` rather than firing on `.gm-side` or `.gm-top`
+ * bare. Next only ships this file to the reports route, but a client-side
+ * navigation away from it does not always drop a route's stylesheet the
+ * instant the route changes, and a stray rule that hides the sidebar on
+ * every page it happens to still be attached to would be a much stranger
+ * bug to chase than the one extra selector costs here. `.gm-reportsprint`
+ * is the marker `page.tsx` renders as part of its own print header, so the
+ * scope is only ever live while this page's markup actually is.
+ */
+
+@page {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+/* The printed stand-in for PageHead — see the comment beside it in
+   page.tsx. Built once, shown only under the print media block below, so
+   there is nothing to keep in step with a second copy of the same markup. */
+.gm-print-header {
+  display: none;
+}
+
+@media print {
+  /* Colour is the report — the gold ring, the navy header band, the GMV
+     bars are drawn with `--grad-navy`/`--grad-gold` fills the CLAUDE.md
+     rules call structural, not decorative. Left alone, a browser's default
+     print behaviour is to drop backgrounds to save ink, which would print
+     three empty outlines where the rings and the bars were. */
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* The zoom ladder in admin.css keys off viewport width to scale the whole
+     console up on a wide monitor. A printed page has no monitor width to
+     read — and `useWidth` (see ui.tsx) already divides the live zoom back
+     out of anything it measures, so a zoom left over from the screen the
+     operator printed from would just be a number the charts no longer
+     agree with. Both halves of the pair reset together, same as the ladder
+     itself sets them. */
+  :root {
+    zoom: 1 !important;
+  }
+
+  .gm {
+    --gm-zoom: 1 !important;
+  }
+
+  .gm:has(.gm-reportsprint) {
+    /* `.gm-shell::before` paints the page's ambient gold wash — see
+       CLAUDE.md's note that the page itself is never `--paper`, only the
+       cool grey under that wash. On paper there is no ambient anything, and
+       a `position: fixed` layer has to be repainted per printed page. */
+    background: none;
+  }
+
+  .gm:has(.gm-reportsprint) .gm-shell::before {
+    display: none;
+  }
+
+  /* Chrome: the icon rail and panel, the topbar, and anything mounted
+     through the shared overlays host — toasts, the period select's own
+     dropdown if it happened to be open, a confirmation modal. None of it
+     is the report. */
+  .gm:has(.gm-reportsprint) .gm-side,
+  .gm:has(.gm-reportsprint) .gm-top,
+  .gm:has(.gm-reportsprint) #gm-overlays {
+    display: none !important;
+  }
+
+  /* The on-screen head is a period picker and two export buttons; neither
+     means anything once the page is on paper, and `.gm-print-header` above
+     stands in for what it says. */
+  .gm:has(.gm-reportsprint) .gm-page-head {
+    display: none;
+  }
+
+  .gm-print-header {
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  .gm-print-header h1 {
+    margin: 0 0 2px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .gm-print-header p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+
+  /* `.gm-shell` is a two-column grid sized for the sidebar. Hiding the
+     sidebar item above does not collapse its track — a grid keeps every
+     column it was told about whether or not anything sits in it — so left
+     alone the report would print squeezed into what used to be the content
+     column, with a blank sidebar-shaped margin beside it. Falling back to a
+     single block lets the one remaining child take the full printed page. */
+  .gm:has(.gm-reportsprint) .gm-shell {
+    display: block;
+    min-height: 0;
+  }
+
+  .gm:has(.gm-reportsprint) .gm-main {
+    display: block;
+  }
+
+  .gm:has(.gm-reportsprint) .gm-content {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    /* `.gm-content` plays a rise-in animation on every mount, ending at
+       `transform: none` — see the `gm-rise` keyframes in admin.css. Printing
+       mid-mount is not a real path, but resetting both here costs nothing
+       and means a print triggered awkwardly can never catch it half-risen. */
+    animation: none;
+    transform: none;
+  }
+
+  /* The grid itself keeps its shape rather than gaining a print-only one.
+     A4 landscape at this page's 12mm margin prints a ~1032px-wide box,
+     which already sits inside the `max-width: 1240px` band `.gm-bento`
+     falls back to two columns under on screen — so the panels line up the
+     same way a laptop already shows them, not a fourth arrangement invented
+     for paper. The wide GMV panel still spans both of those two columns. */
+  .gm:has(.gm-reportsprint) .gm-bento {
+    gap: 12px;
+  }
+
+  .gm:has(.gm-reportsprint) .gm-card {
+    /* A panel split across a page break reads as two unrelated fragments,
+       so it stays whole and moves to the next page instead. */
+    break-inside: avoid;
+    /* `--sh-2` is a soft blur meant to lift a card off the screen it is
+       glowing against; a printer has no such surface to fake, and the same
+       blur comes out on paper as a flat grey smear round every card. The
+       border (`--line`, on `.gm-card` itself) is left alone — it is what
+       reads as a drawn rectangle once the shadow that used to do the same
+       job on screen is gone. */
+    box-shadow: none !important;
+  }
+
+  /* Every chart on this page measures its own width off a ResizeObserver on
+     its container (`useWidth` in ui.tsx) rather than off `window`, which is
+     what lets it live in the render path at all. Switching to the print
+     stylesheet changes that container's box — the sidebar and topbar drop
+     out, `.gm-content` goes full width — and Chromium's print pipeline (the
+     browser this console is verified against, see CLAUDE.md §9) keeps the
+     document live while it lays out the print target, so the observer fires
+     again and the SVGs redraw at the new width before the page is
+     rasterised. Nothing here pins a container width to force that: the
+     alternative is to fight the grid back down to whatever width the
+     screen happened to be at, which would fit less onto the printed page
+     for no gain. The known gap is engines that snapshot the print layout
+     without giving a pending ResizeObserver callback a turn first — there
+     the chart would carry over its last on-screen width, which can crop a
+     wide chart or leave a narrow one small rather than mis-drawing it. */
+}
