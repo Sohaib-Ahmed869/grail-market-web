@@ -45,7 +45,7 @@ import {
   IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
-import { Button } from "../components/Button";
+import { Button, buttonClass } from "../components/Button";
 import { TextField } from "../components/Field";
 
 type Tab = "plans" | "boosts" | "billing";
@@ -275,7 +275,7 @@ function PricingPage() {
         }
         right={
           <>
-            <a className="gm-btn" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
+            <a className={buttonClass()} href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">
               <IconExternal />
               Stripe
             </a>
@@ -652,11 +652,7 @@ function PricingPage() {
                           and only when the API can reach Stripe. A control
                           that cannot work is worse than one that is absent. */}
                       {canEditPlans ? (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => startEdit(p)}
-                        >
+                        <Button variant="primary" onClick={() => startEdit(p)}>
                           <IconTag />
                           Edit at Stripe
                         </Button>
@@ -866,7 +862,6 @@ function PricingPage() {
                         <div className="gm-person-foot">
                           <Button
                             variant="primary"
-                            size="sm"
                             className="gm-spacer"
                             disabled={busy}
                             onClick={() =>

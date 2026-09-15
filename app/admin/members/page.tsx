@@ -26,7 +26,7 @@ import {
 import { exportCsv } from "../lib/csv";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
-import { Button } from "../components/Button";
+import { Button, buttonClass } from "../components/Button";
 import { TextField, TextArea } from "../components/Field";
 import {
   Avatar,
@@ -580,7 +580,7 @@ function MembersPage() {
                       <div className="gm-person-foot">
                         <span className="gm-tiny gm-dim">{roleLabel(p.role)}</span>
                         <Link
-                          className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                          className={buttonClass({ variant: "primary", className: "gm-spacer" })}
                           href={`/admin/members/${p.id}?scope=team`}
                         >
                           View account
@@ -1003,7 +1003,7 @@ function MembersPage() {
                             its own now, so it can be sent to a colleague and
                             left with the browser's own back. */}
                         <Link
-                          className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                          className={buttonClass({ variant: "primary", className: "gm-spacer" })}
                           href={`/admin/members/${m.id}`}
                         >
                           Open record

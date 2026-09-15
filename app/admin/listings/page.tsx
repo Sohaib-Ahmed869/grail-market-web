@@ -35,7 +35,7 @@ import {
   IconSearch,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
-import { Button } from "../components/Button";
+import { Button, buttonClass } from "../components/Button";
 import { exportCsv } from "../lib/csv";
 
 /**
@@ -393,7 +393,7 @@ function ListingsPage() {
                           {l.seller.handle} · {l.seller.reviews} reviews
                         </span>
                         <Link
-                          className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                          className={buttonClass({ variant: "primary", className: "gm-spacer" })}
                           href={`/admin/listings/${l.id}`}
                         >
                           <IconEye />

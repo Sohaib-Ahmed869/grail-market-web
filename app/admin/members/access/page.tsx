@@ -228,7 +228,6 @@ function AccessPage() {
                   <div className="gm-person-foot">
                     <Button
                       variant="primary"
-                      size="sm"
                       onClick={() => {
                         setScoping(p);
                         setScopeRole(p.role);
@@ -238,7 +237,6 @@ function AccessPage() {
                       Scope
                     </Button>
                     <Button
-                      size="sm"
                       onClick={() => {
                         setRevoking(p);
                         setTeamWhy("");

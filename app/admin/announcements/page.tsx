@@ -636,7 +636,6 @@ function AnnouncementsPage() {
                   <div className="gm-person-foot">
                     <Button
                       variant="primary"
-                      size="sm"
                       className="gm-spacer"
                       onClick={() => pull(a, "cancelled")}
                     >

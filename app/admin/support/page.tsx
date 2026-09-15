@@ -36,7 +36,7 @@ import {
 } from "../components/icons";
 import { Gate } from "../components/Gate";
 import { useRole } from "../components/RoleContext";
-import { Button } from "../components/Button";
+import { Button, buttonClass } from "../components/Button";
 import { TextField, TextArea } from "../components/Field";
 
 /**
@@ -404,7 +404,7 @@ function SupportPage() {
                   <div className="gm-person-foot">
                     <span className="gm-tiny gm-dim">Last reply {dateOnly(t.lastReply)}</span>
                     <Link
-                      className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                      className={buttonClass({ variant: "primary", className: "gm-spacer" })}
                       href={`/admin/support/${t.id}`}
                     >
                       {t.status === "resolved" ? "Open" : "Answer"}

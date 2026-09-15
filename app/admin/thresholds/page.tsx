@@ -260,7 +260,7 @@ function ThresholdsPage() {
               sub="Enforced before it reaches the queue"
               right={
                 canEdit ? (
-                  <Button variant="primary" size="sm" onClick={() => setEditingCarry(true)}>
+                  <Button variant="primary" onClick={() => setEditingCarry(true)}>
                     Edit requirements
                   </Button>
                 ) : null
@@ -303,7 +303,7 @@ function ThresholdsPage() {
               sub="Continuous, non-overlapping amount ranges."
               right={
                 canEdit ? (
-                  <Button variant="primary" size="sm" onClick={() => setEditingTiers(true)}>
+                  <Button variant="primary" onClick={() => setEditingTiers(true)}>
                     Edit thresholds
                   </Button>
                 ) : null

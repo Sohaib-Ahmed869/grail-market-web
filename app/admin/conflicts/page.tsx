@@ -33,7 +33,7 @@ import { ApiError, fetchCases } from "../lib/api";
 import { toConflict } from "../lib/cases";
 import { exportCsv } from "../lib/csv";
 import { Gate } from "../components/Gate";
-import { Button } from "../components/Button";
+import { Button, buttonClass } from "../components/Button";
 
 /** What the case says, from whoever raised it.
  *
@@ -393,13 +393,13 @@ function ConflictsPage() {
                       can be handed to the moderator who should be working it. */}
                   <div className="gm-case-actions">
                     {c.status === "resolved" ? (
-                      <Link className="gm-btn gm-btn--sm gm-btn--primary" href={`/admin/conflicts/${c.id}`}>
+                      <Link className={buttonClass({ variant: "primary" })} href={`/admin/conflicts/${c.id}`}>
                         <IconEye />
                         View details
                       </Link>
                     ) : (
                       <Link
-                        className="gm-btn gm-btn--sm gm-btn--primary"
+                        className={buttonClass({ variant: "primary" })}
                         href={`/admin/conflicts/${c.id}`}
                       >
                         <IconShield />

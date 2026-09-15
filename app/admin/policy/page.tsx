@@ -233,11 +233,7 @@ function PolicyPage() {
               right={
                 <>
                   {canEdit ? (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setEditingPolicy(true)}
-                    >
+                    <Button variant="primary" onClick={() => setEditingPolicy(true)}>
                       Edit policy
                     </Button>
                   ) : null}
