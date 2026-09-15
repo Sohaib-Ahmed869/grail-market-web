@@ -2393,10 +2393,33 @@ function PriceHero({ scan }: { scan: Scan }) {
       <div className="ph-method">
         <div className="ph-method-title label-mono">How this number was reached</div>
         <ol className="ph-method-list">
+          {/* Say what actually happened. This line used to read "Identified the
+              exact printing" on every scan — including one that identified
+              nothing and named the card "Pps" from a logo fragment. */}
           <li>
-            <b>Identified</b> the exact printing
-            {scan.identification?.setName ? ` · ${scan.identification.setName}` : ""}
-            {scan.identification?.localId ? ` #${scan.identification.localId}` : ""}.
+            {scan.identification?.cardId === "described" ? (
+              <>
+                <b>Not identified.</b> No catalogue matched, so we only read
+                {` “${scan.identification.name}” `}off the card. Search for it by name instead.
+              </>
+            ) : scan.identification?.cardId === "llm" ? (
+              <>
+                <b>Named by AI vision</b>{scan.identification.setName ? ` · ${scan.identification.setName}` : ""}.
+                Not confirmed against a catalogue, so no printing or price is asserted.
+              </>
+            ) : (scan.identification as { printingConfirmed?: boolean | null } | null | undefined)
+                ?.printingConfirmed === false ? (
+              <>
+                <b>Named the card</b>, but its printing could not be proven from the card
+                number or the picture, so no price is asserted for it.
+              </>
+            ) : (
+              <>
+                <b>Identified</b> the exact printing
+                {scan.identification?.setName ? ` · ${scan.identification.setName}` : ""}
+                {scan.identification?.localId ? ` #${scan.identification.localId}` : ""}.
+              </>
+            )}
           </li>
           {scan.slab ? (
             <li>
