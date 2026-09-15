@@ -2006,3 +2006,213 @@ button.primary:disabled {
 }
 .quota-ledger-row .mono { font-variant-numeric: tabular-nums; }
 .quota-ledger-note { margin: 6px 0 0; font-size: 10.5px; line-height: 1.45; }
+
+/* ============ SCAN RESULT · same order and wording as the phone ============ */
+
+.scan-head { margin-bottom: 18px; }
+
+.match-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 460px;
+}
+.match-compare figure { margin: 0; min-width: 0; }
+.match-compare img,
+.match-empty {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 0.72;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.match-compare img.is-catalogue { object-fit: contain; }
+.match-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 8px;
+}
+.match-compare figcaption {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.unconfirmed-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 640px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.unconfirmed-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.scan-id { margin-top: 18px; }
+.scan-name {
+  margin: 0;
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.scan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.scan-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+}
+.scan-chip.is-slab {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 50%, transparent);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+
+.ph-note { margin: 14px 0 0; }
+.price-choice { margin-top: 18px; }
+.ph-choice-label { font-size: 10px; letter-spacing: .14em; color: var(--muted); }
+
+.price-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.price-side {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel-2);
+}
+.price-side.is-lead {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel-2));
+}
+.price-side-title { font-size: 15px; font-weight: 700; }
+.price-side-sub { margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.price-side-amount {
+  margin: 10px 0 6px;
+  font-size: clamp(26px, 4.5vw, 36px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.price-side.is-lead .price-side-amount { color: var(--accent); }
+.price-side-amount.is-range { font-size: clamp(22px, 3.6vw, 28px); }
+.price-side .ph-prov { margin-top: 2px; }
+.price-side-why { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.price-side-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+.price-side-facts dt { color: var(--muted); }
+.price-side-facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.price-side-warn { margin: 10px 0 0; font-size: 12px; line-height: 1.45; color: var(--amber); }
+.price-none-note {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.section-title { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+
+.ask-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+.ask-stat .label-mono { font-size: 9.5px; letter-spacing: .14em; color: var(--muted); }
+.ask-stat-value {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ask-stat.is-strong .ask-stat-value { font-size: 20px; color: var(--text); }
+.listing-offers { margin-left: 6px; font-size: 10px; font-weight: 600; color: var(--muted); }
+
+.sale-rows {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.sale-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+.sale-row:last-child { border-bottom: 0; }
+a.sale-row:hover { background: var(--panel-2); }
+.sale-row-body { flex: 1; min-width: 0; }
+.sale-row-price { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sale-note { margin: 0; padding: 10px 14px; }
+.grader-badge {
+  flex: none;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .ask-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .price-side-amount { font-size: 28px; }
+}

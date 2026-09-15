@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { PUBLIC_API_BASE as API } from "../lib/apibase";
 
@@ -65,6 +65,9 @@ type Scan = {
     matchScore: number;
     ocrName: string;
     game?: string;
+    /** false when the name was matched but the printing could not be proven */
+    printingConfirmed?: boolean | null;
+    unconfirmedReason?: string | null;
   } | null;
   ocrNames?: string[] | null;
   summary?: string | null;
@@ -2157,228 +2160,584 @@ function SearchPanel() {
   );
 }
 
-function PriceHero({ scan }: { scan: Scan }) {
+/* ── the card, as the phone shows it ──────────────────────────────────────────
+   Your photograph beside the catalogue's picture. The page is claiming these
+   are the same card, and side by side that claim can be checked at a glance,
+   which is the only check that catches a confident wrong match. Same order as
+   the mobile result screen, so the two products answer a scan the same way. */
+
+const isCatalogueId = (cardId?: string | null) =>
+  Boolean(cardId && cardId !== "llm" && cardId !== "described" && !cardId.startsWith("sport-"));
+
+function ScanHeader({ scan, photo }: { scan: Scan; photo: File | null }) {
+  const id = scan.identification;
+  const [src, setSrc] = useState<string | null>(null);
+  const [mineFailed, setMineFailed] = useState(false);
+  useEffect(() => {
+    setMineFailed(false);
+    if (!photo) { setSrc(null); return; }
+    const url = URL.createObjectURL(photo);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+  const mine = src ?? `${API}/storage/${scan.id}/front_warped.png`;
+  const catalogued = isCatalogueId(id?.cardId);
+  const unconfirmed = !catalogued || id?.printingConfirmed === false;
+
+  return (
+    <section className="scan-head" aria-label="Your card">
+      <div className="match-compare">
+        <figure>
+          {mineFailed ? (
+            <div className="match-empty">No photo</div>
+          ) : (
+            <img src={mine} alt="Your photo of the card" onError={() => setMineFailed(true)} />
+          )}
+          <figcaption>Your picture</figcaption>
+        </figure>
+        <figure>
+          {id?.imageUrl ? (
+            <img className="is-catalogue" src={id.imageUrl} alt={`Catalogue picture of ${id.name}`} loading="lazy" />
+          ) : (
+            <div className="match-empty">No catalogue picture</div>
+          )}
+          <figcaption>
+            Your match{catalogued && id?.matchScore != null ? ` · ${Math.round(id.matchScore * 100)}%` : ""}
+          </figcaption>
+        </figure>
+      </div>
+
+      {/* Why there is no value, said where the match is shown. A blank price
+          with no reason reads as a broken page. */}
+      {id && unconfirmed && (
+        <div className="unconfirmed-note" role="note">
+          <span className="unconfirmed-icon" aria-hidden="true">!</span>
+          <span>
+            {id.game === "sports"
+              ? "Sports cards aren't in a catalogue we can check yet, so no value is asserted for this one. What sellers are asking is shown below as a guide."
+              : id.cardId === "described"
+                ? "No catalogue matched this card, so the name was read off it. No value is asserted. Search for it by name to find the exact card."
+                : id.unconfirmedReason === "name-not-on-card"
+                  ? "We couldn't find this name printed on your card, so it's a best guess from the picture. Check it before relying on it. No value is asserted."
+                  : "We couldn't read the card number or set code, so we can't tell which printing this is. Printings can differ in price by hundreds of dollars, so no value is asserted. What sellers are asking is shown below as a guide."}
+          </span>
+        </div>
+      )}
+
+      <div className="scan-id">
+        <h2 className="scan-name">{id?.name ?? "Unidentified card"}</h2>
+        {id?.nameLocal && id.nameLocal !== id.name && (
+          <div className="ph-name-local" lang="ja">{id.nameLocal}</div>
+        )}
+        <div className="muted small">
+          {[
+            // the set code identifies the set in any language; the local
+            // name alone tells an English reader nothing
+            id?.setId && id.setId !== id.setName ? `${id.setId} · ${id.setName}` : id?.setName,
+            id?.localId ? `#${id.localId}` : null,
+            id?.rarity,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "no catalogue match"}
+        </div>
+        <div className="scan-chips">
+          <span className={`scan-chip${scan.slab ? " is-slab" : ""}`}>
+            {scan.slab ? `Graded by ${scan.slab.company} · ${scan.slab.gradeText}` : "Ungraded"}
+          </span>
+          {scan.slab?.certNumber && <span className="scan-chip">Cert {scan.slab.certNumber}</span>}
+          {id?.game && GAME_LABELS[id.game] && <span className="scan-chip">{GAME_LABELS[id.game]}</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── live asks, fetched once ──────────────────────────────────────────────────
+   The price cards and the Asking Now panel read the SAME call. When each
+   fetched its own, the phone offered a "choice" between our valuation and
+   itself while the actual asking price sat two scrolls away. Kept off the scan
+   response so it does not add latency to the number people are waiting for. */
+
+type Listing = {
+  title: string; price: number | null; currency: string; condition: string | null;
+  imageUrl: string | null; url: string; seller: string | null;
+  sellerFeedbackPct?: number | null; bestOffer?: boolean;
+  grader: string | null; grade: number | null;
+  printing: string | null;
+  ageDays?: number | null;
+  printingMatch?: "match" | "conflict" | "unknown";
+};
+
+type Asks = {
+  listings: Listing[]; total: number; matched?: number; trimmed?: number;
+  filteredToGrade: boolean;
+  medianAsk: number | null; askLow: number | null; askHigh: number | null;
+  printing?: string | null; filteredToPrinting?: boolean;
+  staleCeilingDays?: number | null; cappedByStale?: boolean;
+  /** set when the server refuses a middle figure for this entry */
+  unpriceable?: string;
+};
+type AsksState = { data: Asks | null; state: "loading" | "done" | "error" };
+
+function useLiveAsks(scan: Scan, enabled: boolean): AsksState {
+  const id = scan.identification;
+  const v = scan.valuation;
+  const [data, setData] = useState<Asks | null>(null);
+  const [state, setState] = useState<AsksState["state"]>("loading");
+
+  useEffect(() => {
+    if (!enabled || !id?.name) { setData(null); setState("done"); return; }
+    setState("loading");
+    const q = new URLSearchParams({ name: id.name });
+    if (id.setName && !/^unknown/i.test(id.setName)) q.set("set", id.setName);
+    if (id.localId) q.set("number", id.localId);
+    if (v?.slabGrader) q.set("grader", v.slabGrader);
+    if (v?.slabGrade != null) q.set("grade", String(v.slabGrade));
+    // Narrow to the same printing the valuation used. Without this the panel
+    // and the figure above it disagree, and nothing on screen explains why.
+    if (v?.liveAsk?.printing) q.set("printing", v.liveAsk.printing);
+    // The game and id let the server recognise a sports entry and refuse a
+    // median across a player's base cards, parallels and one-of-ones.
+    if (id.game) q.set("game", id.game);
+    if (isCatalogueId(id.cardId)) q.set("cardId", id.cardId);
+    if (scan.origin?.japaneseTextDetected) q.set("ja", "1");
+    else if (scan.origin?.language === "en") q.set("lang", "en");
+    let alive = true;
+    fetch(`${API}/market/listings?${q}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!alive) return; setData(j); setState("done"); })
+      .catch(() => { if (alive) { setData(null); setState("error"); } });
+    return () => { alive = false; };
+  }, [enabled, id?.name, id?.setName, id?.localId, id?.game, id?.cardId, v?.slabGrader,
+      v?.slabGrade, v?.liveAsk?.printing, scan.origin?.japaneseTextDetected, scan.origin?.language]);
+
+  return { data, state };
+}
+
+/** Whether the middle of the asks describes THIS card, and if not, why.
+ *
+ *  A median is only a price for the card when the listings are all that card.
+ *  When we could not prove the printing, the listings for the name include the
+ *  other printings; for a sports player they include every parallel. The rows
+ *  are still real asks and still shown, as a spread rather than a figure. */
+function asksMedianTrust(scan: Scan, data: Asks | null): { ok: boolean; why: string } {
+  const id = scan.identification;
+  if (data?.unpriceable === "player-in-set" || id?.game === "sports") return { ok: false, why: "sports" };
+  if (data?.unpriceable) return { ok: false, why: "catalogue" };
+  if (!id || !isCatalogueId(id.cardId) || id.printingConfirmed === false) return { ok: false, why: "unconfirmed" };
+  if (scan.valuation?.identificationSuspect) return { ok: false, why: "suspect" };
+  if (scan.slab && !Number.isFinite(slabGradeNum(scan))) return { ok: false, why: "grade" };
+  return { ok: true, why: "thin" };
+}
+
+const RANGE_WHY: Record<string, string> = {
+  sports:
+    "Listings for a player in a set mix base cards, parallels and numbered cards, so this is the spread of what is listed rather than a middle figure that would describe none of them.",
+  unconfirmed:
+    "We couldn't confirm which printing this is, so these listings can include other printings of the same card. Use the spread as a guide, not as this card's price.",
+  suspect:
+    "More than one printing shares this card number, so these listings can mix them. Check the printing before relying on the spread.",
+  grade: "The grade on the label couldn't be read, so these listings span every grade.",
+  catalogue:
+    "Listing titles can't reliably tell this edition apart from others, so there is no middle figure, only the spread.",
+  thin: "Too few listings match this exact card for a middle figure, so this is the spread of what is listed.",
+};
+
+/** Lowest and highest live ask, in US dollars, across the rows returned. */
+function listedRange(data: Asks, fx: FxTable): { low: number; high: number; count: number } | null {
+  const usd = data.listings
+    .map((l) => (l.price == null ? null : convert(l.price, l.currency || "USD", "USD", fx)))
+    .filter((n): n is number => n != null && n > 0);
+  if (usd.length === 0) return null;
+  return { low: Math.min(...usd), high: Math.max(...usd), count: usd.length };
+}
+
+const monthsOf = (days: number) => (days >= 60 ? `${Math.round(days / 30)} months` : `${days} days`);
+
+const dayOf = (iso?: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+};
+
+/* ── the price cards ──────────────────────────────────────────────────────────
+   Up to three answers to different questions, side by side, as on the phone:
+
+     what it sold for      completed sales of this card at this grade
+     what it's worth       our valuation, from sales or the catalogue
+     what people are asking  the live market, which reads high
+
+   A card with no value used to show "n/a" here while real asks for it sat in a
+   panel further down. An ask is not a value and is never labelled as one, but
+   it is the closest honest signal there is, so it takes the empty slot. */
+
+type PriceSides = {
+  ours: number | null;
+  sold: { amount: number; count: number | null; low: number | null; high: number | null; asOf: string | null } | null;
+  asks:
+    | {
+        kind: "median"; amount: number; count: number | null; total: number | null;
+        low: number | null; high: number | null; cappedByStale: boolean;
+        staleCeilingDays: number | null; fromScan: boolean;
+      }
+    | { kind: "range"; low: number; high: number; count: number; why: string }
+    | null;
+  any: boolean;
+  settled: boolean;
+};
+
+function usePriceSides(scan: Scan, pv: PriceView, asks: AsksState): PriceSides {
+  const { fx } = useCurrency();
+  const v = scan.valuation;
+  const n = slabGradeNum(scan);
+  const gradeKey = Number.isFinite(n) ? String(n).replace(/\.0$/, "") : null;
+  const row = scan.slab && gradeKey ? v?.pricesByGrader?.[scan.slab.company]?.[gradeKey] ?? null : null;
+
+  // An identity we could not prove carries no value, even from a response
+  // written before the server learned to withhold one.
+  const provable = isCatalogueId(scan.identification?.cardId) &&
+    scan.identification?.printingConfirmed !== false;
+  const ours = provable && pv.headline != null && !pv.headlineIsAsk ? pv.headline : null;
+
+  // The sale median is the EVIDENCE for our valuation. Where the two agree
+  // they are one claim, so the sales card appears only when they differ.
+  const soldAmount = row ? row.median ?? row.price : null;
+  const sold =
+    ours != null && row && soldAmount != null &&
+    Math.abs(ours - soldAmount) / Math.max(soldAmount, 1) > 0.02
+      ? { amount: soldAmount, count: row.count ?? null, low: row.low ?? null, high: row.high ?? null, asOf: row.asOf ?? null }
+      : null;
+
+  const trust = asksMedianTrust(scan, asks.data);
+  let askSide: PriceSides["asks"] = null;
+  if (pv.headlineIsAsk && pv.headline != null) {
+    // the valuation chain itself settled on the asking market
+    askSide = {
+      kind: "median", amount: pv.headline,
+      count: pv.ask?.count ?? pv.slabPrice?.sampleSize ?? null, total: null,
+      low: pv.ask?.low ?? null, high: pv.ask?.high ?? null,
+      cappedByStale: Boolean(pv.ask?.cappedByStale),
+      staleCeilingDays: pv.ask?.staleCeilingDays ?? null, fromScan: true,
+    };
+  } else if (trust.ok && asks.data?.medianAsk != null) {
+    const d = asks.data;
+    // a figure and itself is not a choice
+    if (ours == null || Math.abs(ours - d.medianAsk!) >= 0.01) {
+      askSide = {
+        kind: "median", amount: d.medianAsk!, count: d.matched ?? d.listings.length, total: d.total,
+        low: d.askLow, high: d.askHigh, cappedByStale: Boolean(d.cappedByStale),
+        staleCeilingDays: d.staleCeilingDays ?? null, fromScan: false,
+      };
+    }
+  } else if (ours == null && asks.data) {
+    const r = listedRange(asks.data, fx);
+    if (r) askSide = { kind: "range", ...r, why: RANGE_WHY[trust.why] ?? RANGE_WHY.thin };
+  }
+
+  return {
+    ours, sold, asks: askSide,
+    any: ours != null || sold != null || askSide != null,
+    settled: asks.state !== "loading",
+  };
+}
+
+/** Why the valuation chain fell back to the asks, in the reader's terms. */
+function askFallbackWhy(scan: Scan, pv: PriceView): string {
+  const a = pv.ask;
+  const lead = a?.raw
+    ? `This is the ${a.printing ?? "special"} printing, which the catalogue price does not cover. That quotes the base print of the same card number.`
+    : pv.slabPrice?.basis === "ask-over-suspect-sale"
+      ? "We do hold completed sales at this grade, but they price it below the grade beneath it. That cannot be right, so this uses the live market for this exact grader and grade instead."
+      : `We hold no completed sales for a ${[a?.grader ?? scan.slab?.company, a?.grade].filter((x) => x != null).join(" ")}${a?.printing ? ` ${a.printing}` : ""} copy of this card.`;
+  return `${lead} This is what sellers are asking today, not what one sold for. Sold prices usually land below the asks.`;
+}
+
+function PriceSideCard({
+  title, sub, amount, range, lead, badge, why, facts = [], warn,
+}: {
+  title: string;
+  sub?: ReactNode;
+  amount: ReactNode;
+  range?: boolean;
+  lead?: boolean;
+  badge?: ReactNode;
+  why?: ReactNode;
+  facts?: ([string, ReactNode] | null | false)[];
+  warn?: ReactNode;
+}) {
+  const rows = facts.filter((f): f is [string, ReactNode] => Boolean(f));
+  return (
+    <div className={`price-side${lead ? " is-lead" : ""}`}>
+      <div className="price-side-title">{title}</div>
+      {sub && <div className="price-side-sub">{sub}</div>}
+      <div className={`price-side-amount${range ? " is-range" : ""}`}>{amount}</div>
+      {badge && <div className="ph-prov">{badge}</div>}
+      {why && <p className="price-side-why">{why}</p>}
+      {rows.length > 0 && (
+        <dl className="price-side-facts">
+          {rows.map(([k, val]) => (
+            <Fragment key={k}>
+              <dt>{k}</dt>
+              <dd>{val}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+      {warn && <div className="price-side-warn">{warn}</div>}
+    </div>
+  );
+}
+
+function PriceChoice({ scan, pv, sides }: { scan: Scan; pv: PriceView; sides: PriceSides }) {
+  const sp = scan.valuation?.slabPrice ?? null;
+  const count = [sides.sold, sides.ours, sides.asks].filter((x) => x != null).length;
+  if (count === 0) {
+    return sides.settled ? null : (
+      <p className="note ph-note">Checking what sellers are asking for this card…</p>
+    );
+  }
+  const a = sides.asks;
+  const usd = (x: number | null | undefined) => <Money v={x} showSource={false} />;
+
+  return (
+    <div className="price-choice">
+      <div className="label-mono ph-choice-label">
+        {count > 1 ? "Where this number comes from" : "What this card is worth"}
+      </div>
+      <div className="price-sides">
+        {sides.sold && (
+          <PriceSideCard
+            title="What it sold for"
+            sub={
+              sides.sold.count
+                ? `Middle of ${sides.sold.count} completed sale${sides.sold.count === 1 ? "" : "s"} at this grade`
+                : "Completed sales at this grade"
+            }
+            amount={usd(sides.sold.amount)}
+            badge={<span className="badge pass">completed sales</span>}
+            why="The middle price copies of this exact card and grade actually changed hands for, unweighted, exactly what the sales say."
+            facts={[
+              sides.sold.count != null && ["Sales counted", String(sides.sold.count)],
+              sides.sold.low != null && sides.sold.high != null && [
+                "Range", <>{usd(sides.sold.low)} – {usd(sides.sold.high)}</>,
+              ],
+              Boolean(dayOf(sides.sold.asOf)) && ["As of", dayOf(sides.sold.asOf)],
+            ]}
+          />
+        )}
+
+        {sides.ours != null && (
+          <PriceSideCard
+            lead
+            title="What it's worth"
+            sub={pv.headlineLabel}
+            amount={
+              <>
+                <Money v={sides.ours} unit={pv.headlineUnit} showSource={false} />
+                <span className="ph-est-tag">est.</span>
+              </>
+            }
+            badge={
+              <>
+                <span className={`badge ${pv.verified ? "pass" : "warn"}`}>
+                  {pv.verified ? "verified sales" : "estimated"}
+                </span>
+                <span className="muted small">
+                  {pv.source ? SOURCE_LABEL[pv.source] ?? pv.source : "our valuation"}
+                </span>
+              </>
+            }
+            why={sp?.explain && sp.basis !== "observed" ? sp.explain : null}
+            facts={[
+              sp?.sampleSize != null && ["Sales counted", String(sp.sampleSize)],
+              sp?.low != null && sp?.high != null && ["Range", <>{usd(sp.low)} – {usd(sp.high)}</>],
+              Boolean(sp?.confidence) && ["Confidence", String(sp!.confidence)],
+              pv.raw != null && pv.headline !== pv.raw && [
+                "Raw copy", <Money key="raw" v={pv.raw} unit={pv.rawUnit} showSource={false} />,
+              ],
+              pv.headline != null && pv.headlineUnit !== "USD" && [
+                "Quoted in", pv.headlineUnit,
+              ],
+            ]}
+          />
+        )}
+
+        {a?.kind === "median" && (
+          <PriceSideCard
+            lead={sides.ours == null}
+            title="What people are asking"
+            sub={
+              a.fromScan
+                ? pv.headlineLabel
+                : a.cappedByStale
+                  ? "Capped to the cheapest ask nobody has taken"
+                  : "Middle of live listings elsewhere"
+            }
+            amount={
+              <>
+                {usd(a.amount)}
+                <span className="ph-est-tag">asking</span>
+              </>
+            }
+            badge={<span className="badge warn">asking prices</span>}
+            why={
+              a.fromScan
+                ? askFallbackWhy(scan, pv)
+                : "The middle of what sellers want today, not what anyone has paid. Asks run high, because the copies priced at market sell and leave."
+            }
+            facts={[
+              a.count != null && [
+                "From",
+                a.total != null && a.total > a.count
+                  ? `${a.count} of ${a.total} listings`
+                  : `${a.count} listing${a.count === 1 ? "" : "s"}`,
+              ],
+              a.low != null && a.high != null && a.low !== a.high && [
+                "Lowest / highest", <>{usd(a.low)} – {usd(a.high)}</>,
+              ],
+            ]}
+            warn={
+              a.cappedByStale && a.staleCeilingDays != null
+                ? `This is the cheapest ask still standing after ${monthsOf(a.staleCeilingDays)} unsold, so it caps the market rather than describing it. Nobody has paid it.`
+                : null
+            }
+          />
+        )}
+
+        {a?.kind === "range" && (
+          <PriceSideCard
+            lead
+            range
+            title="What people are asking"
+            sub={`Spread of ${a.count} live listing${a.count === 1 ? "" : "s"} elsewhere`}
+            amount={
+              a.low === a.high ? (
+                <>
+                  {usd(a.low)}
+                  <span className="ph-est-tag">asking</span>
+                </>
+              ) : (
+                <>
+                  {usd(a.low)} – {usd(a.high)}
+                  <span className="ph-est-tag">asking</span>
+                </>
+              )
+            }
+            badge={<span className="badge warn">asking prices, not a value</span>}
+            why={a.why}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PriceHero({ scan, asks }: { scan: Scan; asks: AsksState }) {
   const pv = priceView(scan);
   const { code } = useCurrency();
   const { q: quota } = useQuota();
-  const id = scan.identification;
-  const hasAny = pv.headline != null || pv.grades.some((x) => x.value != null);
+  const sides = usePriceSides(scan, pv, asks);
+  const provable = isCatalogueId(scan.identification?.cardId) &&
+    scan.identification?.printingConfirmed !== false;
+  const hasAny = provable && (pv.headline != null || pv.grades.some((x) => x.value != null));
+  const slabNoSales = Boolean(scan.slab) && !pv.slabGradeUnknown && pv.headline == null &&
+    !scan.valuation?.identificationSuspect;
 
   return (
     <section className="price-hero" aria-label="Valuation">
       <div className="ph-top">
-        <div className="ph-id">
-          {id?.imageUrl && <img className="ph-thumb" src={id.imageUrl} alt="" loading="lazy" />}
-          <div className="ph-id-text">
-            <div className="ph-name">{id?.name ?? "Unidentified card"}</div>
-            {id?.nameLocal && id.nameLocal !== id.name && (
-              <div className="ph-name-local" lang="ja">{id.nameLocal}</div>
-            )}
-            <div className="muted small">
-              {[
-                // the set code identifies the set in any language; the local
-                // name alone tells an English reader nothing
-                id?.setId && id.setId !== id.setName ? `${id.setId} · ${id.setName}` : id?.setName,
-                id?.localId ? `#${id.localId}` : null,
-                id?.rarity,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "no catalog match"}
-            </div>
-            {scan.slab && (
-              <span className="ph-slab-chip">
-                {scan.slab.company} {scan.slab.gradeText}
-                {scan.slab.certNumber ? ` · #${scan.slab.certNumber}` : ""}
-              </span>
-            )}
-          </div>
+        <div className="label-mono accent-text">
+          {scan.slab ? `${scan.slab.company} ${scan.slab.gradeText}` : "Ungraded"}
         </div>
         <CurrencyPicker />
       </div>
 
-      {scan.slab && !pv.slabGradeUnknown && pv.headline == null ? (
-        <div className="ph-figure">
-          <div className="label-mono accent-text">No sales data for this grade</div>
-          <div className="ph-price ph-price-none">n/a</div>
-          <p className="muted small" style={{ margin: 0 }}>
-            This is a <b>{scan.slab.company} {scan.slab.gradeText}</b>, and we hold no
-            completed sales for it. Our graded-sales source covers Pokémon only, so cards
-            from other games have no sold comps here yet. The live listings below are real
-            asking prices for this card, which is the closest signal we can honestly give you.
-          </p>
-        </div>
-      ) : pv.slabGradeUnknown ? (
-        <div className="ph-figure">
-          <div className="label-mono accent-text">Grade not readable</div>
-          <div className="ph-price ph-price-none">n/a</div>
-          <p className="muted small" style={{ margin: "0 0 4px" }}>
-            This is a <b>{scan.slab?.company}</b> slab, but the grade on the label
-            couldn&apos;t be read from this photo, so we won&apos;t quote a price for it.
-            A raw price would understate a graded card badly. Pick the grade below to
-            see what it sells for, or re-shoot with the full label in focus.
-          </p>
-        </div>
-      ) : hasAny ? (
-        <>
-          <div className="ph-figure">
-            <div className="label-mono accent-text">
-              {pv.headlineIsAsk
-                ? `CURRENT ASKING PRICE · ${
-                    pv.ask!.grader && pv.ask!.grade != null
-                      ? `${pv.ask!.grader} ${pv.ask!.grade}`
-                      : "UNGRADED"
-                  }${pv.ask!.printing ? ` · ${pv.ask!.printing.toUpperCase()}` : ""}`
-                : `ESTIMATED VALUE${pv.crossGrader ? " · CROSS-GRADER ESTIMATE" : ""}`}
-            </div>
-            <div className="ph-price">
-              <Money v={pv.headline} unit={pv.headlineUnit} showSource={false} />
-              <span className="ph-est-tag">{pv.headlineIsAsk ? "asking" : "est."}</span>
-            </div>
-            {/* The backend works this out and until now nobody could see it.
-                A raw price of $1.70 under a graded market of $145 does not
-                mean a bargain — it means the raw figure belongs to a different
-                card that shares this collector number. Saying so beside the
-                number is the whole point of having noticed. */}
-            {scan.valuation?.identificationSuspect && (
-              <div className="panel" style={{ borderColor: "var(--warn)", margin: "10px 0" }}>
-                <span className="badge warn">check the printing</span>
-                <p className="muted small" style={{ margin: "6px 0 0" }}>
-                  {scan.valuation.identificationSuspect}
-                </p>
-              </div>
-            )}
-            {scan.valuation?.marketNote && (
-              <div className="panel" style={{ borderColor: "var(--warn)", margin: "10px 0" }}>
-                <span className="badge warn">asks and sales disagree</span>
-                <p className="muted small" style={{ margin: "6px 0 0" }}>
-                  {scan.valuation.marketNote}
-                </p>
-              </div>
-            )}
-            <div className="muted small ph-sub">
-              {pv.headlineLabel}
-              {pv.headline != null && (
-                <span className="ph-src-usd">
-                  {" · "}
-                  {formatMoney(pv.headline, pv.headlineUnit)} {pv.headlineUnit}
-                </span>
-              )}
-              {pv.raw != null && pv.headline !== pv.raw && (
-                <>
-                  {" · raw "}
-                  <b style={{ color: "var(--text)" }}>
-                    <Money v={pv.raw} unit={pv.rawUnit} showSource={false} />
-                  </b>
-                </>
-              )}
-            </div>
-            {pv.headlineIsAsk && pv.ask!.low != null && pv.ask!.high != null && (
-              <div className="muted small ph-sub">
-                {"listings run "}
-                <b style={{ color: "var(--text)" }}>
-                  <Money v={pv.ask!.low} unit="USD" showSource={false} />
-                  {" – "}
-                  <Money v={pv.ask!.high} unit="USD" showSource={false} />
-                </b>
-              </div>
-            )}
-            {pv.headlineIsAsk && pv.ask!.cappedByStale && pv.ask!.staleCeiling != null && (
-              <div className="muted small ph-sub">
-                Held down to the cheapest ask that has <b>failed to sell</b>: a copy has
-                been listed at{" "}
-                <b style={{ color: "var(--text)" }}>
-                  <Money v={pv.ask!.staleCeiling} unit="USD" showSource={false} />
-                </b>{" "}
-                for {pv.ask!.staleCeilingDays} days with no buyer, so the market is below
-                that. Asking prices drift upward on their own, because the copies that sell
-                disappear from the listings, and the overpriced ones stay.
-              </div>
-            )}
-            {pv.headlineIsAsk && (pv.ask!.otherPrintings?.length ?? 0) > 0 && (
-              <details className="printing-note">
-                <summary>
-                  {pv.ask!.otherPrintings!.length} other printing
-                  {pv.ask!.otherPrintings!.length === 1 ? "" : "s"} of this card number
-                  {", priced separately rather than averaged in"}
-                </summary>
-                <ul>
-                  {pv.ask!.otherPrintings!.map((o) => (
-                    <li key={o.name}>
-                      <span>{o.name}</span>
-                      <span className="mono">
-                        <Money v={o.low} unit="USD" showSource={false} />
-                        {o.high !== o.low && (
-                          <>
-                            {" – "}
-                            <Money v={o.high} unit="USD" showSource={false} />
-                          </>
-                        )}
-                        <span className="muted"> · {o.count}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="muted">
-                  A card number is not a product. These carry the same number as yours
-                  but are different cards at different prices, so they are excluded from
-                  the figure above rather than averaged into it.
-                </p>
-              </details>
-            )}
-            <div className="ph-prov">
-              {pv.headlineIsAsk ? (
-                <>
-                  <span className="badge warn">asking prices</span>
-                  <span className="muted small">
-                    {pv.ask!.raw ? (
-                      <>
-                        This is the <b>{pv.ask!.printing ?? "special"}</b> printing, which the
-                        catalog price above does not cover. It quotes the base print of the
-                        same card number.
-                      </>
-                    ) : pv.slabPrice?.basis === "ask-over-suspect-sale" ? (
-                      <>
-                        We <b>do</b> hold completed sales at this grade, and they price it
-                        below the grade beneath it. That cannot be right, and it means those
-                        comps are too thin or not all this card. Using the live market for
-                        this exact grader and grade instead.
-                      </>
-                    ) : (
-                      <>
-                        We hold no completed sales for a {pv.ask!.grader} {pv.ask!.grade}
-                        {pv.ask!.printing ? ` ${pv.ask!.printing}` : ""} of this card.
-                      </>
-                    )}{" "}
-                    This is what sellers are asking today, not what one sold for. Sold
-                    prices usually land below the asks.
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className={`badge ${pv.verified ? "pass" : "warn"}`}>
-                    {pv.verified ? "verified sales" : "estimated"}
-                  </span>
-                  <span className="muted small">
-                    {pv.source ? SOURCE_LABEL[pv.source] ?? pv.source : "no pricing source"}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
+      {pv.slabGradeUnknown && (
+        <p className="muted small ph-note">
+          This is a <b>{scan.slab?.company}</b> slab, but the grade on the label
+          couldn&apos;t be read from this photo, so we won&apos;t quote a value for it.
+          A raw price would understate a graded card badly. Pick the grade below to
+          see what it sells for, or re-shoot with the full label in focus.
+        </p>
+      )}
+      {slabNoSales && (
+        <p className="muted small ph-note">
+          This is a <b>{scan.slab!.company} {scan.slab!.gradeText}</b>, and we hold no
+          completed sales for it, so there is no sale price to show.
+          {sides.asks ? " What sellers are asking for this grade is shown instead, labelled as asks." : ""}
+        </p>
+      )}
 
-          <GraderTabs scan={scan} pv={pv} />
-        </>
-      ) : (
-        <div className="ph-empty">
-          <div className="label-mono accent-text">Estimated value</div>
-          <div className="ph-price ph-price-none">n/a</div>
-          <QuotaBanner scan={scan} q={quota} />
-          <p className="muted small" style={{ margin: 0 }}>
-            No market price for this exact card in any feed we reach. The eBay sold
-            links further down are the best pricing that exists for it right now.
+      {/* The backend works this out and until now nobody could see it. A raw
+          price of $1.70 under a graded market of $145 does not mean a bargain —
+          it means the raw figure belongs to a different card that shares this
+          collector number. */}
+      {scan.valuation?.identificationSuspect && (
+        <div className="panel" style={{ borderColor: "var(--amber)", margin: "14px 0 0" }}>
+          <span className="badge warn">check the printing</span>
+          <p className="muted small" style={{ margin: "6px 0 0" }}>
+            {scan.valuation.identificationSuspect}
           </p>
         </div>
       )}
+      {scan.valuation?.marketNote && (
+        <div className="panel" style={{ borderColor: "var(--amber)", margin: "14px 0 0" }}>
+          <span className="badge warn">asks and sales disagree</span>
+          <p className="muted small" style={{ margin: "6px 0 0" }}>
+            {scan.valuation.marketNote}
+          </p>
+        </div>
+      )}
+
+      <PriceChoice scan={scan} pv={pv} sides={sides} />
+
+      {/* Neither source had anything. Say so rather than showing a dash and
+          letting it read as "worthless". */}
+      {!sides.any && sides.settled && (
+        <div className="ph-note">
+          <QuotaBanner scan={scan} q={quota} />
+          <div className="price-none-note">
+            No sale and no live listing for this card at this grade yet, so we are not
+            putting a number on it. A missing price is not a low one.
+          </div>
+        </div>
+      )}
+
+      {pv.headlineIsAsk && (pv.ask?.otherPrintings?.length ?? 0) > 0 && (
+        <details className="printing-note">
+          <summary>
+            {pv.ask!.otherPrintings!.length} other printing
+            {pv.ask!.otherPrintings!.length === 1 ? "" : "s"} of this card number
+            {", priced separately rather than averaged in"}
+          </summary>
+          <ul>
+            {pv.ask!.otherPrintings!.map((o) => (
+              <li key={o.name}>
+                <span>{o.name}</span>
+                <span className="mono">
+                  <Money v={o.low} unit="USD" showSource={false} />
+                  {o.high !== o.low && (
+                    <>
+                      {" – "}
+                      <Money v={o.high} unit="USD" showSource={false} />
+                    </>
+                  )}
+                  <span className="muted"> · {o.count}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted">
+            A card number is not a product. These carry the same number as yours
+            but are different cards at different prices, so they are excluded from
+            the figure above rather than averaged into it.
+          </p>
+        </details>
+      )}
+
+      {hasAny && !slabNoSales && <GraderTabs scan={scan} pv={pv} />}
 
       {pv.crossGrader && (
         <p className="ph-crossnote muted small">
@@ -2405,13 +2764,12 @@ function PriceHero({ scan }: { scan: Scan }) {
             ) : scan.identification?.cardId === "llm" ? (
               <>
                 <b>Named by AI vision</b>{scan.identification.setName ? ` · ${scan.identification.setName}` : ""}.
-                Not confirmed against a catalogue, so no printing or price is asserted.
+                Not confirmed against a catalogue, so no printing or value is asserted.
               </>
-            ) : (scan.identification as { printingConfirmed?: boolean | null } | null | undefined)
-                ?.printingConfirmed === false ? (
+            ) : scan.identification?.printingConfirmed === false ? (
               <>
                 <b>Named the card</b>, but its printing could not be proven from the card
-                number or the picture, so no price is asserted for it.
+                number or the picture, so no value is asserted for it.
               </>
             ) : (
               <>
@@ -2435,19 +2793,32 @@ function PriceHero({ scan }: { scan: Scan }) {
             </li>
           )}
           <li>
-            <b>Priced</b> from{" "}
-            {pv.verified
-              ? "completed sales of this card at this grade"
-              : "a calculated estimate, not recorded sales"}
-            {pv.crossGrader
-              ? `, using the nearest PSA tier because no ${pv.slabCompany} sales data is available to us`
-              : ""}
-            .
+            {sides.ours != null ? (
+              <>
+                <b>Priced</b> from{" "}
+                {pv.verified
+                  ? "completed sales of this card at this grade"
+                  : "a calculated estimate, not recorded sales"}
+                {pv.crossGrader
+                  ? `, using the nearest PSA tier because no ${pv.slabCompany} sales data is available to us`
+                  : ""}
+                .
+              </>
+            ) : sides.asks ? (
+              <>
+                <b>No sale price.</b> What is shown is what sellers are asking on eBay
+                today, labelled as asks. Nobody has paid these.
+              </>
+            ) : (
+              <>
+                <b>Not priced.</b> No sale and no live listing reached us for this card.
+              </>
+            )}
           </li>
         </ol>
         <p className="muted small" style={{ margin: "8px 0 0" }}>
-          Every figure here is an <b>estimate of market value</b>, not an offer or an
-          appraisal. Confirm against the sold listings below before buying or selling.
+          Every figure here is an <b>estimate of market value</b> or a live ask, not an
+          offer or an appraisal. Confirm against the listings below before buying or selling.
         </p>
       </div>
 
@@ -2461,131 +2832,254 @@ function PriceHero({ scan }: { scan: Scan }) {
   );
 }
 
+/* ── confirmed sales ──────────────────────────────────────────────────────────
+   What people actually paid, itemised where the ledger can. A completed sale
+   is evidence; an ask is a hope. They are kept in separate panels on purpose. */
 
-/* ── live listings ───────────────────────────────────────────────────────────
-   Shown in-product rather than as a link out. These are ASKS, not sales: the
-   sold medians above are the authority, and a card listed at $30,000 for eight
-   months is not a $30,000 card. Kept off the scan response so it does not add
-   latency to the number people are waiting for. */
-
-type Listing = {
-  title: string; price: number | null; currency: string; condition: string | null;
-  imageUrl: string | null; url: string; seller: string | null;
-  grader: string | null; grade: number | null;
-  printing: string | null;
-  ageDays?: number | null;
-  printingMatch?: "match" | "conflict" | "unknown";
+type SaleRow = {
+  sale_id: string; price: number | string; currency: string;
+  sold_at: string; source: string; source_url: string | null;
+  grader: string | null; grade: string | null;
+};
+type SalesAnswer = {
+  sales: SaleRow[]; itemised: number; known: number | null;
+  lastSaleAt: string | null; note: string | null;
+  aggregate?: { median: number | null; low: number | null; high: number | null } | null;
+  error?: string;
 };
 
-function LiveListings({ scan }: { scan: Scan }) {
+function GraderBadge({ grader, grade }: { grader?: string | null; grade?: string | number | null }) {
+  return (
+    <span className="grader-badge">
+      {grader ? `${grader}${grade != null && grade !== "" ? ` ${grade}` : ""}` : "RAW"}
+    </span>
+  );
+}
+
+function ConfirmedSales({ scan }: { scan: Scan }) {
   const id = scan.identification;
   const v = scan.valuation;
-  const [data, setData] = useState<{
-    listings: Listing[]; total: number; matched?: number; filteredToGrade: boolean;
-    medianAsk: number | null; askLow: number | null; askHigh: number | null;
-    printing?: string | null; filteredToPrinting?: boolean;
-  } | null>(null);
-  const [state, setState] = useState<"loading" | "done" | "error">("loading");
+  const catalogued = isCatalogueId(id?.cardId) && id?.printingConfirmed !== false;
+  const [sales, setSales] = useState<SalesAnswer | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!id?.name) { setState("done"); return; }
-    const q = new URLSearchParams({ name: id.name });
-    if (id.setName) q.set("set", id.setName);
-    if (id.localId) q.set("number", id.localId);
+    if (!catalogued || !id) { setSales(null); return; }
+    setSales(undefined);
+    const q = new URLSearchParams({ cardId: id.cardId, name: id.name });
     if (v?.slabGrader) q.set("grader", v.slabGrader);
     if (v?.slabGrade != null) q.set("grade", String(v.slabGrade));
-    // Narrow to the same printing the valuation used. Without this the panel
-    // and the figure above it disagree, and nothing on screen explains why.
-    if (v?.liveAsk?.printing) q.set("printing", v.liveAsk.printing);
-    if (scan.origin?.japaneseTextDetected) q.set("ja", "1");
-    else if (scan.origin?.language === "en") q.set("lang", "en");
+    if (id.setName) q.set("set", id.setName);
+    if (id.localId) q.set("number", id.localId);
     let alive = true;
-    fetch(`${API}/market/listings?${q}`)
+    fetch(`${API}/market/sales?${q}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!alive) return; setData(j); setState("done"); })
-      .catch(() => alive && setState("error"));
+      .then((j: SalesAnswer | null) => { if (alive) setSales(j && !j.error ? j : null); })
+      .catch(() => { if (alive) setSales(null); });
     return () => { alive = false; };
-  }, [id?.name, id?.setName, id?.localId, v?.slabGrader, v?.slabGrade,
-      v?.liveAsk?.printing, scan.origin?.japaneseTextDetected]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogued, id?.cardId, id?.name, id?.setName, id?.localId, v?.slabGrader, v?.slabGrade]);
 
-  const listings = data?.listings ?? [];
-  const label = v?.slabGrader && v?.slabGrade != null
-    ? `${v.slabGrader} ${String(v.slabGrade).replace(/\.0$/, "")}`
-    : null;
+  // An older API build has no ledger. That is not "never sold", so say nothing.
+  if (!catalogued || sales === null) return null;
 
   return (
     <div className="panel">
-      <div className="listings-head">
-        <div>
-          <div className="label-mono accent-text">Currently listed</div>
-          <p className="note" style={{ margin: "4px 0 0" }}>
-            Live asking prices on eBay{data?.filteredToGrade && label ? <> for <b>{label}</b> copies</> : null}
-            {data?.filteredToPrinting && data.printing ? <> of the <b>{data.printing}</b> printing</> : null}.
-            These are what sellers <b>want</b>, not what cards <b>sold</b> for. Sold prices
-            usually land below the asks.
+      <h3 className="section-title">Confirmed Sales</h3>
+      <p className="note" style={{ margin: "4px 0 0" }}>
+        What people actually paid, most recent first.
+      </p>
+      {sales === undefined ? (
+        <p className="note" style={{ marginTop: 12 }}>Loading sales…</p>
+      ) : sales.sales.length > 0 ? (
+        <div className="sale-rows">
+          {sales.sales.slice(0, 10).map((s) => {
+            const body = (
+              <>
+                <GraderBadge grader={s.grader} grade={s.grade} />
+                <div className="sale-row-body">
+                  <div className="sale-row-price">
+                    <Money v={Number(s.price)} unit={s.currency || "USD"} showSource={false} />
+                  </div>
+                  <div className="muted small">
+                    {[dayOf(s.sold_at), s.source].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+              </>
+            );
+            return s.source_url?.startsWith("http") ? (
+              <a className="sale-row" key={s.sale_id} href={s.source_url} target="_blank" rel="noreferrer">
+                {body}
+                <span className="muted small" aria-hidden="true">↗</span>
+              </a>
+            ) : (
+              <div className="sale-row" key={s.sale_id}>{body}</div>
+            );
+          })}
+          {sales.note && <p className="muted small sale-note">{sales.note}</p>}
+        </div>
+      ) : sales.known && sales.known > 0 ? (
+        // We have the sales, we just cannot list them one by one. "No sale on
+        // record" here would contradict the valuation built from exactly these.
+        <div className="sale-rows">
+          <div className="sale-row">
+            <div className="sale-row-body">
+              <div className="sale-row-price">
+                {sales.known} completed sale{sales.known === 1 ? "" : "s"} at this grade
+              </div>
+              {sales.aggregate?.median != null && (
+                <div className="muted small">
+                  Middle price <Money v={sales.aggregate.median} showSource={false} />
+                  {sales.aggregate.low != null && sales.aggregate.high != null && (
+                    <>
+                      {" · ranged "}
+                      <Money v={sales.aggregate.low} showSource={false} /> to{" "}
+                      <Money v={sales.aggregate.high} showSource={false} />
+                    </>
+                  )}
+                </div>
+              )}
+              {sales.lastSaleAt && (
+                <div className="muted small">Last one sold {dayOf(sales.lastSaleAt)}</div>
+              )}
+            </div>
+          </div>
+          <p className="muted small sale-note">
+            {sales.note ??
+              "Our price source reports totals rather than individual sales, so we can show what they add up to but not list them one by one."}
           </p>
         </div>
-        {data?.medianAsk != null && (
-          <div className="ask-figure">
-            <div className="label-mono">Median ask</div>
-            <div className="ask-price">
-              <Money v={data.medianAsk} showSource={false} />
-            </div>
-            {data.askLow != null && data.askHigh != null && data.askLow !== data.askHigh && (
-              <div className="ask-range mono">
-                <Money v={data.askLow} showSource={false} /> – <Money v={data.askHigh} showSource={false} />
-              </div>
-            )}
-            <div className="ask-count mono">{data.listings.length} of {data.total} listed</div>
-          </div>
-        )}
-      </div>
-
-      {state === "loading" ? (
-        <p className="note" style={{ marginTop: 12 }}>Looking for live listings…</p>
-      ) : listings.length === 0 ? (
-        <p className="note" style={{ marginTop: 12 }}>
-          No live listings found for this card right now.
-        </p>
       ) : (
-        <div className="listings">
-          {listings.slice(0, 8).map((l) => (
-            <a className="listing" key={l.url} href={l.url} target="_blank" rel="noreferrer">
-              {l.imageUrl ? (
-                <img src={l.imageUrl} alt="" loading="lazy" />
-              ) : (
-                <div className="listing-noimg" />
-              )}
-              <div className="listing-body">
-                <div className="listing-price">
-                  <Money v={l.price} unit={l.currency} showSource={false} />
-                </div>
-                <div className="listing-title">{l.title}</div>
-                <div className="listing-meta">
-                  {l.grader && l.grade != null && (
-                    <span className="listing-grade">{l.grader} {l.grade}</span>
-                  )}
-                  {l.printing && <span className="listing-printing">{l.printing}</span>}
-                  {l.ageDays != null && (
-                    <span className={l.ageDays >= 60 ? "listing-age stale" : "listing-age"}>
-                      {l.ageDays === 0
-                        ? "listed today"
-                        : `listed ${l.ageDays} day${l.ageDays === 1 ? "" : "s"} ago`}
-                    </span>
-                  )}
-                  {l.condition && <span>{l.condition}</span>}
-                </div>
-              </div>
-            </a>
-          ))}
-        </div>
+        <p className="note" style={{ marginTop: 12 }}>
+          No sale on record for this exact card and grade.
+        </p>
       )}
     </div>
   );
 }
 
-function Result({ scan }: { scan: Scan }) {
+/* ── asking now ───────────────────────────────────────────────────────────────
+   Live listings elsewhere. These are ASKS, not sales: a card listed at $30,000
+   for eight months is not a $30,000 card. */
+
+function AskStat({ label, value, strong }: { label: string; value: ReactNode; strong?: boolean }) {
+  return (
+    <div className={`ask-stat${strong ? " is-strong" : ""}`}>
+      <div className="label-mono">{label}</div>
+      <div className="ask-stat-value">{value}</div>
+    </div>
+  );
+}
+
+function AskingNow({ scan, asks }: { scan: Scan; asks: AsksState }) {
+  const { fx } = useCurrency();
+  const { data, state } = asks;
+  const v = scan.valuation;
+  const trust = asksMedianTrust(scan, data);
+  const range = data ? listedRange(data, fx) : null;
+  const listings = data?.listings ?? [];
+  const median = trust.ok ? data?.medianAsk ?? null : null;
+  const label = v?.slabGrader && v?.slabGrade != null
+    ? `${v.slabGrader} ${String(v.slabGrade).replace(/\.0$/, "")}`
+    : null;
+  const usd = (x: number | null | undefined) => (x == null ? "—" : <Money v={x} showSource={false} />);
+
+  return (
+    <div className="panel">
+      <h3 className="section-title">Asking Now</h3>
+      <p className="note" style={{ margin: "4px 0 0" }}>
+        Live listings on eBay{data?.filteredToGrade && label ? <> for <b>{label}</b> copies</> : null}
+        {data?.filteredToPrinting && data.printing ? <> of the <b>{data.printing}</b> printing</> : null}.
+        Asking prices, not sales. Sold prices usually land below the asks.
+      </p>
+
+      {state === "loading" ? (
+        <p className="note" style={{ marginTop: 12 }}>Looking for live listings…</p>
+      ) : listings.length === 0 ? (
+        <p className="note" style={{ marginTop: 12 }}>
+          Nothing listed for this card right now. For a scarce card that is normal, and it
+          is worth knowing before you price yours.
+        </p>
+      ) : (
+        <>
+          <div className="ask-stats">
+            {median != null ? (
+              <>
+                {/* Only a median when it IS one. Once the stale ceiling has
+                    pulled it down to the cheapest long-unsold ask, calling it a
+                    median over pricier listings on the same page is false. */}
+                <AskStat strong label={data?.cappedByStale ? "Ceiling" : "Median ask"} value={usd(median)} />
+                <AskStat label="Lowest" value={usd(data?.askLow ?? range?.low)} />
+                <AskStat label="Highest" value={usd(data?.askHigh ?? range?.high)} />
+              </>
+            ) : (
+              <>
+                <AskStat strong label="Lowest" value={usd(range?.low)} />
+                <AskStat label="Highest" value={usd(range?.high)} />
+                <AskStat label="Listed" value={String(listings.length)} />
+              </>
+            )}
+          </div>
+          <p className="muted small" style={{ margin: "8px 0 0" }}>
+            {data?.matched ?? listings.length} of {data?.total ?? listings.length} listings matched this card
+            {data?.trimmed ? ` · ${data.trimmed} outliers set aside` : ""}
+            {median == null ? " · no middle figure for this card, only the spread" : ""}
+          </p>
+          {median != null && data?.cappedByStale && data.staleCeilingDays != null && (
+            <p className="price-side-warn">
+              The figure is the cheapest ask still standing after {monthsOf(data.staleCeilingDays)} unsold,
+              so it caps the market rather than describing it. Nobody paid this; somebody failed to get it.
+            </p>
+          )}
+
+          <div className="listings">
+            {listings.slice(0, 8).map((l) => (
+              <a className="listing" key={l.url} href={l.url} target="_blank" rel="noreferrer">
+                {l.imageUrl ? (
+                  <img src={l.imageUrl} alt="" loading="lazy" />
+                ) : (
+                  <div className="listing-noimg" />
+                )}
+                <div className="listing-body">
+                  <div className="listing-price">
+                    <Money v={l.price} unit={l.currency} showSource={false} />
+                    {l.bestOffer && <span className="listing-offers">offers</span>}
+                  </div>
+                  <div className="listing-title">{l.title}</div>
+                  <div className="listing-meta">
+                    {/* The company is on the row. Two listings at one price are
+                        different objects when one is a BGS 9.5 and one a PSA 9. */}
+                    <span className="listing-grade">
+                      {l.grader ? `${l.grader}${l.grade != null ? ` ${l.grade}` : ""}` : "RAW"}
+                    </span>
+                    {l.printing && <span className="listing-printing">{l.printing}</span>}
+                    {l.ageDays != null && (
+                      <span className={l.ageDays >= 60 ? "listing-age stale" : "listing-age"}>
+                        {l.ageDays === 0
+                          ? "listed today"
+                          : `listed ${l.ageDays} day${l.ageDays === 1 ? "" : "s"} ago`}
+                      </span>
+                    )}
+                    {l.seller && (
+                      <span>
+                        {l.seller}
+                        {l.sellerFeedbackPct != null ? ` · ${l.sellerFeedbackPct}%` : ""}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Result({ scan, photo }: { scan: Scan; photo: File | null }) {
   const m = scan.measurement;
+  const rejected = scan.status === "rejected" && Boolean(scan.rejection);
+  const asks = useLiveAsks(scan, !rejected);
 
   // A rejected photo gets ONE answer: the rejection.
   //
@@ -2617,8 +3111,10 @@ function Result({ scan }: { scan: Scan }) {
 
   return (
     <>
-      <PriceHero scan={scan} />
-      <LiveListings scan={scan} />
+      <ScanHeader scan={scan} photo={photo} />
+      <PriceHero scan={scan} asks={asks} />
+      <ConfirmedSales scan={scan} />
+      <AskingNow scan={scan} asks={asks} />
       {scan.slab && (
         <div className="panel" style={{ borderColor: "var(--green)" }}>
           <span className="badge pass" style={{ fontSize: 16, padding: "6px 16px" }}>
@@ -2754,6 +3250,8 @@ function HomeInner() {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
+  // the photo that produced the result on screen, not whatever is in the slot now
+  const [scannedPhoto, setScannedPhoto] = useState<File | null>(null);
 
   useEffect(() => {
     if (!busy) return;
@@ -2804,6 +3302,7 @@ function HomeInner() {
       const res = await fetch(`${API}/scans`, { method: "POST", body: form });
       if (!res.ok) throw new Error(`API error ${res.status}`);
       setScan(await res.json());
+      setScannedPhoto(front);
       reloadQuota();
     } catch (e) {
       setError(e instanceof Error ? e.message : "scan failed");
@@ -2866,7 +3365,7 @@ function HomeInner() {
         </div>
       )}
 
-      {scan && <Result scan={scan} />}
+      {scan && <Result scan={scan} photo={scannedPhoto} />}
       <NewsLine />
     </main>
   );
