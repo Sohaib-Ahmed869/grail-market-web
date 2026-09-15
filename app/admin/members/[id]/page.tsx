@@ -29,6 +29,7 @@ import {
   type TimelineEntry,
 } from "../../lib/api";
 import { MemberTimeline } from "../../components/MemberTimeline";
+import { ContactAttempts } from "../../components/ContactAttempts";
 import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
 import {
@@ -1020,6 +1021,10 @@ function MemberRecord() {
               />
             </CardBody>
           </Card>
+
+          {/* Contact details the masking rules caught, held against the
+              account. A staff record has no chat to read, so only members. */}
+          {!team ? <ContactAttempts memberId={id} canAct={canAct} /> : null}
 
         {/* ------------------------------------------------------ tags */}
         <Card>

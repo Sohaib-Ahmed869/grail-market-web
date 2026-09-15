@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
+  fetchIntercepts,
   fetchSettings,
   saveSettings,
+  type InterceptSummary,
   type Settings,
 } from "../lib/api";
 import {
@@ -28,6 +30,7 @@ import {
   IconFlag,
   IconInfo,
   IconLock,
+  IconMessage,
   IconRefresh,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
@@ -101,11 +104,26 @@ function GradingInfoButton() {
  *  Mirrors the API's own defaults — see settings.store.ts. Split out of the
  *  old Settings page: this page only ever reads and writes the reports and
  *  conduct fields, so it only needs their defaults. */
-const DEFAULTS: Pick<Settings, "pauseOnReport" | "reportWindowDays" | "autoEscalateHours" | "strikeLimit"> = {
+const DEFAULTS: Pick<
+  Settings,
+  "pauseOnReport" | "reportWindowDays" | "autoEscalateHours" | "strikeLimit" | "interceptOn" | "contactReviewAfter"
+> = {
   pauseOnReport: true,
   reportWindowDays: 14,
   autoEscalateHours: 72,
   strikeLimit: 3,
+  interceptOn: true,
+  contactReviewAfter: 3,
+};
+
+const FLAG_LABEL: Record<string, string> = {
+  phone: "Phone numbers",
+  email: "Emails",
+  link: "Links",
+  "split-contact": "Numbers split over messages",
+  "off-platform": "Mentions of another app",
+  handle: "Social handles",
+  "mail-provider": "Mail providers",
 };
 
 function PolicyPage() {
@@ -117,6 +135,20 @@ function PolicyPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState<{ title: string; body: string } | null>(null);
   const [editingPolicy, setEditingPolicy] = useState(false);
+  const [editingMasking, setEditingMasking] = useState(false);
+  const [intercepts, setIntercepts] = useState<InterceptSummary | null>(null);
+
+  /* What the rules caught across the platform. Counts only, and read on its
+     own so a slow count never holds up the settings above it. */
+  useEffect(() => {
+    let live = true;
+    fetchIntercepts()
+      .then((r) => live && setIntercepts(r))
+      .catch(() => live && setIntercepts(null));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -177,6 +209,11 @@ function PolicyPage() {
   const [reportWindow, setReportWindow] = numField("reportWindowDays");
   const [autoEscalate, setAutoEscalate] = numField("autoEscalateHours");
   const [strikeLimit, setStrikeLimit] = numField("strikeLimit");
+  const [interceptOn, setInterceptOn] = [
+    Boolean(val("interceptOn")),
+    (v: boolean) => set("interceptOn", v as never),
+  ] as const;
+  const [contactReviewAfter, setContactReviewAfter] = numField("contactReviewAfter");
 
   return (
     <>
@@ -277,6 +314,75 @@ function PolicyPage() {
                 foot="Opens a member review"
               />
             </KpiBar>
+
+            <BlockHead
+              title="Contact details in chat"
+              sub="Phone numbers, emails and links masked in messages, posts and comments, and held against the account"
+              right={
+                canEdit ? (
+                  <button
+                    type="button"
+                    className="gm-btn gm-btn--primary gm-btn--sm"
+                    onClick={() => setEditingMasking(true)}
+                  >
+                    Edit masking
+                  </button>
+                ) : null
+              }
+            />
+
+            <KpiBar>
+              <StatTile
+                tone={interceptOn ? "green" : "orange"}
+                label="Masking"
+                value={interceptOn ? "On" : "Off"}
+                icon={<IconMessage />}
+                foot={interceptOn ? "Contact details are removed" : "Recorded, but left as typed"}
+              />
+              <StatTile
+                tone="violet"
+                label="Review after"
+                value={
+                  Number(contactReviewAfter) > 0
+                    ? `${contactReviewAfter} attempt${Number(contactReviewAfter) === 1 ? "" : "s"}`
+                    : "Off"
+                }
+                icon={<IconFlag />}
+                foot="In 30 days, opens a member review"
+              />
+              <StatTile
+                tone="blue"
+                label="Caught, last 30 days"
+                value={intercepts ? String(intercepts.attempts) : "—"}
+                icon={<IconAlert />}
+                foot={intercepts ? `From ${intercepts.members} member${intercepts.members === 1 ? "" : "s"}` : "Could not be counted"}
+              />
+              <StatTile
+                tone="orange"
+                label="Reviews open"
+                value={intercepts ? String(intercepts.openReviews) : "—"}
+                icon={<IconLock />}
+                foot="Waiting for someone to close"
+              />
+            </KpiBar>
+
+            {intercepts && intercepts.byFlag.length > 0 ? (
+              <div className="gm-row" style={{ gap: 6, flexWrap: "wrap" }}>
+                {intercepts.byFlag.map((f) => (
+                  <Badge key={f.flag} tone="navy">
+                    {FLAG_LABEL[f.flag] ?? f.flag} · {f.hits}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+
+            <Note>
+              <b>What this can and cannot catch.</b> The rules catch common patterns: digits however
+              they are spaced, numbers written as words, emails written with &ldquo;at&rdquo; and
+              &ldquo;dot&rdquo;, and a number split across several messages. They do not catch a
+              photo of a handwritten number or &ldquo;same name as here on Instagram&rdquo;. Treat
+              the counts as what was caught, never as everything that was tried.
+            </Note>
           </>
         )}
       </div>
@@ -359,6 +465,47 @@ function PolicyPage() {
           <span className="gm-hint">
             Authenticity rejections and upheld conduct cases both count. Reaching the limit opens a
             member review, but does not close the account on its own.
+          </span>
+        </div>
+      </Modal>
+
+      <Modal
+        open={editingMasking}
+        onClose={() => setEditingMasking(false)}
+        title="Edit masking"
+        sub="Changes here join the rest of the page's unsaved changes — Save still commits them."
+        footer={
+          <button type="button" className="gm-btn gm-btn--primary" onClick={() => setEditingMasking(false)}>
+            <IconCheck />
+            Done
+          </button>
+        }
+      >
+        <div className="gm-field">
+          <span className="gm-label">Mask contact details in messages, posts and comments</span>
+          <Toggle checked={interceptOn} onChange={setInterceptOn} label="Mask contact details" />
+          <span className="gm-hint">
+            Off leaves the text exactly as typed. Attempts are still recorded against the account
+            either way, so turning masking off never turns the record off with it.
+          </span>
+        </div>
+
+        <div className="gm-field">
+          <label className="gm-label" htmlFor="pl-contact-review">
+            Contact details in 30 days before a member review opens
+          </label>
+          <input
+            id="pl-contact-review"
+            className="gm-input gm-mono"
+            style={{ width: 84, textAlign: "right" }}
+            value={contactReviewAfter}
+            onChange={(e) => setContactReviewAfter(e.target.value)}
+            inputMode="numeric"
+            aria-label="Contact details before a review opens"
+          />
+          <span className="gm-hint">
+            Opens a review for somebody to look at — never a strike on its own. 0 switches the
+            automatic review off. Mentions of another app are recorded but do not count toward it.
           </span>
         </div>
       </Modal>

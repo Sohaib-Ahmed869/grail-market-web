@@ -462,6 +462,8 @@ type WireMember = {
   volume: number;
   rating: number;
   strikes: number;
+  contactAttempts?: number;
+  contactReview?: boolean;
   verifiedSeller: boolean;
   tags: string[];
   note?: string | null;
@@ -510,6 +512,8 @@ function normaliseMember(w: WireMember): Member {
     plan: pick(PLANS, w.plan, "none"),
     billing: pick(BILLING, w.billing, "none"),
     verification: pick(LEVELS, w.verification, "none"),
+    contactAttempts: w.contactAttempts ?? 0,
+    contactReview: Boolean(w.contactReview),
     note: w.note ?? undefined,
   };
 }
@@ -519,8 +523,11 @@ export async function fetchMembers(q: {
   status?: string;
   plan?: string;
   verification?: string;
+  /** "contact": only members with an open contact-sharing review. */
+  review?: string;
 }): Promise<Member[]> {
   const p = new URLSearchParams();
+  if (q.review) p.set("review", q.review);
   if (q.search) p.set("q", q.search);
   if (q.status && q.status !== "all") p.set("status", q.status);
   if (q.plan && q.plan !== "all") p.set("plan", q.plan);
@@ -556,6 +563,59 @@ export async function fetchMember(id: string) {
   const r = await call<{ member: WireMember; timeline: TimelineEntry[] }>(`members/${id}`);
   return { member: normaliseMember(r.member), timeline: r.timeline };
 }
+
+/* ------------------------------------------------ contact-sharing attempts */
+
+/** One piece of chat, post or comment the masking rules caught. `typed` —
+ *  the number as it was actually written — is only sent to a role that
+ *  decides conduct. */
+export type ContactAttempt = {
+  id: string;
+  source: "message" | "post" | "comment";
+  ref: string;
+  context: string | null;
+  flags: string[];
+  contact: boolean;
+  masked: boolean;
+  at: string;
+  shown: string | null;
+  typed?: string | null;
+};
+
+export type ContactSummary = {
+  windowDays: number;
+  recentContact: number;
+  recentAll: number;
+  total: number;
+  lastAt: string | null;
+  reviewOpen: boolean;
+  reviewOpenedAt: string | null;
+  reviewClosedAt: string | null;
+  reviewClosedBy: string | null;
+  limit: number;
+};
+
+export type MemberContact = {
+  summary: ContactSummary;
+  attempts: ContactAttempt[];
+  canReadTyped: boolean;
+  canClose: boolean;
+};
+
+export const fetchMemberContact = (id: string) => call<MemberContact>(`members/${id}/contact`);
+
+export const closeContactReview = (id: string, note: string) =>
+  post<MemberContact & { ok: true }>(`members/${id}/contact-review/close`, { note });
+
+export type InterceptSummary = {
+  windowDays: number;
+  byFlag: { flag: string; hits: number }[];
+  attempts: number;
+  members: number;
+  openReviews: number;
+};
+
+export const fetchIntercepts = () => call<InterceptSummary>("intercepts");
 
 export const setMemberStanding = (id: string, standing: string, reason: string) =>
   post<{ member: WireMember }>(`members/${id}/standing`, { standing, reason }).then((r) =>
@@ -619,6 +679,7 @@ export type Settings = {
   highValueFloor: number;
   autoClear: boolean;
   autoClearHours: number;
+  autoPublishBelow: number;
   sampleRate: number;
   requireCert: boolean;
   blockLowConfidence: boolean;
@@ -630,6 +691,7 @@ export type Settings = {
   strikeLimit: number;
   allowRaw: boolean;
   interceptOn: boolean;
+  contactReviewAfter: number;
 };
 
 export const fetchSettings = () =>
@@ -751,6 +813,7 @@ export const AUDIT_AREAS = [
   "support",
   "billing",
   "pricing",
+  "catalog",
   "settings",
   "staff",
 ] as const;
@@ -1175,7 +1238,8 @@ export const messageBothParties = (id: string, body: string) =>
    ========================================================================== */
 
 export type AdminPlan = {
-  id: "starter" | "collector" | "dealer";
+  /** Paid plans only; Free has nothing at Stripe and Starter is retired. */
+  id: "collector" | "dealer";
   name: string;
   blurb: string;
   /** A month, as Stripe is configured to charge. Read back from Stripe once
@@ -1190,6 +1254,9 @@ export type AdminPlan = {
   /** Empty until the Stripe price is configured on the API. */
   stripePriceId: string;
   stripePriceEnv: string;
+  /** Yearly price as configured (A$), and the env var for its Stripe price. */
+  annualPrice?: number | null;
+  stripeAnnualPriceEnv?: string;
   /** The Stripe product. Editing a plan needs one. */
   stripeProductId: string;
   /** When Stripe last confirmed the figures above. Null means never — what is
@@ -1226,11 +1293,14 @@ export type AdminBoost = {
 };
 
 export type AdminBoostTier = {
-  key: "day" | "week" | "month";
+  /** On sale. Older boosts may still carry 'day' | 'week' | 'month'. */
+  key: "priority" | "featured" | "spotlight";
   name: string;
   amountCents: number;
+  hours: number;
   days: number;
   featured: boolean;
+  spotlight?: boolean;
   detail: string;
 };
 
@@ -1377,3 +1447,166 @@ export function fetchComps(catalogId: string, grader: string | null, grade: stri
 
 export const ruleOnComp = (saleId: string, excluded: boolean, reason: string) =>
   post<{ excluded: EngineComp[] }>(`price-engine/comps/${saleId}`, { excluded, reason });
+
+/* ==========================================================================
+   The catalogue
+   ========================================================================== */
+
+/** One row of `catalog_cards` — the thing every price and listing is keyed on. */
+export type CatalogCard = {
+  catalogId: string;
+  game: string | null;
+  name: string;
+  setName: string | null;
+  cardNumber: string | null;
+  language: string | null;
+  edition: string | null;
+  finish: string | null;
+  rawUsd: number | null;
+  seenCount: number;
+  lastSeenAt: string | null;
+};
+
+/** What points at a card. Listings and collection entries belong to people
+ *  and block a delete; prices are ours and do not. */
+export type CatalogReferences = { listings: number; collection: number; prices: number };
+
+/** The values the API accepts for the three axes — the same lists as
+ *  `catalog/sku.ts`. Anything else is refused there, so it is not offered here. */
+export const CATALOG_LANGUAGES = ["en", "ja", "zh", "ko", "de", "fr", "es", "it", "pt"] as const;
+export const CATALOG_EDITIONS = ["1st", "shadowless", "unlimited", "promo", "reprint"] as const;
+export const CATALOG_FINISHES = ["normal", "holo", "reverse", "foil", "etched", "textured"] as const;
+
+export function fetchCatalog(q: { search?: string; game?: string; limit?: number; offset?: number }) {
+  const p = new URLSearchParams();
+  if (q.search) p.set("q", q.search);
+  if (q.game && q.game !== "all") p.set("game", q.game);
+  if (q.limit) p.set("limit", String(q.limit));
+  if (q.offset) p.set("offset", String(q.offset));
+  return call<{ cards: CatalogCard[]; total: number }>(`catalog?${p.toString()}`);
+}
+
+export const fetchCatalogCard = (id: string) =>
+  call<{ card: CatalogCard; references: CatalogReferences }>(`catalog/${encodeURIComponent(id)}`);
+
+export type CatalogEdit = Partial<
+  Pick<CatalogCard, "game" | "name" | "setName" | "cardNumber" | "language" | "edition" | "finish">
+>;
+
+export const createCatalogCard = (card: CatalogEdit & { catalogId: string; name: string }) =>
+  post<{ card: CatalogCard }>("catalog", card);
+
+export const updateCatalogCard = (id: string, patch: CatalogEdit) =>
+  post<{ card: CatalogCard }>(`catalog/${encodeURIComponent(id)}`, patch);
+
+export const deleteCatalogCard = (id: string) =>
+  call<{ deleted: string }>(`catalog/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/* ==========================================================================
+   Scan checker — card photos through the live pipeline, and a verdict on each
+   ========================================================================== */
+
+export type ScanSnapshot = {
+  status: string;
+  rejection: string | null;
+  identification: {
+    cardId: string;
+    name: string;
+    setName: string;
+    localId: string;
+    game: string;
+    matchScore: number | null;
+    printingConfirmed: boolean | null;
+    unconfirmedReason: string | null;
+    imageUrl: string | null;
+  } | null;
+  price: { value: number; currency: string; basis: string } | null;
+  candidates: { cardId: string; name: string; setName: string; localId: string }[];
+  ocrNames: string[];
+};
+
+export type ScanCheckOutcome =
+  | "verified-correct"
+  | "verified-wrong"
+  | "unverified-correct"
+  | "unverified-wrong"
+  | "no-answer"
+  | "bad-photo"
+  | "unjudged";
+
+export type ScanCheck = {
+  id: string;
+  sourceScanId: string;
+  scanId: string;
+  createdAt: string;
+  createdBy: string | null;
+  result: ScanSnapshot;
+  verdict: "correct" | "wrong" | "bad-photo" | null;
+  expected: { name: string | null; set: string | null; number: string | null; catalogId: string | null } | null;
+  note: string | null;
+  judgedBy: string | null;
+  judgedAt: string | null;
+  runs: number;
+  lastRunAt: string;
+  outcome: ScanCheckOutcome;
+};
+
+export type ScanCheckTally = {
+  checks: number;
+  judged: number;
+  verifiedCorrect: number;
+  verifiedWrong: number;
+  unverifiedCorrect: number;
+  unverifiedWrong: number;
+  noAnswer: number;
+  badPhoto: number;
+  precision: number | null;
+  coverage: number | null;
+};
+
+export type ScanChecksPage = {
+  checks: ScanCheck[];
+  total: number;
+  summary: { overall: ScanCheckTally; games: Record<string, ScanCheckTally> };
+};
+
+export const fetchScanChecks = (q: { limit?: number; offset?: number } = {}) => {
+  const p = new URLSearchParams();
+  if (q.limit) p.set("limit", String(q.limit));
+  if (q.offset) p.set("offset", String(q.offset));
+  return call<ScanChecksPage>(`scans?${p.toString()}`);
+};
+
+/** A multipart upload through its own route: the general forwarder only
+ *  carries JSON, and the scanner wants the photo's original bytes. */
+export async function uploadScanCheck(file: File): Promise<{ check: ScanCheck }> {
+  const form = new FormData();
+  form.append("front", file, file.name || "card.jpg");
+  const res = await fetch("/api/admin/scans/upload", {
+    method: "POST",
+    body: form,
+    headers: sessionToken ? { authorization: `Bearer ${sessionToken}` } : {},
+    cache: "no-store",
+  });
+  let body: any;
+  try {
+    body = await res.json();
+  } catch {
+    throw new ApiError("bad-response", `The API answered ${res.status} with something that is not JSON.`);
+  }
+  if (body?.error) throw new ApiError(body.error, body.message ?? body.error);
+  if (!res.ok) throw new ApiError("http-" + res.status, `The API answered ${res.status}.`);
+  return body as { check: ScanCheck };
+}
+
+export const judgeScanCheck = (
+  id: string,
+  body: {
+    verdict: "correct" | "wrong" | "bad-photo";
+    name?: string; set?: string; number?: string; catalogId?: string; note?: string;
+  },
+) => post<{ check: ScanCheck }>(`scans/${encodeURIComponent(id)}/verdict`, body);
+
+export const rerunScanCheck = (id: string) =>
+  post<{ check: ScanCheck; before: ScanCheck }>(`scans/${encodeURIComponent(id)}/rerun`, {});
+

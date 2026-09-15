@@ -202,47 +202,6 @@ export const bannedTerms: BannedTerm[] = [
 ];
 
 /**
- * The off-platform chat interceptor.
- *
- * A member asking another to settle direct is the single highest-harm thing
- * that happens in messages: it strips the identity check off both sides, and
- * once it is off-platform there is nothing anyone here can do. The list is
- * words, not intent, so it over-matches on purpose — the action for most of
- * it is a warning to the sender rather than a block, and only the payment
- * rails hold a message for review.
- */
-export type InterceptAction = "warn" | "hold" | "escalate";
-
-export const interceptActionLabel: Record<InterceptAction, string> = {
-  warn: "Warn the sender",
-  hold: "Hold for review",
-  escalate: "Escalate to Trust & safety",
-};
-
-export type InterceptTerm = {
-  term: string;
-  action: InterceptAction;
-  group: "payment" | "contact" | "intent";
-  hits: number;
-};
-
-export const interceptTerms: InterceptTerm[] = [
-  { term: "bank transfer", action: "hold", group: "payment", hits: 88 },
-  { term: "paypal", action: "hold", group: "payment", hits: 214 },
-  { term: "payid", action: "hold", group: "payment", hits: 167 },
-  { term: "venmo", action: "hold", group: "payment", hits: 12 },
-  { term: "cash app", action: "hold", group: "payment", hits: 9 },
-  { term: "direct deposit", action: "hold", group: "payment", hits: 44 },
-  { term: "whatsapp", action: "warn", group: "contact", hits: 301 },
-  { term: "instagram", action: "warn", group: "contact", hits: 288 },
-  { term: "telegram", action: "warn", group: "contact", hits: 51 },
-  { term: "my number is", action: "warn", group: "contact", hits: 96 },
-  { term: "off platform", action: "escalate", group: "intent", hits: 27 },
-  { term: "avoid the fees", action: "escalate", group: "intent", hits: 63 },
-  { term: "cut out the middleman", action: "escalate", group: "intent", hits: 19 },
-];
-
-/**
  * Listing fees.
  *
  * The brief says "once they are agreed", and they have not been — so the
@@ -353,14 +312,16 @@ export type Capability =
   | "reports.read"
   | "audit.read"
   | "announce.write"
-  | "settings.write";
+  | "catalog.write"
+  | "settings.write"
+  | "scans.test";
 
 const CAPABILITIES: Record<Role, Capability[]> = {
   "tier-1": ["support.read", "support.reply"],
   /* Tier 2 gets trade context inside a ticket — see `support.read` in the
      support desk — but still no member directory of its own. */
   "tier-2": ["support.read", "support.reply"],
-  moderator: ["dashboard.read", "listings.review", "members.read"],
+  moderator: ["dashboard.read", "listings.review", "members.read", "scans.test"],
   "trust-safety": [
     "dashboard.read",
     "members.read",
@@ -385,7 +346,9 @@ const CAPABILITIES: Record<Role, Capability[]> = {
     "reports.read",
     "audit.read",
     "announce.write",
+    "catalog.write",
     "settings.write",
+    "scans.test",
   ],
 };
 
@@ -410,7 +373,9 @@ export const capabilityLabel: Record<Capability, string> = {
   "reports.read": "See reports",
   "audit.read": "See the audit log",
   "announce.write": "Send announcements",
+  "catalog.write": "Correct the card catalogue",
   "settings.write": "Change settings",
+  "scans.test": "Test the scanner",
 };
 
 export const can = (role: Role, c: Capability) => CAPABILITIES[role].includes(c);
@@ -434,6 +399,9 @@ export const ROUTE_CAPABILITY: { path: string; param?: [string, string]; cap: Ca
   { path: "/admin/members", param: ["scope", "team"], cap: "team.read" },
   { path: "/admin/members", cap: "members.read" },
   { path: "/admin/pricing", cap: "billing.read" },
+  { path: "/admin/price-engine", cap: "pricing.read" },
+  { path: "/admin/catalog", cap: "catalog.write" },
+  { path: "/admin/scan-check", cap: "scans.test" },
   { path: "/admin/audit", cap: "audit.read" },
   { path: "/admin/announcements", cap: "announce.write" },
   { path: "/admin/reports", cap: "reports.read" },
@@ -2255,6 +2223,11 @@ export type Member = {
   volume: number;
   rating: number;
   strikes: number;
+  /** Contact details the masking rules caught in the last 30 days. What was
+   *  caught, never a claim about what was tried. Absent on fixtures. */
+  contactAttempts?: number;
+  /** A contact-sharing review is open. */
+  contactReview?: boolean;
   verifiedSeller: boolean;
   /** Internal labels. Never shown to the member. */
   tags: string[];

@@ -38,6 +38,7 @@ import {
   PageHead,
 } from "../components/ui";
 import {
+  IconCard,
   IconChevronDown,
   IconDollar,
   IconDownload,
@@ -61,6 +62,7 @@ const AREA_LABEL: Record<AuditArea, string> = {
   support: "Support",
   billing: "Billing",
   pricing: "Prices",
+  catalog: "Catalogue",
   settings: "Settings",
   staff: "Staff",
 };
@@ -82,6 +84,8 @@ function AreaIcon({ area }: { area: AuditArea }) {
        and a dollar keeps this area distinct from `billing`, which is the tag. */
     case "pricing":
       return <IconDollar />;
+    case "catalog":
+      return <IconCard />;
     case "staff":
       return <IconKey />;
     default:

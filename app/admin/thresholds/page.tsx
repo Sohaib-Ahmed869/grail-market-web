@@ -37,6 +37,8 @@ const DEFAULTS: Pick<
   | "blockLowConfidence"
   | "minPhotos"
   | "allowRaw"
+  | "autoClear"
+  | "autoPublishBelow"
 > = {
   grailFloor: 10000,
   highValueFloor: 2000,
@@ -44,6 +46,8 @@ const DEFAULTS: Pick<
   blockLowConfidence: true,
   minPhotos: 4,
   allowRaw: false,
+  autoClear: false,
+  autoPublishBelow: 2500,
 };
 
 type TierKey = "standard" | "high" | "grail";
@@ -208,6 +212,8 @@ function ThresholdsPage() {
   const [blockLowConfidence, setBlockLowConfidence] = boolField("blockLowConfidence");
   const [minPhotos, setMinPhotos] = numField("minPhotos");
   const [allowRaw, setAllowRaw] = boolField("allowRaw");
+  const [autoClear, setAutoClear] = boolField("autoClear");
+  const [autoBelow, setAutoBelow] = numField("autoPublishBelow");
 
   return (
     <>
@@ -303,6 +309,13 @@ function ThresholdsPage() {
                 value={allowRaw ? "Allowed" : "Not accepted"}
                 icon={allowRaw ? <IconCheck /> : <IconBan />}
                 foot="Hardest thing to authenticate from photos"
+              />
+              <StatTile
+                tone="green"
+                label="Automatic publishing"
+                value={autoClear ? `Below $${Number(autoBelow).toLocaleString()}` : "Off"}
+                icon={autoClear ? <IconCheck /> : <IconBan />}
+                foot="Only listings that pass every automatic check"
               />
             </KpiBar>
 
@@ -451,6 +464,37 @@ function ThresholdsPage() {
             Off by default. An expensive raw card is the hardest thing on the platform to
             authenticate from photographs.
           </span>
+        </div>
+
+        <div className="gm-field">
+          <span className="gm-label">Publish automatically when every check passes</span>
+          <Toggle checked={autoClear} onChange={setAutoClear} label="Automatic publishing" />
+          <span className="gm-hint">
+            A listing goes live without review only if it is under the value below, matched to a
+            catalogue card, priced within 40%–250% of market value, fully photographed, carries a
+            certificate number when graded, and the seller is in good standing with a passed
+            identity check. Anything else waits in the queue with the failed checks listed. None
+            of these checks says a card is genuine.
+          </span>
+        </div>
+
+        <div className="gm-field">
+          <label className="gm-label" htmlFor="th-auto-below">
+            Automatic publishing below
+          </label>
+          <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
+            <span className="gm-muted">$</span>
+            <input
+              id="th-auto-below"
+              className="gm-input gm-mono"
+              style={{ width: 140, textAlign: "right" }}
+              value={autoBelow}
+              onChange={(e) => setAutoBelow(e.target.value)}
+              inputMode="numeric"
+              aria-label="Automatic publishing below"
+            />
+          </div>
+          <span className="gm-hint">Agreed with GrailMarket on 11 September as roughly $2,500.</span>
         </div>
       </Modal>
 

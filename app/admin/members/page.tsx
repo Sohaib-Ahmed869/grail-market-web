@@ -93,6 +93,9 @@ function MembersPage() {
   /* Support links straight to a person — `?q=@handle` from the ticket pane —
      so the agent lands on the record rather than on the whole directory. */
   const seededQuery = params.get("q") ?? "";
+  /* The bell's "keeps trying to share contact details" row links here with
+     `?review=contact`, so it lands on exactly those members. */
+  const contactOnly = params.get("review") === "contact";
 
   /* team filters */
   const [teamRole, setTeamRole] = useState("all");
@@ -178,6 +181,7 @@ function MembersPage() {
     const q = query.trim().toLowerCase();
     const seg = segments.find((x) => x.key === segment);
     return people.filter((m) => {
+      if (contactOnly && !m.contactReview) return false;
       if (status !== "all" && m.status !== status) return false;
       if (role !== "all" && m.role !== role) return false;
       if (country !== "all" && m.country !== country) return false;
@@ -197,7 +201,7 @@ function MembersPage() {
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [people, status, role, country, plan, verif, activity, segment, query]);
+  }, [people, status, role, country, plan, verif, activity, segment, query, contactOnly]);
 
   /* Selection follows the filter: narrowing the list drops anyone no longer
      in it, so "message selected" can never send to a row you cannot see. */
@@ -371,6 +375,14 @@ function MembersPage() {
         {loadError ? (
           <Note tone="bad">
             <b>The directory could not be read.</b> {loadError}
+          </Note>
+        ) : null}
+        {scope === "market" && contactOnly ? (
+          <Note tone="warn">
+            <b>Members with an open contact-sharing review.</b> The masking rules caught them
+            sharing contact details often enough to open a review. Open a record to see what was
+            caught and close the review.{" "}
+            <Link href="/admin/members?scope=market">Show everyone</Link>
           </Note>
         ) : null}
         {/* ================================================== admin team */}
@@ -881,6 +893,17 @@ function MembersPage() {
                             </td>
                             <td className="gm-chipcol">
                               <MemberBadge status={m.status} />
+                              {m.contactReview ? (
+                                <div style={{ marginTop: 4 }}>
+                                  <Badge tone="bad">Contact review</Badge>
+                                </div>
+                              ) : m.contactAttempts ? (
+                                <div style={{ marginTop: 4 }}>
+                                  <Badge tone="warn">
+                                    {m.contactAttempts} contact attempt{m.contactAttempts === 1 ? "" : "s"}
+                                  </Badge>
+                                </div>
+                              ) : null}
                             </td>
                             <td className="gm-sm gm-muted gm-nowrap">
                               {m.sales} sale{m.sales === 1 ? "" : "s"} · {money(m.volume)}
@@ -971,6 +994,15 @@ function MembersPage() {
                         {m.strikes > 0 ? (
                           <Badge tone={m.strikes >= 3 ? "bad" : "warn"}>
                             {m.strikes} strike{m.strikes > 1 ? "s" : ""}
+                          </Badge>
+                        ) : null}
+                        {/* Caught by the masking rules in the last 30 days —
+                            what was caught, not everything that was tried. */}
+                        {m.contactReview ? (
+                          <Badge tone="bad">Contact review open</Badge>
+                        ) : m.contactAttempts ? (
+                          <Badge tone="warn">
+                            {m.contactAttempts} contact attempt{m.contactAttempts === 1 ? "" : "s"}
                           </Badge>
                         ) : null}
                         {m.tags.map((t) => (

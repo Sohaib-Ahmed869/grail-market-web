@@ -7,8 +7,11 @@ import ThemeToggle from "./ThemeToggle";
 import { can, ROUTE_CAPABILITY, type Capability, type Role } from "../lib/data";
 import { useRole } from "./RoleContext";
 import {
+  IconCard,
+  IconCheckCircle,
   IconChevronDown,
   IconDashboard,
+  IconDollar,
   IconFlag,
   IconKey,
   IconListing,
@@ -144,16 +147,24 @@ const NAV: Block[] = [
   {
     caption: "Operations",
     items: [
-      /* A row, not a group. "Pricing" held two pages about money and was
-         worth a heading for it; the price engine has gone, and a heading over
-         a single child is a click that reveals one thing you could already
-         see. It sits under Operations with the rest of them. */
+      /* Rows, not a group. "Pricing" held two pages about money and was worth
+         a heading for it; each now sits under Operations as its own row,
+         because a heading that only opens to reveal rows you could already
+         see is a click for nothing. */
       {
         kind: "page",
         href: "/admin/pricing",
         label: "Subscriptions & Boosts",
         icon: IconTag,
       },
+      /* Back as its own row. The pricing overrides — holding an outlier sale
+         out of a quoted figure — and the catalogue corrections every price is
+         keyed on had API routes and no page, so nobody could use either. */
+      { kind: "page", href: "/admin/price-engine", label: "Price Engine", icon: IconDollar },
+      { kind: "page", href: "/admin/catalog", label: "Card Catalogue", icon: IconCard },
+      /* Paste card photos through the live scan pipeline and mark each answer
+         right or wrong — how scan accuracy is measured, not assumed. */
+      { kind: "page", href: "/admin/scan-check", label: "Scan Checker", icon: IconCheckCircle },
       { kind: "page", href: "/admin/thresholds", label: "Review Thresholds", icon: IconTrend },
       { kind: "page", href: "/admin/policy", label: "Marketplace Policy", icon: IconLock },
       { kind: "page", href: "/admin/reports", label: "Reports", icon: IconReport },
