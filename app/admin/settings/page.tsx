@@ -18,6 +18,8 @@ import {
 import { IconCheck, IconLock } from "../components/icons";
 import { useRole } from "../components/RoleContext";
 import { roleLabel } from "../lib/data";
+import { Button } from "../components/Button";
+import { TextField } from "../components/Field";
 
 /**
  * Your own account, under the name "Settings" now.
@@ -149,9 +151,8 @@ function SettingsPage() {
               <label className="gm-label" htmlFor="pf-name">
                 Name
               </label>
-              <input
+              <TextField
                 id="pf-name"
-                className="gm-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
@@ -165,15 +166,10 @@ function SettingsPage() {
             </div>
 
             <div className="gm-row">
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                disabled={busy || !nameChanged}
-                onClick={saveName}
-              >
+              <Button variant="primary" disabled={busy || !nameChanged} onClick={saveName}>
                 <IconCheck />
                 Save name
-              </button>
+              </Button>
               {!nameChanged && name.trim() === me?.name ? (
                 <span className="gm-tiny gm-dim">Nothing to save.</span>
               ) : null}
@@ -191,10 +187,9 @@ function SettingsPage() {
               <label className="gm-label" htmlFor="pf-cur">
                 Current password
               </label>
-              <input
+              <TextField
                 id="pf-cur"
                 type="password"
-                className="gm-input"
                 autoComplete="current-password"
                 value={current}
                 onChange={(e) => setCurrent(e.target.value)}
@@ -205,10 +200,9 @@ function SettingsPage() {
               <label className="gm-label" htmlFor="pf-new">
                 New password
               </label>
-              <input
+              <TextField
                 id="pf-new"
                 type="password"
-                className="gm-input"
                 autoComplete="new-password"
                 value={next}
                 onChange={(e) => setNext(e.target.value)}
@@ -223,10 +217,9 @@ function SettingsPage() {
               <label className="gm-label" htmlFor="pf-again">
                 Type it again
               </label>
-              <input
+              <TextField
                 id="pf-again"
                 type="password"
-                className="gm-input"
                 autoComplete="new-password"
                 value={again}
                 onChange={(e) => setAgain(e.target.value)}
@@ -239,15 +232,10 @@ function SettingsPage() {
             </div>
 
             <div className="gm-row">
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                disabled={busy || !passwordReady}
-                onClick={savePassword}
-              >
+              <Button variant="primary" disabled={busy || !passwordReady} onClick={savePassword}>
                 <IconLock />
                 {busy ? "Changing…" : "Change password"}
-              </button>
+              </Button>
               {passwordBlocker ? (
                 <span className="gm-tiny gm-dim">{passwordBlocker}</span>
               ) : null}

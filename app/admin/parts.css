@@ -1509,21 +1509,37 @@
    ========================================================================== */
 
 /* a bare heading used between blocks, no card chrome around it */
+/* Two rows now, not one: the title (with its own `sub` stacked directly
+   under it, the same column `CardHead`/`PageHead` already use) on top, and
+   `left` — a search box, a view switch — on a row of its own underneath.
+   They used to share one wrapping flex row, baseline-aligned, which is what
+   put a heading, a search box, a toggle and a count all on the one line a
+   narrow screen then had to wrap awkwardly. */
+.gm-blockhead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.gm-blockhead-top {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.gm-blockhead-titles {
+  min-width: 0;
+}
+
 /* Wraps, because the thing on its right is pushed there by `margin-left:
    auto` and so has nothing holding it back. On a phone the dashboard's
    "-100.0% on last week" chip sat a pixel past the edge of the page and gave
    the whole document a horizontal scroll — one pixel wide, invisible, and
    enough to make every page on the console scroll sideways. */
-.gm-blockhead {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
 @media (max-width: 760px) {
-  .gm-blockhead > .gm-spacer {
+  .gm-blockhead-top > .gm-spacer {
     margin-left: 0;
   }
 }
@@ -1537,9 +1553,16 @@
 }
 
 .gm-blockhead p {
-  margin: 0;
+  margin: 3px 0 0;
   font-size: 13.4px;
   color: var(--ink-3);
+}
+
+.gm-blockhead-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* ==========================================================================
@@ -2269,14 +2292,21 @@ h2.gm-idcard-name {
    see. This states its own two stops straight off `--gold`/`--surface`
    instead, far enough apart to actually read as one corner to the other, and
    still exactly the tokens the rest of the console's warmth is built from. */
+/* One surface cut exactly in half, not two inset panels with a gutter
+   between them — `gap`/`padding` used to hold the form card and the brand
+   panel apart from the shell's own edge and from each other, which read as
+   a smaller box floating inside a bigger one. Neither half carries a
+   radius of its own any more: `overflow: hidden` here clips both flush
+   halves to this element's own corners, so rounding happens once, at the
+   true outer edge, and the seam down the middle is a straight line with
+   nothing either side of it. */
 .gm-login-shell {
   width: min(1180px, 100%);
   min-height: min(760px, calc(100vh / var(--gm-zoom) - 64px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(16px, 3vw, 28px);
-  padding: clamp(16px, 2.4vw, 22px);
   border-radius: 26px;
+  overflow: hidden;
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--gold) 22%, var(--surface)) 0%,
@@ -2286,27 +2316,28 @@ h2.gm-idcard-name {
   box-shadow: 0 30px 70px -32px rgba(16, 26, 38, 0.28), 0 2px 6px rgba(16, 26, 38, 0.05);
 }
 
-/* No background of its own. The card used to repeat the shell's own gradient
-   at its own, separate top-left corner — meant to make the wash read past
-   the shell's thin padding, but a second diagonal starting over from the
-   card's own corner is a seam, not a continuation: it drew a visible box
-   around the form half where its restart disagreed with the one gradient
-   already running the full width of the shell behind it. Transparent, the
-   shell's own gradient shows through the whole panel undisturbed — one wash,
-   corner to corner, the way it was asked for. */
+/* No background of its own. The shell's own gradient shows through this
+   half undisturbed — one wash, corner to corner. Its own padding is the
+   form's breathing room, not a gap between two boxes; it fills its half of
+   the shell exactly, so the shell's `overflow: hidden` is what rounds its
+   two outer corners. */
 .gm-login-card {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border-radius: 20px;
   padding: clamp(28px, 4vw, 44px) clamp(16px, 3vw, 28px);
 }
 
+/* A little narrower than the panel it sits in, on purpose: a field this
+   rounded reads as a slot rather than a pill when it is stretched much
+   wider than it is tall, and 386px against the taller `--control-h` this
+   asks for was exactly that. Narrower brings the field's width back toward
+   its height without shrinking the height itself. */
 .gm-login-cardin {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: min(386px, 100%);
+  width: min(340px, 100%);
   margin: 0 auto;
 }
 
@@ -2364,18 +2395,33 @@ h2.gm-idcard-name {
    padded off its own edge by the panel's padding, and the pager under it.
    The window fills whatever height that leaves rather than sitting at a
    fixed 250px in the middle of it; see `.gm-mock-tilt`/`.gm-mock`/
-   `.gm-mock-shell` in login.css, which is where the actual fill happens. */
+   `.gm-mock-shell` in login.css, which is where the actual fill happens.
+
+   No radius of its own, and no gap holding it off the shell's own edge —
+   asked to stop reading as a second, smaller box inset inside the shell.
+   Its background now runs to the shell's real top, right and bottom edges,
+   and `.gm-login-shell`'s own `overflow: hidden` is what rounds the two
+   outer corners; the inner edge, against the form half, stays a straight
+   cut with nothing rounding it, which is the "half, not a box" this was
+   asked for. Asked down from a solid dark panel to a wash — the navy layer
+   carries an alpha now instead of three opaque stops, so it reads as a
+   light tint of itself over the shell's own gold wash behind it rather than
+   a block of colour. The two gold highlights are untouched; they were
+   already this faint and are what gives the now-pale panel any warmth at
+   all. Because the panel is light now rather than dark,
+   `.gm-mock-pager-dot`'s inactive dot — white at low opacity, meant to sit
+   on navy — moved to ink at low opacity so it stays visible; see that rule
+   in login.css. */
 .gm-login-aside {
   position: relative;
   overflow: hidden;
-  border-radius: 20px;
   display: flex;
   flex-direction: column;
   padding: clamp(30px, 3.2vw, 42px);
   background:
     radial-gradient(620px 420px at 88% -8%, rgba(212, 185, 137, 0.46), transparent 62%),
     radial-gradient(520px 420px at -8% 108%, rgba(168, 141, 96, 0.18), transparent 66%),
-    linear-gradient(158deg, #24344a 0%, #1a2632 56%, #131c26 100%);
+    linear-gradient(158deg, rgba(36, 52, 74, 0.12) 0%, rgba(26, 38, 50, 0.12) 56%, rgba(19, 28, 38, 0.12) 100%);
 }
 
 .gm-login-list {
@@ -2611,11 +2657,17 @@ h2.gm-idcard-name {
   line-height: 1.5;
 }
 
+/* `--control-h`, not a bespoke 46px — the button used to stand visibly
+   taller than the email and password fields above it, the one place in the
+   console where a button and the fields beside it did not share the one
+   control height every other page already holds to. `border-radius` is
+   left to the base `.gm-btn` rule for the same reason: restating `--r-sm`
+   here was the second half of a divergence that only ever needed the first
+   removed. */
 .gm-login-go {
-  height: 46px;
+  height: var(--control-h);
   margin-top: 4px;
   font-size: 14px;
-  border-radius: var(--r-sm);
 }
 
 /* The global 0.5 opacity turned the navy gradient into grey mush, so an

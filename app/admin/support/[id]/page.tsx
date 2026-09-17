@@ -45,6 +45,8 @@ import {
 } from "../../components/icons";
 import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
+import { Button } from "../../components/Button";
+import { TextArea } from "../../components/Field";
 
 /**
  * One ticket, as a page.
@@ -263,23 +265,15 @@ function TicketRecord() {
               <TicketBadge status={active.status} />
               <Sla t={active} />
               {up ? (
-                <button
-                  type="button"
-                  className="gm-btn"
-                  onClick={() => setEscalating(true)}
-                >
+                <Button onClick={() => setEscalating(true)}>
                   <IconArrowUp />
                   Escalate to {supportTierLabel[up]}
-                </button>
+                </Button>
               ) : null}
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                onClick={() => setResolving(true)}
-              >
+              <Button variant="primary" onClick={() => setResolving(true)}>
                 <IconCheck />
                 Resolve
-              </button>
+              </Button>
             </div>
           )
         }
@@ -299,16 +293,17 @@ function TicketRecord() {
             {active.assignee ? (
               <span className="gm-sm gm-muted gm-spacer">Assigned to {active.assignee}</span>
             ) : (
-              <button
-                type="button"
-                className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+              <Button
+                variant="primary"
+                size="sm"
+                className="gm-spacer"
                 onClick={async () => {
                   await setTicketState(active.id, { assign: true }).catch(() => null);
                   setWrites((n) => n + 1);
                 }}
               >
                 Assign to me
-              </button>
+              </Button>
             )}
           </div>
           <div className="gm-row" style={{ gap: 11, flexWrap: "nowrap" }}>
@@ -465,10 +460,10 @@ function TicketRecord() {
             <div className="gm-chat-composer">
               <div className="gm-chat-canned">
                 {cannedReplies.map((c) => (
-                  <button
+                  <Button
                     key={c.key}
-                    type="button"
-                    className="gm-btn gm-btn--sm gm-btn--ghost"
+                    size="sm"
+                    className="gm-btn--ghost"
                     title={c.when}
                     /* Appends rather than replaces: an agent who has already
                        typed something specific should not lose it to a
@@ -478,13 +473,13 @@ function TicketRecord() {
                     }
                   >
                     {c.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <div className="gm-chat-inputrow">
-                <textarea
+                <TextArea
                   ref={textareaRef}
-                  className="gm-textarea gm-chat-textarea"
+                  className="gm-chat-textarea"
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                   onKeyDown={(e) => {
@@ -496,16 +491,16 @@ function TicketRecord() {
                   placeholder="Answer the question that was actually asked, and say what happens next."
                   rows={1}
                 />
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary gm-btn--icon"
+                <Button
+                  variant="primary"
+                  icon
                   title="Send reply"
                   aria-label="Send reply"
                   disabled={reply.trim().length < 4 || sending}
                   onClick={() => void send()}
                 >
                   <IconSend />
-                </button>
+                </Button>
               </div>
               <span className="gm-hint">
                 <span className="gm-kbd">Enter</span> to send ·{" "}
@@ -526,22 +521,15 @@ function TicketRecord() {
         sub="One rung up. There is no way to hand a ticket sideways to another agent on the same tier."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={handover.trim().length < 10}
               onClick={doEscalate}
             >
               <IconArrowUp />
               Escalate
-            </button>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setEscalating(false)}
-            >
-              Cancel
-            </button>
+            </Button>
+            <Button onClick={() => setEscalating(false)}>Cancel</Button>
           </>
         }
       >
@@ -562,9 +550,8 @@ function TicketRecord() {
               <label className="gm-label" htmlFor="gm-handover">
                 What the next tier needs to know
               </label>
-              <textarea
+              <TextArea
                 id="gm-handover"
-                className="gm-textarea"
                 value={handover}
                 onChange={(e) => setHandover(e.target.value)}
                 placeholder="What you have already tried, what the member has said, and what you think it needs."
@@ -585,17 +572,11 @@ function TicketRecord() {
         sub="The outcome goes on the member's record, not only on the ticket."
         footer={
           <>
-            <button type="button" className="gm-btn gm-btn--primary" onClick={resolve}>
+            <Button variant="primary" onClick={resolve}>
               <IconCheck />
               Resolve and file
-            </button>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setResolving(false)}
-            >
-              Go back
-            </button>
+            </Button>
+            <Button onClick={() => setResolving(false)}>Go back</Button>
           </>
         }
       >
@@ -603,9 +584,8 @@ function TicketRecord() {
           <label className="gm-label" htmlFor="gm-outcome">
             Outcome, for the record
           </label>
-          <textarea
+          <TextArea
             id="gm-outcome"
-            className="gm-textarea"
             value={outcome}
             onChange={(e) => setOutcome(e.target.value)}
             placeholder="What was actually done, and what changed as a result."

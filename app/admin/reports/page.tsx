@@ -32,6 +32,7 @@ import {
   IconUsers,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button } from "../components/Button";
 import { exportCsv } from "../lib/csv";
 import "../reports-print.css";
 
@@ -310,24 +311,18 @@ function ReportsPage() {
                 already give a table's own toolbar. Refresh re-reads figures
                 already on screen; Export PDF is what this page is opened to
                 take away, so it is the one at the end. */}
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setTick((n) => n + 1)}
-              disabled={loading}
-            >
+            <Button onClick={() => setTick((n) => n + 1)} disabled={loading}>
               <IconRefresh />
               {loading ? "Reading…" : "Refresh"}
-            </button>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            </Button>
+            <Button
+              variant="primary"
               onClick={exportPdf}
               disabled={!data || reports.every((r) => !r.available)}
             >
               <IconDownload />
               Export PDF
-            </button>
+            </Button>
           </>
         }
       />

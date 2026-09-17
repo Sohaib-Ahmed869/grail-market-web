@@ -45,6 +45,8 @@ import {
 } from "../../lib/api";
 import { toConflict } from "../../lib/cases";
 import { Gate } from "../../components/Gate";
+import { Button } from "../../components/Button";
+import { TextArea } from "../../components/Field";
 import "../../conduct.css";
 
 /**
@@ -267,23 +269,14 @@ function CaseRecord() {
           open.status !== "resolved" ? (
             <div className="gm-rec-actions">
               <ConflictBadge status={open.status} />
-              <button
-                type="button"
-                className="gm-btn"
-                onClick={() => setMessaging(true)}
-              >
+              <Button type="button" onClick={() => setMessaging(true)}>
                 <IconMail />
                 Message both
-              </button>
-              <button
-                type="button"
-                className="gm-btn gm-btn--primary"
-                disabled={!!blocked}
-                onClick={() => setConfirming(true)}
-              >
+              </Button>
+              <Button type="button" variant="primary" disabled={!!blocked} onClick={() => setConfirming(true)}>
                 <IconShield />
                 Apply outcome
-              </button>
+              </Button>
             </div>
           ) : (
             <span className="gm-sm gm-muted">
@@ -521,9 +514,8 @@ function CaseRecord() {
                 <label className="gm-label" htmlFor="gm-rationale">
                   Reason recorded on the member record
                 </label>
-                <textarea
+                <TextArea
                   id="gm-rationale"
-                  className="gm-textarea"
                   value={rationale}
                   onChange={(e) => setRationale(e.target.value)}
                   placeholder="What the evidence shows, which rule it breaks, and why this outcome and not the next one up."
@@ -547,17 +539,13 @@ function CaseRecord() {
         sub="It lands on a member's standing and stays on their record."
         footer={
           <>
-            <button type="button" className="gm-btn gm-btn--primary" onClick={commit}>
+            <Button type="button" variant="primary" onClick={commit}>
               <IconShield />
               {chosen?.escalates ? "Confirm and hand over" : "Confirm and close case"}
-            </button>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setConfirming(false)}
-            >
+            </Button>
+            <Button type="button" onClick={() => setConfirming(false)}>
               Go back
-            </button>
+            </Button>
           </>
         }
       >
@@ -602,22 +590,18 @@ function CaseRecord() {
         sub="One line on the case, which the buyer and the seller both read. It is not a decision and does not close the case."
         footer={
           <>
-            <button
+            <Button
               type="button"
-              className="gm-btn gm-btn--primary"
+              variant="primary"
               disabled={message.trim().length < 4 || sending}
               onClick={sendToBoth}
             >
               <IconSend />
               {sending ? "Sending…" : "Send to both"}
-            </button>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setMessaging(false)}
-            >
+            </Button>
+            <Button type="button" onClick={() => setMessaging(false)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -634,9 +618,8 @@ function CaseRecord() {
           <label className="gm-label" htmlFor="gm-both">
             Message
           </label>
-          <textarea
+          <TextArea
             id="gm-both"
-            className="gm-textarea"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="What you still need from them, or how long this will take. Written once so both sides get the same answer."

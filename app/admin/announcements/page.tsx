@@ -36,6 +36,8 @@ import {
   IconSend,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button } from "../components/Button";
+import { TextField, TextArea } from "../components/Field";
 import "../announcements.css";
 
 type View = "compose" | "scheduled" | "history";
@@ -290,13 +292,13 @@ function AnnouncementsPage() {
             {shortDate(live.at)}
             {live.until ? `, down automatically ${shortDate(live.until)}` : ""}. Only one runs at a
             time, so anything new replaces it.{" "}
-            <button
-              type="button"
-              className="gm-btn gm-btn--sm gm-btn--primary"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => pull(live, "taken-down")}
             >
               Take it down
-            </button>
+            </Button>
           </Note>
         ) : null}
 
@@ -346,9 +348,8 @@ function AnnouncementsPage() {
                     <label className="gm-label" htmlFor="an-title">
                       Title
                     </label>
-                    <input
+                    <TextField
                       id="an-title"
-                      className="gm-input"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Short. It is read on a lock screen."
@@ -380,9 +381,8 @@ function AnnouncementsPage() {
                     <label className="gm-label" htmlFor="an-body">
                       Message
                     </label>
-                    <textarea
+                    <TextArea
                       id="an-body"
-                      className="gm-textarea"
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
                       placeholder="What happened, what it means for them, and what happens next."
@@ -488,10 +488,9 @@ function AnnouncementsPage() {
                         <label className="gm-label" htmlFor="an-at">
                           Goes out
                         </label>
-                        <input
+                        <TextField
                           id="an-at"
                           type="datetime-local"
-                          className="gm-input"
                           value={at}
                           onChange={(e) => setAt(e.target.value)}
                         />
@@ -506,9 +505,8 @@ function AnnouncementsPage() {
                         the bottom of this card, level with nothing in
                         particular on the other side, not halfway up it. */}
                     <div className="gm-announce-sendrow">
-                      <button
-                        type="button"
-                        className="gm-btn gm-btn--primary"
+                      <Button
+                        variant="primary"
                         disabled={!ready || busy}
                         onClick={send}
                       >
@@ -518,7 +516,7 @@ function AnnouncementsPage() {
                           : when === "now"
                             ? `Send to ${headCount(reach)}`
                             : `Schedule for ${headCount(reach)}`}
-                      </button>
+                      </Button>
                     </div>
                   </CardBody>
                 </Card>
@@ -589,13 +587,13 @@ function AnnouncementsPage() {
                         </td>
                         <td className="gm-rowend">
                           <div className="gm-rowact">
-                            <button
-                              type="button"
-                              className="gm-btn gm-btn--sm gm-btn--primary"
+                            <Button
+                              variant="primary"
+                              size="sm"
                               onClick={() => pull(a, "cancelled")}
                             >
                               Cancel
-                            </button>
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -636,13 +634,13 @@ function AnnouncementsPage() {
                   </div>
 
                   <div className="gm-person-foot">
-                    <button
-                      type="button"
-                      className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                    <Button
+                      variant="primary"
+                      className="gm-spacer"
                       onClick={() => pull(a, "cancelled")}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </article>
               ))}

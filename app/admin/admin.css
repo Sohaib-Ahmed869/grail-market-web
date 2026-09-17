@@ -27,10 +27,11 @@
      every control height we use, and the two agree.
 
      A radius larger than half the box's shorter side is clamped by the
-     browser, not overflowed — which is why one value covers a 34px button,
+     browser, not overflowed — which is why one value covers a 42px button,
      a 30px chip and a 24px badge without a size-specific override. */
   --r-xs: 11px;  /* chips, tags, inline controls */
-  --r-sm: 17px;  /* buttons, inputs, list rows */
+  --r-sm: 21px;  /* buttons, inputs, list rows — half of --control-h, so a
+                    pill stays a pill at the height it is actually drawn */
   --r-md: 20px;  /* cards, panels, the sidebar, the topbar, dialogs */
   --r-pill: 999px;
 
@@ -175,8 +176,12 @@
   --focus-line: var(--ink-3);
 
   /* one height for every control, so a select never sits 2px off the button
-     beside it */
-  --control-h: 34px;
+     beside it — every button and field in the console reads off this one
+     token (Button.tsx and Field.tsx included), so it is the one place to
+     make the whole console's controls taller or shorter. Raised twice now,
+     34 to 38 to 42, both times because a row of buttons and fields read as
+     compressed at the height before it. */
+  --control-h: 42px;
 
   /* The floor every badge and tier chip takes in a table cell, so a column of
      them is a column rather than a ragged edge. Measured, not guessed — see

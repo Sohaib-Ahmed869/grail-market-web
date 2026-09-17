@@ -33,6 +33,7 @@ import { ApiError, fetchCases, fetchTickets, type AdminTicket } from "../lib/api
 import { toConflict } from "../lib/cases";
 import { exportCsv } from "../lib/csv";
 import { Gate } from "../components/Gate";
+import { Button, buttonClass } from "../components/Button";
 
 /** What the case says, from whoever raised it.
  *
@@ -202,10 +203,19 @@ function ConflictsPage() {
             than all balled up against one side. */}
         <BlockHead
           title={filter === "all" ? "Needs a decision" : FILTERS.find((f) => f.key === filter)!.label}
-          sub={`${list.length} case${list.length === 1 ? "" : "s"}${
-            party === "all" ? "" : party === "staff" ? " · staff involved" : " · members only"
-          }`}
-          left={<ViewToggle value={layout} onChange={setLayout} />}
+          /* The switch and the count sit together in the controls row, the
+             same order the verification queue's own tablebar uses — the
+             count reads to the right of the toggle it describes, rather
+             than stacked alone under the title. */
+          left={
+            <div className="gm-row" style={{ gap: 8 }}>
+              <ViewToggle value={layout} onChange={setLayout} />
+              <span className="gm-tablebar-count">
+                {list.length} case{list.length === 1 ? "" : "s"}
+                {party === "all" ? "" : party === "staff" ? " · staff involved" : " · members only"}
+              </span>
+            </div>
+          }
           right={
             <div className="gm-row" style={{ gap: 8 }}>
               <FilterMenu
@@ -239,9 +249,9 @@ function ConflictsPage() {
                 },
               ]}
               />
-              <button
+              <Button
                 type="button"
-                className="gm-btn gm-btn--primary"
+                variant="primary"
                 onClick={() =>
                   exportCsv(`grailmarket-cases-${filter}`, list, [
                     { header: "Case", value: (c) => c.id },
@@ -261,7 +271,7 @@ function ConflictsPage() {
               >
                 <IconDownload />
                 Export
-              </button>
+              </Button>
             </div>
           }
         />
@@ -435,13 +445,13 @@ function ConflictsPage() {
                       can be handed to the moderator who should be working it. */}
                   <div className="gm-case-actions">
                     {c.status === "resolved" ? (
-                      <Link className="gm-btn gm-btn--sm gm-btn--primary" href={`/admin/conflicts/${c.id}`}>
+                      <Link className={buttonClass({ variant: "primary" })} href={`/admin/conflicts/${c.id}`}>
                         <IconEye />
                         View details
                       </Link>
                     ) : (
                       <Link
-                        className="gm-btn gm-btn--sm gm-btn--primary"
+                        className={buttonClass({ variant: "primary" })}
                         href={`/admin/conflicts/${c.id}`}
                       >
                         <IconShield />

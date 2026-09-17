@@ -24,6 +24,8 @@ import {
 } from "../../components/ui";
 import { IconCheck, IconLock, IconMail } from "../../components/icons";
 import { Gate } from "../../components/Gate";
+import { Button } from "../../components/Button";
+import { TextField, TextArea } from "../../components/Field";
 
 /**
  * Who holds a console role, and what it reaches.
@@ -93,9 +95,8 @@ function AccessPage() {
         sub="Who holds a console role, and what it reaches."
         back={{ href: "/admin/members?scope=team", label: "Admin team" }}
         right={
-          <button
-            type="button"
-            className="gm-btn gm-btn--primary"
+          <Button
+            variant="primary"
             onClick={() => {
               setInviteEmail("");
               setInviteCompany("");
@@ -105,7 +106,7 @@ function AccessPage() {
           >
             <IconMail />
             Grant access
-          </button>
+          </Button>
         }
       />
 
@@ -225,9 +226,8 @@ function AccessPage() {
                   </div>
 
                   <div className="gm-person-foot">
-                    <button
-                      type="button"
-                      className="gm-btn gm-btn--sm gm-btn--primary"
+                    <Button
+                      variant="primary"
                       onClick={() => {
                         setScoping(p);
                         setScopeRole(p.role);
@@ -235,17 +235,15 @@ function AccessPage() {
                       }}
                     >
                       Scope
-                    </button>
-                    <button
-                      type="button"
-                      className="gm-btn gm-btn--sm"
+                    </Button>
+                    <Button
                       onClick={() => {
                         setRevoking(p);
                         setTeamWhy("");
                       }}
                     >
                       Revoke
-                    </button>
+                    </Button>
                   </div>
                 </article>
               ))}
@@ -288,9 +286,9 @@ function AccessPage() {
                       </td>
                       <td className="gm-actions">
                         <div className="gm-row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                          <button
-                            type="button"
-                            className="gm-btn gm-btn--sm gm-btn--primary"
+                          <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => {
                               setScoping(p);
                               setScopeRole(p.role);
@@ -298,17 +296,16 @@ function AccessPage() {
                             }}
                           >
                             Scope
-                          </button>
-                          <button
-                            type="button"
-                            className="gm-btn gm-btn--sm"
+                          </Button>
+                          <Button
+                            size="sm"
                             onClick={() => {
                               setRevoking(p);
                               setTeamWhy("");
                             }}
                           >
                             Revoke
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -328,9 +325,8 @@ function AccessPage() {
         sub="They need to have signed up already. The console cannot create an account, only give a role to one that exists."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={teamBusy || !inviteEmail.includes("@")}
               onClick={() =>
                 void runTeam(
@@ -341,10 +337,10 @@ function AccessPage() {
             >
               <IconMail />
               {teamBusy ? "Granting…" : "Grant access"}
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setInviting(false)}>
+            </Button>
+            <Button onClick={() => setInviting(false)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -352,9 +348,9 @@ function AccessPage() {
           <label className="gm-label" htmlFor="inv-email">
             Work email
           </label>
-          <input
+          <TextField
             id="inv-email"
-            className="gm-input gm-mono"
+            className="gm-mono"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
             placeholder="name@grailmarket.app"
@@ -379,9 +375,8 @@ function AccessPage() {
           <label className="gm-label" htmlFor="inv-co">
             Outsourcing partner
           </label>
-          <input
+          <TextField
             id="inv-co"
-            className="gm-input"
             value={inviteCompany}
             onChange={(e) => setInviteCompany(e.target.value)}
             placeholder="Leave blank for Grail Market staff"
@@ -407,9 +402,8 @@ function AccessPage() {
         sub="Scope follows the role, so this moves the role. Single pages cannot be handed out on their own."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={
                 !scoping || teamBusy || teamWhy.trim().length < 6 || scopeRole === scoping.role
               }
@@ -424,10 +418,10 @@ function AccessPage() {
             >
               <IconCheck />
               Apply
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setScoping(null)}>
+            </Button>
+            <Button onClick={() => setScoping(null)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -464,9 +458,8 @@ function AccessPage() {
               <label className="gm-label" htmlFor="sc-why">
                 Why
               </label>
-              <textarea
+              <TextArea
                 id="sc-why"
-                className="gm-textarea"
                 value={teamWhy}
                 onChange={(e) => setTeamWhy(e.target.value)}
                 placeholder="A promotion, a handover, a contract change."
@@ -484,9 +477,8 @@ function AccessPage() {
         sub="Sessions end immediately and every scope is withdrawn."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={teamBusy || teamWhy.trim().length < 6}
               onClick={() => {
                 if (!revoking) return;
@@ -502,10 +494,10 @@ function AccessPage() {
             >
               <IconLock />
               Revoke access
-            </button>
-            <button type="button" className="gm-btn" onClick={() => setRevoking(null)}>
+            </Button>
+            <Button onClick={() => setRevoking(null)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -520,9 +512,8 @@ function AccessPage() {
               <label className="gm-label" htmlFor="rv-why">
                 Reason
               </label>
-              <textarea
+              <TextArea
                 id="rv-why"
-                className="gm-textarea"
                 value={teamWhy}
                 onChange={(e) => setTeamWhy(e.target.value)}
                 placeholder="Left the company, contract ended, security concern."

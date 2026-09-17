@@ -35,6 +35,7 @@ import {
   IconSearch,
 } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button, buttonClass } from "../components/Button";
 import { exportCsv } from "../lib/csv";
 
 /**
@@ -334,10 +335,10 @@ function ListingsPage() {
                 },
               ]}
             />
-            <button type="button" className="gm-btn gm-btn--primary" onClick={exportRows}>
+            <Button type="button" variant="primary" onClick={exportRows}>
               <IconDownload />
               Export
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -392,7 +393,7 @@ function ListingsPage() {
                           {l.seller.handle} · {l.seller.reviews} reviews
                         </span>
                         <Link
-                          className="gm-btn gm-btn--sm gm-btn--primary gm-spacer"
+                          className={buttonClass({ variant: "primary", className: "gm-spacer" })}
                           href={`/admin/listings/${l.id}`}
                         >
                           <IconEye />
@@ -516,25 +517,29 @@ function ListingsPage() {
                         <td className="gm-rowend">
                           <div className="gm-rowact">
                             {l.status === "live" ? (
-                              <button
+                              <Button
                                 type="button"
-                                className="gm-btn gm-btn--sm gm-btn--icon gm-btn--danger gm-btn--withdraw"
+                                size="sm"
+                                icon
+                                withdraw
                                 onClick={() => setMarketStatus(l, "withdraw", "Withdrawn")}
                                 title="Withdraw"
                                 aria-label="Withdraw"
                               >
                                 <IconBan />
-                              </button>
+                              </Button>
                             ) : l.status === "paused" ? (
-                              <button
+                              <Button
                                 type="button"
-                                className="gm-btn gm-btn--sm gm-btn--icon gm-btn--gold"
+                                size="sm"
+                                icon
+                                tone="gold"
                                 onClick={() => setMarketStatus(l, "resume", "Back on the market")}
                                 title="Back on the market"
                                 aria-label="Back on the market"
                               >
                                 <IconCheck />
-                              </button>
+                              </Button>
                             ) : null}
                             {/* A link, not a button that opens a window over
                                 this table. The record is a page with an address

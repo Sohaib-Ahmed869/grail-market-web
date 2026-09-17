@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Button } from "./Button";
 
 /**
  * Renders overlays at the end of <body> instead of wherever the page happens
@@ -809,14 +810,14 @@ export function Modal({
             <h3>{title}</h3>
             {sub ? <p>{sub}</p> : null}
           </div>
-          <button
-            type="button"
-            className="gm-btn gm-btn--ghost gm-btn--icon gm-btn--sm"
+          <Button
+            variant="ghost-icon"
+            size="sm"
             onClick={onClose}
             aria-label="Close"
           >
             <IconX />
-          </button>
+          </Button>
         </header>
         <div className="gm-dialog-body" ref={body}>
           {children}
@@ -2602,10 +2603,9 @@ export function FilterMenu({
 
   return (
     <>
-      <button
-        type="button"
+      <Button
         ref={btn}
-        className={`gm-btn gm-filterbtn${open ? " is-open" : ""}`}
+        className={`gm-filterbtn${open ? " is-open" : ""}`}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -2617,7 +2617,7 @@ export function FilterMenu({
             the number of rows — which is the one thing it never was. What is
             applied is spelled out in the card's own subtitle. */}
         {applied > 0 ? <span className="gm-filterbtn-dot" aria-hidden="true" /> : null}
-      </button>
+      </Button>
 
       {open && box ? (
         <OverlayPortal>
@@ -2665,14 +2665,9 @@ export function FilterMenu({
 
             {onClear ? (
               <div className="gm-filterfoot">
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--sm gm-btn--ghost"
-                  disabled={applied === 0}
-                  onClick={onClear}
-                >
+                <Button size="sm" disabled={applied === 0} onClick={onClear}>
                   Clear filters
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
@@ -3045,21 +3040,27 @@ export function BlockHead({
 }: {
   title: string;
   sub?: string;
-  /** The search box, beside the heading — see `CardHead`. */
+  /** The search box or view switch — its own row, under the heading. */
   left?: ReactNode;
   right?: ReactNode;
 }) {
   return (
     <div className="gm-blockhead">
-      <h3>{title}</h3>
-      {/* `left` (the view switch, everywhere it is used) before `sub`: the
-          count it names sits on the switch's right, the same order the
-          verification queue's own tablebar puts them in — asked for after
-          the two drifted apart, the team directory reading switch-then-left
-          count against everywhere else's switch-then-right count. */}
-      {left ? <span className="gm-head-left">{left}</span> : null}
-      {sub ? <p>{sub}</p> : null}
-      {right ? <span className="gm-spacer">{right}</span> : null}
+      {/* Title and sub stacked in one column, the way `CardHead`/`PageHead`
+          both already do — a heading and the sentence under it read as one
+          unit read top to bottom, not two phrases side by side competing for
+          the same line. `right` (a primary action) stays level with the
+          title; `left` (search, a view switch) used to sit on that same
+          line too, which is what crowded a heading, a search box, a toggle
+          and a count onto one row. It gets a row of its own below instead. */}
+      <div className="gm-blockhead-top">
+        <div className="gm-blockhead-titles">
+          <h3>{title}</h3>
+          {sub ? <p>{sub}</p> : null}
+        </div>
+        {right ? <span className="gm-spacer">{right}</span> : null}
+      </div>
+      {left ? <div className="gm-blockhead-controls">{left}</div> : null}
     </div>
   );
 }

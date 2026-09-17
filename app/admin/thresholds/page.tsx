@@ -23,6 +23,8 @@ import {
 } from "../components/ui";
 import { IconAlert, IconBan, IconCard, IconCheck, IconKey, IconRefresh } from "../components/icons";
 import { Gate } from "../components/Gate";
+import { Button } from "../components/Button";
+import { TextField } from "../components/Field";
 import "../thresholds.css";
 
 /** What a setting falls back to when nothing is stored and nothing is typed.
@@ -222,25 +224,19 @@ function ThresholdsPage() {
         sub="Where a submission goes the moment a seller files it, and what it must carry to get there."
         right={
           <>
-            <button
-              type="button"
-              className="gm-btn"
-              disabled={!changes || saving}
-              onClick={() => setDirty({})}
-            >
+            <Button disabled={!changes || saving} onClick={() => setDirty({})}>
               <IconRefresh />
               Discard {changes > 0 ? changes : ""}
-            </button>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            </Button>
+            <Button
+              variant="primary"
               disabled={!changes || saving || !canEdit}
               onClick={save}
               title={canEdit ? undefined : "Your role cannot change settings."}
             >
               <IconCheck />
               {saving ? "Saving…" : changes > 0 ? `Save ${changes}` : "Save changes"}
-            </button>
+            </Button>
           </>
         }
       />
@@ -270,13 +266,9 @@ function ThresholdsPage() {
               sub="Enforced before it reaches the queue"
               right={
                 canEdit ? (
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary gm-btn--sm"
-                    onClick={() => setEditingCarry(true)}
-                  >
+                  <Button variant="primary" onClick={() => setEditingCarry(true)}>
                     Edit requirements
-                  </button>
+                  </Button>
                 ) : null
               }
             />
@@ -324,13 +316,9 @@ function ThresholdsPage() {
               sub="Continuous, non-overlapping amount ranges."
               right={
                 canEdit ? (
-                  <button
-                    type="button"
-                    className="gm-btn gm-btn--primary gm-btn--sm"
-                    onClick={() => setEditingTiers(true)}
-                  >
+                  <Button variant="primary" onClick={() => setEditingTiers(true)}>
                     Edit thresholds
-                  </button>
+                  </Button>
                 ) : null
               }
             />
@@ -353,10 +341,10 @@ function ThresholdsPage() {
         title="Edit thresholds"
         sub="Changes here join the rest of the page's unsaved changes — Save still commits them."
         footer={
-          <button type="button" className="gm-btn gm-btn--primary" onClick={() => setEditingTiers(false)}>
+          <Button variant="primary" onClick={() => setEditingTiers(false)}>
             <IconCheck />
             Done
-          </button>
+          </Button>
         }
       >
         <div className="gm-field">
@@ -365,9 +353,9 @@ function ThresholdsPage() {
           </label>
           <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
             <span className="gm-muted">$</span>
-            <input
+            <TextField
               id="th-grail-floor"
-              className="gm-input gm-mono"
+              className="gm-mono"
               style={{ width: 140, textAlign: "right" }}
               value={grailFloor}
               onChange={(e) => setGrailFloor(e.target.value)}
@@ -387,9 +375,9 @@ function ThresholdsPage() {
           </label>
           <div className="gm-row" style={{ gap: 6, flexWrap: "nowrap" }}>
             <span className="gm-muted">$</span>
-            <input
+            <TextField
               id="th-high-floor"
-              className="gm-input gm-mono"
+              className="gm-mono"
               style={{ width: 140, textAlign: "right" }}
               value={highFloor}
               onChange={(e) => setHighFloor(e.target.value)}
@@ -410,10 +398,10 @@ function ThresholdsPage() {
         title="Edit requirements"
         sub="Changes here join the rest of the page's unsaved changes — Save still commits them."
         footer={
-          <button type="button" className="gm-btn gm-btn--primary" onClick={() => setEditingCarry(false)}>
+          <Button variant="primary" onClick={() => setEditingCarry(false)}>
             <IconCheck />
             Done
-          </button>
+          </Button>
         }
       >
         <div className="gm-field">
@@ -442,9 +430,9 @@ function ThresholdsPage() {
           <label className="gm-label" htmlFor="th-min-photos">
             Minimum photos
           </label>
-          <input
+          <TextField
             id="th-min-photos"
-            className="gm-input gm-mono"
+            className="gm-mono"
             style={{ width: 84, textAlign: "right" }}
             value={minPhotos}
             onChange={(e) => setMinPhotos(e.target.value)}

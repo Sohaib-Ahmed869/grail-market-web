@@ -32,6 +32,8 @@ import { MemberTimeline } from "../../components/MemberTimeline";
 import { ContactAttempts } from "../../components/ContactAttempts";
 import { Gate } from "../../components/Gate";
 import { useRole } from "../../components/RoleContext";
+import { Button } from "../../components/Button";
+import { TextField, TextArea } from "../../components/Field";
 import {
   Avatar,
   Badge,
@@ -87,42 +89,39 @@ type Action =
   | "reset-verification"
   | "change-plan";
 
-const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string; cls: string }> = {
+/* Every action here commits through the same primary button — `cls` used to
+   restate "gm-btn--primary" on each entry, which the Button component's own
+   default variant already says once. */
+const ACTION_COPY: Record<Action, { title: string; sub: string; cta: string }> = {
   revoke: {
     title: "Revoke marketplace access",
     sub: "The member is signed out everywhere and cannot buy, sell or bid.",
     cta: "Revoke access",
-    cls: "gm-btn--primary",
   },
   restrict: {
     title: "Restrict this member",
     sub: "Selling and listing are paused. Buying and browsing continue.",
     cta: "Apply restriction",
-    cls: "gm-btn--primary",
   },
   reinstate: {
     title: "Reinstate this member",
     sub: "Full access is returned. The strike record stays on file.",
     cta: "Reinstate",
-    cls: "gm-btn--primary",
   },
   "reset-verification": {
     title: "Reset verification",
     sub: "Their ID check starts again. They cannot buy or sell until it passes.",
     cta: "Reset verification",
-    cls: "gm-btn--primary",
   },
   "change-plan": {
     title: "Change plan",
     sub: "Moves the subscription. Billing is corrected on the next cycle, not retroactively.",
     cta: "Apply plan change",
-    cls: "gm-btn--primary",
   },
   suspend: {
     title: "Suspend this admin account",
     sub: "Their sessions end and every scope is withdrawn until a lead restores it.",
     cta: "Suspend account",
-    cls: "gm-btn--primary",
   },
 };
 
@@ -177,16 +176,16 @@ function RevokeInfoButton() {
 
   return (
     <div className="gm-revokeinfo" ref={wrap}>
-      <button
-        type="button"
-        className="gm-btn gm-btn--ghost gm-btn--icon gm-btn--sm"
+      <Button
+        variant="ghost-icon"
+        size="sm"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title="What revoking does"
         aria-label="What revoking does"
       >
         <IconInfo />
-      </button>
+      </Button>
       {open ? (
         <div className="gm-revokeinfo-pop" role="note">
           <ul className="gm-sm gm-muted">
@@ -438,18 +437,13 @@ function MemberRecord() {
       sub={action ? ACTION_COPY[action].sub : ""}
       footer={
         <>
-          <button
-            type="button"
-            className={`gm-btn ${action ? ACTION_COPY[action].cls : ""}`}
-            disabled={!canCommit}
-            onClick={commit}
-          >
+          <Button variant="primary" disabled={!canCommit} onClick={commit}>
             {action === "revoke" || action === "suspend" ? <IconBan /> : <IconCheck />}
             {action ? ACTION_COPY[action].cta : ""}
-          </button>
-          <button type="button" className="gm-btn" onClick={() => setAction(null)}>
+          </Button>
+          <Button onClick={() => setAction(null)}>
             Cancel
-          </button>
+          </Button>
         </>
       }
     >
@@ -551,9 +545,8 @@ function MemberRecord() {
             <label className="gm-label" htmlFor="gm-reason-note">
               Detail for the record
             </label>
-            <textarea
+            <TextArea
               id="gm-reason-note"
-              className="gm-textarea"
               value={reasonNote}
               onChange={(e) => setReasonNote(e.target.value)}
               placeholder={
@@ -640,9 +633,8 @@ function MemberRecord() {
             <div className="gm-rec-actions">
               <MemberBadge status={staff.status} />
               {staff.status === "active" ? (
-                <button
-                  type="button"
-                  className="gm-btn gm-btn--primary"
+                <Button
+                  variant="primary"
                   onClick={() => startAction("suspend")}
                   /* The one thing the old action bar's note said, kept as a
                      tooltip now there is only one button to hang it on rather
@@ -651,7 +643,7 @@ function MemberRecord() {
                 >
                   <IconBan />
                   Suspend account
-                </button>
+                </Button>
               ) : (
                 <span className="gm-sm gm-muted">This account is already restricted.</span>
               )}
@@ -737,43 +729,31 @@ function MemberRecord() {
     <div className="gm-rec-actions">
       {live.status === "revoked" ? (
         <>
-          <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
+          <Button onClick={() => setComposing(true)}>
             <IconMail />
             Message
-          </button>
-          <button
-            type="button"
-            className="gm-btn gm-btn--primary"
-            onClick={() => startAction("reinstate")}
-          >
+          </Button>
+          <Button variant="primary" onClick={() => startAction("reinstate")}>
             <IconCheck />
             Reinstate access
-          </button>
+          </Button>
         </>
       ) : (
         <>
-          <button type="button" className="gm-btn" onClick={() => setComposing(true)}>
+          <Button onClick={() => setComposing(true)}>
             <IconMail />
             Message
-          </button>
+          </Button>
           {live.status !== "restricted" ? (
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
-              onClick={() => startAction("restrict")}
-            >
+            <Button variant="primary" onClick={() => startAction("restrict")}>
               <IconLock />
               Restrict selling
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
-              onClick={() => startAction("reinstate")}
-            >
+            <Button variant="primary" onClick={() => startAction("reinstate")}>
               <IconCheck />
               Lift restriction
-            </button>
+            </Button>
           )}
           <RowMenu
             label={`More actions for ${live.handle}`}
@@ -1062,8 +1042,7 @@ function MemberRecord() {
               )}
             </div>
             <div className="gm-row" style={{ gap: 8, flexWrap: "nowrap" }}>
-              <input
-                className="gm-input"
+              <TextField
                 style={{ flex: "1 1 auto", minWidth: 0 }}
                 value={tagDraft}
                 list="gm-taglist"
@@ -1082,15 +1061,10 @@ function MemberRecord() {
                   <option key={t} value={t} />
                 ))}
               </datalist>
-              <button
-                type="button"
-                className="gm-btn gm-btn--sm gm-btn--primary"
-                onClick={addTag}
-                disabled={!tagDraft.trim()}
-              >
+              <Button variant="primary" size="sm" onClick={addTag} disabled={!tagDraft.trim()}>
                 <IconTag />
                 Add
-              </button>
+              </Button>
             </div>
           </CardBody>
         </Card>
@@ -1101,23 +1075,17 @@ function MemberRecord() {
             <label className="gm-label" htmlFor="gm-note">
               Add a staff note
             </label>
-            <textarea
+            <TextArea
               id="gm-note"
-              className="gm-textarea"
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
               placeholder="What the next person reading this record needs to know."
             />
             <div className="gm-row" style={{ gap: 8, marginTop: 7 }}>
-              <button
-                type="button"
-                className="gm-btn gm-btn--sm gm-btn--primary"
-                onClick={addNote}
-                disabled={noteDraft.trim().length < 4}
-              >
+              <Button variant="primary" size="sm" onClick={addNote} disabled={noteDraft.trim().length < 4}>
                 <IconNote />
                 File note
-              </button>
+              </Button>
               <span className="gm-spacer gm-tiny gm-dim">
                 Internal only · stamped {me?.name ?? "you"}
               </span>
@@ -1138,22 +1106,17 @@ function MemberRecord() {
         sub="Push and in-app. Nothing here reaches a member who has opted out of that channel."
         footer={
           <>
-            <button
-              type="button"
-              className="gm-btn gm-btn--primary"
+            <Button
+              variant="primary"
               disabled={sending || !subject.trim() || body.trim().length < 10}
               onClick={sendToMember}
             >
               <IconSend />
               {sending ? "Sending…" : "Send"}
-            </button>
-            <button
-              type="button"
-              className="gm-btn"
-              onClick={() => setComposing(false)}
-            >
+            </Button>
+            <Button onClick={() => setComposing(false)}>
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -1166,9 +1129,8 @@ function MemberRecord() {
           <label className="gm-label" htmlFor="gm-one-subject">
             Subject
           </label>
-          <input
+          <TextField
             id="gm-one-subject"
-            className="gm-input"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="What this is about"
@@ -1178,9 +1140,8 @@ function MemberRecord() {
           <label className="gm-label" htmlFor="gm-one-body">
             Message
           </label>
-          <textarea
+          <TextArea
             id="gm-one-body"
-            className="gm-textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Written to them by name, from the console, under your account."

@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { ApiError, sessionActive, signIn } from "../lib/api";
 import { IconEye, IconEyeOff } from "../components/icons";
+import { Button } from "../components/Button";
+import { TextField } from "../components/Field";
 import "../login.css";
 
 /**
@@ -748,10 +750,9 @@ function LoginPage() {
           <label className="gm-label" htmlFor="gm-login-email">
             Your email
           </label>
-          <input
+          <TextField
             id="gm-login-email"
             ref={emailBox}
-            className="gm-input"
             type="email"
             autoComplete="username"
             spellCheck={false}
@@ -766,9 +767,8 @@ function LoginPage() {
             Password
           </label>
           <div className="gm-login-secret">
-            <input
+            <TextField
               id="gm-login-password"
-              className="gm-input"
               type={reveal ? "text" : "password"}
               autoComplete="current-password"
               placeholder="enter your password"
@@ -802,13 +802,15 @@ function LoginPage() {
           </p>
         ) : null}
 
-        <button
+        <Button
           type="submit"
-          className="gm-btn gm-btn--primary gm-btn--block gm-login-go"
+          variant="primary"
+          block
+          className="gm-login-go"
           disabled={busy || !email.trim() || !password}
         >
           {busy ? "Signing in…" : "Log in"}
-        </button>
+        </Button>
 
           <p className="gm-login-foot">
             Console accounts are created by an owner — ask them for access.
